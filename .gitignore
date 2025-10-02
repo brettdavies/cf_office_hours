@@ -1,4 +1,5 @@
 # AI/IDE Configuration
+.vscode/
 .cursor/
 .claude/
 .ignore/
@@ -12,12 +13,12 @@ node_modules/
 
 # Testing
 coverage/
+.nyc_output/
 
-# Production
+# Production builds
 dist/
 build/
 .wrangler/
-.dev.vars
 
 # Environment variables
 .env
@@ -27,23 +28,38 @@ build/
 .env.production.local
 
 # Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
 
-# Editor directories and files
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
 .vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 !.vscode/extensions.json
-.idea
+.idea/
 *.swp
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
-
 # Temporary files
+tmp/
+temp/
 *.tmp
-*.temp
+
+# Generated files
+packages/shared/src/types/api.generated.ts
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/

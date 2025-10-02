@@ -323,6 +323,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      - name: Run Database Migrations
+        run: |
+          npx supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          npx supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -481,24 +488,94 @@ npx wrangler deploy --env production
 git checkout main
 ```
 
-**Database Rollback:**
+**Database Migration Rollback:**
+
+Supabase doesn't support automatic migration rollback. Follow this manual rollback process:
+
+**Emergency Rollback Process:**
 
 ```bash
-# Supabase doesn't support automatic migration rollback
-# Manual rollback process:
+# 1. Identify Failed Migration
+npx supabase migration list
+# Look for the last applied migration
 
-# 1. Create rollback migration
+# 2. Create Rollback Migration
 npx supabase migration new rollback_booking_changes
 
-# 2. Write reverse SQL
-# DROP TABLE IF EXISTS new_table;
-# ALTER TABLE existing_table DROP COLUMN new_column;
+# 3. Write Reverse SQL (in the new migration file)
+# Example: If original migration added a column, remove it:
+# ALTER TABLE bookings DROP COLUMN IF EXISTS new_column CASCADE;
+# 
+# Example: If original migration created a table, drop it:
+# DROP TABLE IF EXISTS new_table CASCADE;
 
-# 3. Apply rollback
-npx supabase db push --project-ref production-project-ref
+# 4. Test Rollback Locally First
+npx supabase db push  # Apply to local database
+npm run test          # Verify application still works
 
-# 4. Verify
+# 5. Apply Rollback to Production
+npx supabase link --project-ref production-project-ref
+npx supabase db push
+
+# 6. Verify Application Health
 curl https://api.officehours.youcanjustdothings.io/health
+npm run test:e2e  # Run critical path tests
+```
+
+**Restore from Backup (if rollback fails):**
+
+```bash
+# Access Supabase Dashboard → Database → Backups
+# 1. Identify last known good backup (before failed migration)
+# 2. Click "Restore" on the backup
+# 3. Confirm restoration (creates new database instance)
+# 4. Update connection strings in application
+# 5. Verify data integrity
+```
+
+**Migration Rollback Safety Checklist:**
+
+Before rolling back a migration:
+- [ ] Database backup created (automatic daily backup confirmed)
+- [ ] Rollback migration script tested locally
+- [ ] Data validation queries prepared
+- [ ] Rollback window communicated to users (if downtime expected)
+- [ ] Application code compatible with rolled-back schema
+- [ ] All dependent services notified (frontend, workers)
+- [ ] Post-rollback verification plan documented
+
+After rollback:
+- [ ] Application health check passed
+- [ ] Critical user flows tested (booking, authentication)
+- [ ] No data loss confirmed via validation queries
+- [ ] Error logs reviewed for post-rollback issues
+- [ ] Incident postmortem documented
+
+**Common Rollback Scenarios:**
+
+1. **Column Addition Gone Wrong:**
+   ```sql
+   -- Rollback migration:
+   ALTER TABLE users DROP COLUMN IF EXISTS problematic_column CASCADE;
+   ```
+
+2. **Index Creation Causing Performance Issues:**
+   ```sql
+   -- Rollback migration:
+   DROP INDEX IF EXISTS idx_problematic_index;
+   ```
+
+3. **RLS Policy Breaking Access:**
+   ```sql
+   -- Rollback migration:
+   DROP POLICY IF EXISTS "problematic_policy" ON tablename;
+   -- Recreate original policy
+   ```
+
+**Related Documentation:**
+- Section 10.1.6: Database Migration workflow
+- INFRA-DB-003: Migration Tooling Setup
+- Section 11.5: CI/CD Pipeline (includes migration automation)
 ```
 
 ## 11.9 Disaster Recovery
@@ -506,201 +583,3 @@ curl https://api.officehours.youcanjustdothings.io/health
 **Backup Strategy:**
 
 ```bash
-# Database backups (Supabase automatic)
-# - Daily automatic backups
-# - 7-day retention on free tier
-# - Point-in-Time Recovery available on Pro tier
-
-# Manual backup before major changes
-npx supabase db dump -f backup-$(date +%Y%m%d).sql
-
-# Store backups securely
-# - S3 bucket
-# - GitHub repository (private, for schema only)
-# - Local encrypted storage
-```
-
-**Recovery Procedures:**
-
-1. **Database Failure:**
-   ```bash
-   # Restore from latest backup
-   npx supabase db restore backup-latest.sql --project-ref production-project-ref
-   ```
-
-2. **Worker Outage:**
-   ```bash
-   # Rollback to last working version
-   npx wrangler rollback --env production
-   
-   # Or redeploy current version
-   npx wrangler deploy --env production
-   ```
-
-3. **Pages Outage:**
-   ```bash
-   # Rollback to previous deployment
-   npx wrangler pages deployment rollback <last-working-deployment-id>
-   ```
-
-4. **Complete Platform Failure:**
-   - Cloudflare status: https://www.cloudflarestatus.com/
-   - Supabase status: https://status.supabase.com/
-   - Wait for platform recovery
-   - Verify all services after recovery
-
-## 11.10 Performance Optimization
-
-**Cloudflare Settings:**
-
-1. **Caching:**
-   ```toml
-   # wrangler.toml
-   [env.production]
-   # Cache static assets aggressively
-   [env.production.cache]
-   ttl = 3600  # 1 hour
-   ```
-
-2. **Compression:**
-   - Brotli compression enabled by default on Cloudflare
-   - Gzip fallback for older browsers
-
-3. **HTTP/3:**
-   - Enabled by default on Cloudflare
-   - Improves performance over slow connections
-
-**Database Optimization:**
-
-```sql
--- Add indexes for common queries
-CREATE INDEX idx_bookings_mentor_id ON bookings(mentor_id);
-CREATE INDEX idx_bookings_mentee_id ON bookings(mentee_id);
-CREATE INDEX idx_bookings_meeting_start ON bookings(meeting_start_time);
-CREATE INDEX idx_time_slots_mentor ON time_slots(mentor_id, start_time) WHERE NOT is_booked;
-CREATE INDEX idx_users_reputation_tier ON users(reputation_tier);
-
--- Analyze query performance
-EXPLAIN ANALYZE SELECT * FROM bookings WHERE mentor_id = 'xxx';
-```
-
-## 11.11 Security Hardening
-
-**HTTP Headers (Cloudflare Pages):**
-
-```typescript
-// apps/web/_headers (Cloudflare Pages Headers file)
-/*
-  X-Frame-Options: DENY
-  X-Content-Type-Options: nosniff
-  X-XSS-Protection: 1; mode=block
-  Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: geolocation=(), microphone=(), camera=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://api.officehours.youcanjustdothings.io;
-```
-
-**Rate Limiting:**
-
-```typescript
-// Already implemented in middleware (Section 8.4)
-// Adjust limits per route:
-app.use('/api/bookings', rateLimitMiddleware({ 
-  windowMs: 60000, 
-  maxRequests: 10 
-}));
-```
-
-**DDoS Protection:**
-
-- Cloudflare's DDoS protection enabled by default
-- Workers rate limiting provides additional protection
-- Supabase has built-in connection limits
-
-## 11.12 Cost Management
-
-**Cloudflare Free Tier Limits:**
-
-| Service | Free Tier | Usage Estimate (500 users) |
-|---------|-----------|---------------------------|
-| Workers | 100,000 requests/day | ~5,000 requests/day ✅ |
-| Pages | Unlimited bandwidth | Unlimited ✅ |
-| KV Reads | 100,000/day | ~10,000/day ✅ |
-| KV Writes | 1,000/day | ~500/day ✅ |
-| Durable Objects | 1 million requests/month | ~50,000/month ✅ |
-
-**Supabase Free Tier Limits:**
-
-| Resource | Free Tier | Usage Estimate |
-|----------|-----------|----------------|
-| Database | 500 MB | ~100 MB ✅ |
-| Storage | 1 GB | ~200 MB ✅ |
-| Bandwidth | 2 GB | ~500 MB ✅ |
-| Monthly Active Users | Unlimited | 500 ✅ |
-
-**Cost Optimization Tips:**
-
-1. **Use KV for Caching:**
-   - Cache frequent queries
-   - Reduce database load
-   - Free tier sufficient for MVP
-
-2. **Optimize Images:**
-   - Use Cloudflare Image Resizing (paid)
-   - Or compress before upload
-   - Store in Supabase Storage
-
-3. **Lazy Load Resources:**
-   - Code splitting in frontend
-   - Load features on-demand
-   - Reduces bandwidth usage
-
-## 11.13 Deployment Checklist
-
-**Pre-Deployment:**
-- [ ] All tests passing
-- [ ] Code reviewed and approved
-- [ ] Database migrations tested in staging
-- [ ] Environment variables configured
-- [ ] Performance testing completed
-- [ ] Security scan passed
-- [ ] Documentation updated
-
-**Deployment:**
-- [ ] Deploy to staging first
-- [ ] Verify staging functionality
-- [ ] Run smoke tests on staging
-- [ ] Deploy to production
-- [ ] Verify production health
-- [ ] Monitor error rates
-- [ ] Check analytics dashboard
-
-**Post-Deployment:**
-- [ ] Verify all critical paths working
-- [ ] Monitor logs for errors
-- [ ] Check database performance
-- [ ] Verify email notifications
-- [ ] Test calendar integrations
-- [ ] Update status page
-- [ ] Communicate to team
-
-**Rollback Criteria:**
-- Error rate >5%
-- Response time >2s for 95th percentile
-- Critical feature broken
-- Security vulnerability discovered
-
----
-
-
-**Section 11 Complete.** This deployment architecture provides:
-- ✅ Complete deployment strategy for Cloudflare Pages and Workers
-- ✅ Environment management (development, staging, production)
-- ✅ CI/CD pipeline with GitHub Actions
-- ✅ Database migration and RLS deployment procedures
-- ✅ Monitoring, health checks, and alerting
-- ✅ Rollback and disaster recovery procedures
-- ✅ Performance optimization strategies
-- ✅ Security hardening and rate limiting
-- ✅ Cost management within free tier limits
-- ✅ Comprehensive deployment checklists
-

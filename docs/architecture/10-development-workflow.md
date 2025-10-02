@@ -4,6 +4,133 @@ This section covers the complete development workflow, from initial setup throug
 
 ## 10.1 Initial Development Setup
 
+### 10.1.0 Repository Initialization (First-Time Setup Only)
+
+**For Project Creators (one-time setup):**
+
+This section applies only to the initial repository creation. Regular developers should skip to Section 10.1.1 and use `git clone` instead.
+
+```bash
+# 1. Create repository
+mkdir cf-office-hours
+cd cf-office-hours
+git init
+
+# 2. Create base monorepo structure
+mkdir -p apps/{web,api}
+mkdir -p packages/{shared,config}
+mkdir -p docs scripts .github/workflows supabase/migrations
+
+# 3. Create root package.json
+cat > package.json << 'EOF'
+{
+  "name": "cf-office-hours",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "setup": "node scripts/setup-dev.js",
+    "dev": "npm run dev --workspaces --if-present"
+  }
+}
+EOF
+
+# 4. Add configuration files (from Section 9.10)
+# Copy .gitignore
+cat > .gitignore << 'EOF'
+node_modules/
+dist/
+.wrangler/
+.env
+.env.local
+*.log
+.DS_Store
+EOF
+
+# Copy .prettierrc
+cat > .prettierrc << 'EOF'
+{
+  "semi": true,
+  "trailingComma": "es5",
+  "singleQuote": true,
+  "printWidth": 100,
+  "tabWidth": 2
+}
+EOF
+
+# Copy .editorconfig (see Section 9.10 for full content)
+
+# 5. Create README.md
+cat > README.md << 'EOF'
+# CF Office Hours Platform
+
+Intelligent mentor-mentee matching and scheduling platform for Capital Factory.
+
+# Quick Start
+
+\`\`\`bash
+npm run setup
+npm run dev
+\`\`\`
+
+See [Development Workflow](docs/architecture.md#10-development-workflow) for complete setup instructions.
+
+# Documentation
+
+- [Product Requirements](docs/prd.md)
+- [Architecture Document](docs/architecture.md)
+- [User Guide](docs/user-guide/index.md)
+- [Coordinator Manual](docs/coordinator-manual/index.md)
+
+# Tech Stack
+
+- **Frontend:** React + Vite + Shadcn/ui
+- **Backend:** Cloudflare Workers + Hono
+- **Database:** Supabase (Postgres)
+- **Auth:** Supabase Auth
+
+# License
+
+[License Type - specify during repository setup]
+EOF
+
+# 6. Create .env.example files
+cat > apps/web/.env.example << 'EOF'
+VITE_API_BASE_URL=http://localhost:8787/v1
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+EOF
+
+cat > apps/api/.env.example << 'EOF'
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+EOF
+
+# 7. Initial commit
+git add .
+git commit -m "chore: initial project setup with monorepo structure"
+
+# 8. Create remote repository and push
+git remote add origin https://github.com/capital-factory/cf-office-hours.git
+git branch -M main
+git push -u origin main
+```
+
+**Initial Commit Checklist:**
+- ✅ Repository structure created per Section 9.1
+- ✅ Root package.json with workspaces configured
+- ✅ Base configuration files (.gitignore, .prettierrc, .editorconfig)
+- ✅ Documentation files (README.md)
+- ✅ Environment templates (.env.example files)
+- ✅ Directory structure for apps, packages, docs
+
+**Note:** This is a one-time setup documented for completeness. Regular developers will use the standard `git clone` workflow described in Section 10.1.1.
+
+---
+
+### 10.1.1 Regular Developer Setup
+
 **Prerequisites:**
 - Node.js 20.x or higher
 - npm 10.x or higher
@@ -64,6 +191,124 @@ npm run lint
 # Run tests
 npm run test
 ```
+
+### 10.1.6 Database Migrations
+
+**Migration Strategy:**
+
+The CF Office Hours platform uses Supabase CLI for database schema version control. All schema changes must be implemented as migrations stored in `supabase/migrations/`.
+
+**Running Migrations Locally:**
+
+```bash
+# Apply all pending migrations
+npx supabase db push
+
+# Create new migration
+npx supabase migration new add_user_tags_table
+
+# View migration status
+npx supabase migration list
+
+# Reset database (DEV ONLY - destructive)
+npx supabase db reset
+```
+
+**Migration File Structure:**
+
+```
+supabase/
+├── migrations/
+│   ├── 20250102000000_initial_schema.sql
+│   ├── 20250103000000_full_schema.sql
+│   ├── 20250104000000_add_calendar_integrations.sql
+│   ├── 20250105000000_add_reputation_fields.sql
+│   └── ...
+├── seed.sql                # Development seed data
+└── config.toml             # Supabase project configuration
+```
+
+**Migration Naming Convention:**
+
+- **Format:** `{YYYYMMDDHHMMSS}_{description}.sql`
+- **Description:** snake_case, descriptive (e.g., `add_reputation_tiers`, `update_bookings_constraints`)
+- **Example:** `20250102143022_add_audit_log_table.sql`
+
+**Migration Best Practices:**
+
+1. **Always test locally before committing**
+   ```bash
+   npx supabase db push
+   npm run test  # Verify nothing broke
+   ```
+
+2. **Include both UP and DOWN migration paths**
+   ```sql
+   -- Migration UP
+   CREATE TABLE bookings (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     ...
+   );
+   
+   -- Migration DOWN (in comments for Supabase)
+   -- DROP TABLE IF EXISTS bookings CASCADE;
+   ```
+
+3. **Make migrations atomic** - Single logical change per file
+   - ✅ Good: `add_user_tags_table.sql` creates user_tags table only
+   - ❌ Bad: `update_schema.sql` adds 5 unrelated tables
+
+4. **Never edit committed migrations** - Create new migration to fix issues
+   - If a migration has been applied to staging/production, create a corrective migration instead of editing the original
+
+5. **Document breaking changes** in migration file comments
+   ```sql
+   -- BREAKING CHANGE: This migration removes the `legacy_user_id` column
+   -- from the bookings table. Applications must use `airtable_record_id` instead.
+   ```
+
+**Applying Migrations to Environments:**
+
+```bash
+# Local development
+npx supabase db push
+
+# Staging (via CI/CD or manual)
+npx supabase link --project-ref staging-project-ref
+npx supabase db push
+
+# Production (via CI/CD)
+# See Section 11.5 for deployment pipeline
+```
+
+**Migration Testing:**
+
+Before committing a migration, verify:
+1. Migration applies cleanly to fresh database
+2. Migration is idempotent (can run multiple times safely)
+3. All existing tests still pass
+4. RLS policies still work as expected
+5. Sample queries return expected results
+
+**Troubleshooting Migrations:**
+
+```bash
+# Check for syntax errors
+npx supabase db lint
+
+# View migration SQL without applying
+cat supabase/migrations/20250102000000_add_table.sql
+
+# Manually apply SQL via Supabase Studio (if CLI fails)
+# Dashboard → SQL Editor → Paste migration → Run
+```
+
+**Related Documentation:**
+- INFRA-DB-003: Database Migration Tooling Setup (Epic 1, Story 21)
+- Section 11.8: Database Migration Rollback procedures
+- Section 4.1: Database Schema Design
+
+---
 
 ## 10.2 Local Development
 

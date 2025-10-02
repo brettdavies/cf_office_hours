@@ -274,5 +274,8 @@
 - **FE28**: Tag auto-approval rules for certain users or scenarios
 - **FE29**: Meeting duration tracking for Microsoft Teams meetings (MVP only supports Google Meet)
 - **FE30**: Multiple calendar provider connections per user (MVP restricts to one provider)
+- **FE31**: Interactive dashboard charts with drill-down (Recharts + historical data)
+- **FE32**: Email magic link approval for tier overrides (one-click approval from email)
+- **FE33**: Automated tag approval workflow with real-time toast notifications
 
 ---
