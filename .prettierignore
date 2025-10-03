@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.wrangler/
+
+# Generated files
+packages/shared/src/types/api.generated.ts
+
+# Test reports
+test-results/
+playwright-report/
+coverage/
+
+# Package manager files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+

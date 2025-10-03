@@ -1,0 +1,43 @@
+{
+  "name": "cf-office-hours",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capital Factory Office Hours Platform - Monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup-dev.js",
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "build": "npm run build --workspaces --if-present",
+    "build:web": "npm run build --workspace=apps/web",
+    "build:api": "npm run build --workspace=apps/api",
+    "test": "npm run test --workspaces --if-present",
+    "test:web": "npm run test --workspace=apps/web",
+    "test:api": "npm run test --workspace=apps/api",
+    "test:e2e": "npm run test:e2e --workspace=apps/web",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "tsc --noEmit",
+    "generate:api-types": "node scripts/generate-api-types.js",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/api/.wrangler"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.4",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
+
