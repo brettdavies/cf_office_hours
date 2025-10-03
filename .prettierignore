@@ -6,6 +6,9 @@ dist/
 build/
 .wrangler/
 
+# Documentation
+docs/
+
 # Generated files
 packages/shared/src/types/api.generated.ts
 

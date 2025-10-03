@@ -69,6 +69,7 @@ npm run type-check       # TypeScript type checking
 ## Environment Setup
 
 1. Copy environment templates:
+
    ```bash
    cp apps/web/.env.example apps/web/.env
    cp apps/api/.env.example apps/api/.env
@@ -84,4 +85,3 @@ npm run type-check       # TypeScript type checking
 ## License
 
 [License Type - To be determined]
-

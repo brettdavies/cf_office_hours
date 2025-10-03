@@ -2,7 +2,7 @@
 
 /**
  * Development Setup Script
- * 
+ *
  * This script automates the initial development environment setup:
  * - Copies .env.example files to .env for each app
  * - Installs all dependencies
@@ -66,4 +66,3 @@ function main() {
 }
 
 main();
-

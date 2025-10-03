@@ -13,8 +13,5 @@
     "types": ["vite/client", "@testing-library/jest-dom"]
   },
   "include": ["src"],
-  "references": [
-    { "path": "../../packages/shared" }
-  ]
+  "references": [{ "path": "../../packages/shared" }]
 }
-

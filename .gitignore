@@ -19,6 +19,7 @@ coverage/
 dist/
 build/
 .wrangler/
+*.tsbuildinfo
 
 # Environment variables
 .env

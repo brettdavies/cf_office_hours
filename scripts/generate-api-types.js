@@ -2,7 +2,7 @@
 
 /**
  * API Type Generation Script
- * 
+ *
  * This script generates TypeScript types from the OpenAPI specification
  * exposed by the backend API. It uses openapi-typescript to create
  * type-safe API client types for the frontend.
@@ -16,20 +16,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const API_URL = process.env.API_URL || 'http://localhost:8787';
-const OUTPUT_FILE = path.join(
-  __dirname,
-  '../packages/shared/src/types/api.generated.ts'
-);
+const OUTPUT_FILE = path.join(__dirname, '../packages/shared/src/types/api.generated.ts');
 
 async function generateTypes() {
   console.log('🔄 Fetching OpenAPI spec from:', `${API_URL}/api/openapi.json`);
 
   try {
     // Generate TypeScript types from OpenAPI spec
-    execSync(
-      `npx openapi-typescript ${API_URL}/api/openapi.json -o ${OUTPUT_FILE}`,
-      { stdio: 'inherit' }
-    );
+    execSync(`npx openapi-typescript ${API_URL}/api/openapi.json -o ${OUTPUT_FILE}`, {
+      stdio: 'inherit',
+    });
 
     console.log('✅ API types generated successfully!');
     console.log('📄 Output:', OUTPUT_FILE);
@@ -44,4 +40,3 @@ async function generateTypes() {
 }
 
 generateTypes();
-
