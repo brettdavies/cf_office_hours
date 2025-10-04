@@ -1154,8 +1154,10 @@ export function ProfileForm() {
       // Mentor-specific
       expertise_description: user?.profile.expertise_description || '',
       ideal_mentee_description: user?.profile.ideal_mentee_description || '',
-      // Mentee-specific
-      pitch_vc_url: user?.profile.pitch_vc_url || '',
+      // URLs (stored in entity_urls table)
+      website_url: user?.urls?.website || '',
+      linkedin_url: user?.urls?.linkedin || '',
+      pitch_vc_url: user?.urls?.pitch_vc || '',
     },
   });
 
@@ -1179,8 +1181,11 @@ export function ProfileForm() {
           </>
         )}
 
+        {/* URL fields (all roles) */}
+        <FormField name="website_url" label="Website" />
+        <FormField name="linkedin_url" label="LinkedIn Profile" />
         {user?.role === 'mentee' && (
-          <FormField name="pitch_vc_url" />
+          <FormField name="pitch_vc_url" label="Pitch.vc Profile" />
         )}
 
         <Button type="submit">Save Changes</Button>

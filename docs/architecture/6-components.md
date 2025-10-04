@@ -279,7 +279,7 @@ function TagBadge({
       variant="outline" 
       className={`${categoryColors[tag.category]} ${editable ? 'pr-1' : ''}`}
     >
-      {tag.tag_value.replace(/_/g, ' ')}
+      {tag.display_name}
       {editable && onRemove && (
         <Button
           variant="ghost"
@@ -1018,7 +1018,7 @@ import { memo, useMemo } from 'react';
 
 export const UserCard = memo(function UserCard({ user, onViewProfile }: UserCardProps) {
   const formattedTags = useMemo(
-    () => user.tags.map(tag => tag.tag_value.replace(/_/g, ' ')),
+    () => user.tags.map(tag => tag.display_name),
     [user.tags]
   );
   

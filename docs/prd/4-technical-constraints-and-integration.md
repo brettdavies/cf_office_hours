@@ -9,15 +9,24 @@
 - id (uuid, pk)
 - airtable_record_id (text, unique) -- Stable ID from Airtable
 - email (text, unique, not null)
-- role (enum: mentee, mentor, coordinator)
+- role (enum: mentee, mentor, coordinator) -- SINGLE ROLE PER USER IN MVP
 - reputation_score (numeric, default 3.5)
 - reputation_tier (enum: bronze, silver, gold, platinum)
 - is_active (boolean, default true)
 - last_activity_at (timestamptz)
 - created_at (timestamptz, not null)
+- created_by (uuid, fk -> users, null)
 - updated_at (timestamptz, not null)
+- updated_by (uuid, fk -> users, null)
 - deleted_at (timestamptz, null)
+- deleted_by (uuid, fk -> users, null)
 ```
+
+**MVP Role Constraint:**
+- Users can have **only ONE role** per account in the MVP
+- No dual mentor+mentee roles supported in initial release
+- If a user needs both roles, they must use separate accounts (separate email addresses)
+- Future enhancement: Support multiple roles per user via many-to-many `user_roles` table
 
 **user_profiles (extended, changeable schema)**
 ```sql
@@ -25,11 +34,9 @@
 - user_id (uuid, fk -> users, unique)
 - name (text)
 - title (text)
-- company (text)
+- portfolio_company_id (uuid, fk -> portfolio_companies, null) -- For employees
+- company (text) -- Free-text for mentors (mutually exclusive with portfolio_company_id)
 - phone (text)
-- linkedin_url (text)
-- website_url (text)
-- pitch_vc_url (text)
 - expertise_description (text) -- mentor only
 - ideal_mentee_description (text) -- mentor only
 - bio (text)
@@ -37,46 +44,134 @@
 - avatar_source_type (enum: upload, url, null)
 - avatar_metadata (jsonb) -- Stores cropping settings: {zoom, pan_x, pan_y, rotation}
 - reminder_preference (enum: one_hour, twenty_four_hours, both, default: one_hour)
-- additional_links (jsonb) -- Flexible array for future links
 - metadata (jsonb) -- Catch-all for experimentation
 - created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
 - updated_at (timestamptz)
+- updated_by (uuid, fk -> users, null)
 ```
+
+**Note:**
+- **Mentees** (employees of CF portfolio companies): Use `portfolio_company_id` (FK to `portfolio_companies` table)
+- **Mentors** (external experts/advisors): Use `company` (free-text field for their organization)
+- These fields are **mutually exclusive** based on user role
+- **Airtable Sync Dependency**: Portfolio companies are synced from Airtable **before** mentee users (Airtable enforces company must exist before user can be assigned to it)
+- URLs for users are stored in the `user_urls` table
 
 **Rationale for Split:**
 - Core user data (auth, reputation, role) rarely changes → minimal migrations
 - Profile fields can be added/modified without touching core table
-- JSONB columns (`additional_links`, `metadata`) provide escape hatch for rapid iteration
+- JSONB column (`metadata`) provides escape hatch for rapid iteration
 - Better separation of concerns: identity vs. profile information
 
 ---
 
-**user_tags**
+**portfolio_companies**
 ```sql
 - id (uuid, pk)
-- user_id (uuid, fk -> users)
-- category (enum: industry, technology, stage)
-- tag_value (text, not null)
-- is_confirmed (boolean, default false)
-- source (enum: airtable, user, auto_generated, admin)
-- confirmed_at (timestamptz, null)
-- confirmed_by (uuid, fk -> users, null) -- User who confirmed or system
+- name (text, not null, unique)
+- description (text)
+- location (text)
+- customer_segment (text)
+- product_type (text)
+- sales_model (text)
+- stage (text)
+- website (text, null) -- Company website URL
+- pitch_vc_url (text, null) -- Pitch/VC profile URL
+- linkedin_url (text, null) -- LinkedIn company page URL
 - created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
 - updated_at (timestamptz)
-- deleted_at (timestamptz, null)
-- UNIQUE(user_id, category, tag_value) WHERE deleted_at IS NULL
+- updated_by (uuid, fk -> users, null)
 ```
 
-**Tag Confirmation Logic:**
-- **Airtable source** (source=airtable): Auto-populated from Airtable user records, `is_confirmed=true`, `confirmed_at` set to creation time, `confirmed_by=null` (system)
-- **Admin source** (source=admin): Coordinator adds tag to user profile, `is_confirmed=true` immediately, `confirmed_by` set to coordinator user_id
-- **User source** (source=user): User manually adds tag from taxonomy, `is_confirmed=false` initially, becomes true when user confirms, `confirmed_by` set to self
-- **Auto-generated source** (source=auto_generated): System suggests tags based on profile/activity, `is_confirmed=false` until user confirms, `confirmed_by` set to user when confirmed
+**Note:** Industries, technologies, and other taxonomies are stored in the `entity_tags` table. URLs are stored directly in dedicated columns.
 
-**Tag Confirmation Workflow:**
-- Auto-generated tags: `is_confirmed = false, confirmed_by = null`
-- User confirms: `is_confirmed = true, confirmed_at = NOW(), confirmed_by = user_id`
-- Airtable tags: `is_confirmed = true, source = airtable, confirmed_by = null` (system-confirmed)
+**Data Source:** Portfolio companies are created and maintained exclusively in Airtable. All portfolio company data is **read-only** in this application. Data may be processed and enriched (e.g., with tags via `entity_tags`), but no portfolio company records are ever created, updated, or deleted outside of the Airtable sync process. This is the same pattern used for user/mentor data sourced from Airtable.
+
+---
+
+**user_urls**
+```sql
+- id (uuid, pk)
+- user_id (uuid, fk -> users, not null)
+- url_type (enum: website, pitch_vc, linkedin, other, not null)
+- url (text, not null)
+- created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
+- updated_at (timestamptz)
+- updated_by (uuid, fk -> users, null)
+- UNIQUE(user_id, url_type)
+```
+
+**Note:** User URLs are stored in a dedicated table with direct foreign key to users. Portfolio company URLs are stored directly in the `portfolio_companies` table columns (website, pitch_vc_url, linkedin_url).
+
+---
+
+**taxonomy**
+```sql
+- id (uuid, pk)
+- airtable_record_id (text, unique, nullable) -- null for user-submitted/sample data tags
+- category (enum: industry, technology, stage, not null)
+- value (text, not null) -- Normalized value (lowercase, no spaces/special chars) for deduplication
+- display_name (text, not null) -- Original unprocessed value shown to users
+- parent_id (uuid, fk -> taxonomy, nullable) -- For hierarchical taxonomies
+- is_approved (boolean, default false, not null)
+- source (enum: airtable, user, auto_generated, admin, sample_data, not null)
+- requested_by (uuid, fk -> users, nullable) -- Only for source=user
+- approved_by (uuid, fk -> users, nullable)
+- requested_at (timestamptz, nullable)
+- approved_at (timestamptz, nullable)
+- created_at (timestamptz)
+- updated_at (timestamptz)
+- UNIQUE(category, value)
+```
+
+**Value Normalization:**
+- `value` field: Normalized for deduplication (lowercase, spaces replaced with underscores, special characters removed)
+- `display_name` field: Original unprocessed value shown to users in UI
+- Example: `display_name="Cloud Software & Infrastructure"` → `value="cloud_software_infrastructure"`
+
+**Tag Approval Logic:**
+- **Airtable source** (source=airtable): Auto-populated from Airtable, `is_approved=true`, `approved_at` set to creation time, `approved_by=null` (system), `airtable_record_id` populated
+- **Sample data source** (source=sample_data): Loaded from CSV seed files for development/testing, `is_approved` distribution: 90% true, 10% false (simulates pending approval workflow), `approved_at` set to creation time for approved entries, `approved_by=null`, `airtable_record_id=null`
+- **Admin source** (source=admin): Coordinator creates tag via admin UI, `is_approved=true` immediately, `approved_by` set to coordinator user_id, `airtable_record_id=null`
+- **User source** (source=user): User submits new tag request when selecting non-existent tag, `is_approved=false` initially, `requested_by` set to user_id, `requested_at=NOW()`, becomes approved when coordinator approves
+- **Auto-generated source** (source=auto_generated): System suggests tags based on profile/activity (future enhancement), `is_approved=false` until coordinator approves, `airtable_record_id=null`
+
+**Tag Approval Workflow:**
+- User-submitted/auto-generated tags: `is_approved = false, requested_by = user_id, requested_at = NOW()`
+- Coordinator approves: `is_approved = true, approved_at = NOW(), approved_by = coordinator_id`
+- Airtable/admin/sample data tags: `is_approved = true` immediately (trusted sources)
+
+**Taxonomy Hierarchy:**
+- `parent_id` enables hierarchical relationships (e.g., "Edge Computing" → parent: "Cloud Software & Infrastructure")
+- Supports multi-level hierarchies for both industries and technologies
+- Loaded from sample data CSVs during development (see Section 4.8)
+
+
+---
+
+**entity_tags**
+```sql
+- id (uuid, pk)
+- entity_type (enum: user, portfolio_company, not null)
+- entity_id (uuid, not null)
+- taxonomy_id (uuid, fk -> taxonomy, not null)
+- created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
+- updated_at (timestamptz)
+- updated_by (uuid, fk -> users, null)
+- deleted_at (timestamptz, null)
+- deleted_by (uuid, fk -> users, null)
+- UNIQUE(entity_type, entity_id, taxonomy_id) WHERE deleted_at IS NULL
+```
+
+**Entity Tag Pattern:**
+- Polymorphic relationship: `entity_type` + `entity_id` references either `users` or `portfolio_companies`
+- `taxonomy_id` references the tag definition in the `taxonomy` table
+- Supports tagging both users (mentors/mentees) and portfolio companies
+- Pure junction table with FK to taxonomy for tag definitions
 
 ---
 
@@ -129,7 +224,9 @@
 - meeting_type (enum: in_person_preset, in_person_custom, online)
 - location (text)
 - google_meet_link (text)
-- status (enum: confirmed, completed, canceled)
+- status (enum: pending, confirmed, completed, canceled, expired)
+- confirmed_by (uuid, fk -> users, null) -- Who accepted/confirmed the booking (mentor or coordinator)
+- confirmed_at (timestamptz, null) -- When booking was accepted/confirmed
 - canceled_by (uuid, fk -> users, null)
 - canceled_at (timestamptz, null)
 - cancellation_reason (enum: emergency, reschedule, other, null)
@@ -140,6 +237,15 @@
 - updated_at (timestamptz)
 - deleted_at (timestamptz, null)
 ```
+
+**Booking Request Flow & Responsiveness Tracking:**
+- **Initial State**: `status='pending'` when booking is created by mentee
+- **7-Day Auto-Expiration**: Background job (daily cron) updates WHERE `status='pending' AND created_at < NOW() - INTERVAL '7 days'` to `status='expired'`
+- **Confirmation**: When mentor or coordinator accepts, set `status='confirmed'`, `confirmed_by=user_id`, `confirmed_at=NOW()`
+- **Responsiveness Calculation**: Response time = `confirmed_at - created_at` (only if not confirmed by coordinator)
+  - Coordinator confirmations: Response time left as `NULL` (does not affect reputation)
+  - Average response time across all bookings determines responsiveness factor in reputation calculation
+- **Timeout Cleanup**: Expired bookings free up time slots automatically (`time_slots.is_booked=false`)
 
 ---
 
@@ -194,7 +300,9 @@
 - **one_time** (MVP default): Approved exception allows mentee to book this specific mentor once within 1 week of approval
 - **Expiration Logic:**
   - On creation (mentee request): `status='pending'`, `expires_at = created_at + 7 days`
-  - Pending requests expire after 7 days if not reviewed (system shows as expired in coordinator dashboard, can still be manually reviewed)
+  - **Auto-Rejection**: Background job (daily cron) auto-updates pending requests WHERE `expires_at < NOW()` to `status='rejected'`, `reviewed_by = NULL`, `review_notes = 'Auto-rejected: request expired after 7 days'`
+  - **Truly Locked**: Once auto-rejected, requests cannot be approved by coordinators
+  - **Resubmission**: Mentee can always create a new tier override request for the same mentor
   - On approval: `status='approved'`, `expires_at = reviewed_at + 7 days` (7-day window starts from approval, not request creation)
   - On mentor-initiated requests: `status='approved'` immediately upon creation, `expires_at = created_at + 7 days`, `reviewed_by = mentor_id`
   - Approved requests are valid until `expires_at` OR `used_at` is populated (whichever comes first)
@@ -243,33 +351,6 @@
 - is_active (boolean, default true)
 - created_at (timestamptz)
 ```
-
----
-
-**taxonomy** (CF Taxonomy - synced from Airtable)
-```sql
-- id (uuid, pk)
-- airtable_record_id (text, unique, nullable - null for user-submitted tags)
-- category (enum: industry, technology, stage)
-- value (text, not null)
-- display_name (text, not null)
-- source (enum: airtable, admin, user_request, not null)
-- is_approved (boolean, default false, not null)
-- requested_by (uuid, fk -> users, nullable - only for source=user_request)
-- approved_by (uuid, fk -> users, nullable)
-- requested_at (timestamptz, nullable)
-- approved_at (timestamptz, nullable)
-- created_at (timestamptz)
-- updated_at (timestamptz)
-- UNIQUE(category, value)
-```
-
-**Taxonomy Sources & Approval Workflow:**
-- **Airtable** (source=airtable): Synced via webhooks, always approved (is_approved=true), airtable_record_id populated
-- **Admin-Created** (source=admin): Created by coordinators via admin UI, always approved (is_approved=true)
-- **User-Requested** (source=user_request): Submitted by mentors/mentees when selecting non-existent tag, requires coordinator approval (is_approved=false initially), requested_by/requested_at populated
-- Used for tag auto-generation and validation
-- Coordinators approve user-requested tags via admin UI, setting is_approved=true, approved_by, approved_at
 
 ---
 
@@ -323,6 +404,11 @@
 - sent_at (timestamptz)
 - created_at (timestamptz)
 ```
+
+**Coordinator Broadcast Handling:**
+- When notifications need to be sent to **all coordinators** (e.g., `tag_approval_pending`, `tier_override_requested`), the system creates **multiple `notification_log` entries** (one per coordinator)
+- Implementation queries `users` table WHERE `role='coordinator'` and creates one notification record per coordinator
+- No notification groups or distribution lists in MVP
 
 **Retention Policy:**
 - MVP: Unlimited retention
@@ -1227,7 +1313,7 @@ Uses Supabase built-in email service. All email attempts logged per NFR27.
 1. **Booking Confirmation** (`sendBookingConfirmation`)
    - To: Both mentor and mentee
    - Data: Meeting date/time, timezone, location/Google Meet link, attendee info, meeting goal, materials
-   - CTA: "Add to Calendar" (.ics attachment)
+   - CTA: "Add to Calendar"
 
 2. **Meeting Reminder** (`sendReminder`)
    - To: Both mentor and mentee
@@ -1390,6 +1476,38 @@ zone_name = "cf-oh.com"
 
 ### Seed Data Requirements
 
+**Sample Data CSVs (Development/Testing Only):**
+
+The application includes comprehensive sample data CSVs for local development and testing. These files are located in `docs/sample_data/` and are **never used in production**.
+
+**Taxonomy CSVs:**
+- `industries.csv` - Industry taxonomy with hierarchical relationships
+- `technologies.csv` - Technology taxonomy with hierarchical relationships
+- Format: `Name,Parent` (parent field optional, references another taxonomy entry for hierarchy)
+- Example hierarchical entry: `Edge Computing,Cloud Software & Infrastructure`
+- Loaded into `taxonomy` table with:
+  - `source='sample_data'`
+  - `is_approved` distribution: 90% true, 10% false (simulates pending approval workflow)
+  - `value` field: Normalized (lowercase, underscores, no special chars)
+  - `display_name` field: Original CSV value preserved
+- Used to populate tag selection dropdowns during development
+
+**User/Mentor Data CSVs:**
+- `mentors.csv` - Sample mentor profiles with expertise and industry/technology tags
+- Format: `Full Name,Bio,Industry Expertise,Technology Expertise`
+- Expertise columns contain comma-separated lists matching taxonomy values
+- Loaded into `users`, `user_profiles`, and linked via `entity_tags` to taxonomy entries
+- Used to simulate Airtable-synced mentor data during development
+
+**Portfolio Company CSV:**
+- `portfolio_companies.csv` - Sample portfolio companies with metadata
+- Format: `Name,Description,Website,Pitch,Location,Industry,Technology,Stage,Customer Segment,Product Type,Sales Model`
+- Loaded into `portfolio_companies` table with tags linked via `entity_tags`, URLs stored directly in company columns (website, pitch_vc_url, linkedin_url)
+- Simulates Airtable-synced company data for mentee/employee associations
+
+**Production Data Flow:**
+In production, taxonomy and user data are synced from Airtable (see Section 4.10). Sample CSVs are only for development/testing environments where Airtable sync is not configured.
+
 **Location Presets (`locations` table):**
 - Seed script: `seeds/locations.sql` or `seeds/locations.ts`
 - Initial CF office locations (if applicable)
@@ -1399,11 +1517,7 @@ zone_name = "cf-oh.com"
 - Example in-person locations:
   - "CF Office - [City Name]"
   - "Coffee Shop - TBD"
-
-**Taxonomy (`taxonomy` table):**
-- Synced from Airtable on first webhook trigger
-- No manual seeding required (handled by Airtable sync)
-- For development/testing: Optional mock taxonomy seed file
+- **Production-safe:** These seeds can be run in production
 
 **Admin Users:**
 - First coordinator user creation process:
@@ -1412,7 +1526,7 @@ zone_name = "cf-oh.com"
   - Document in deployment README
 
 **Test Data (Development/Staging Only):**
-- Mock users with various roles and reputation tiers
+- Mock users with various roles and reputation tiers (from mentors.csv)
 - Sample availability blocks
 - Sample bookings (past, upcoming, canceled)
 - Sample ratings and reputation history
@@ -1420,17 +1534,55 @@ zone_name = "cf-oh.com"
 ### Seed Script Location
 
 ```
-/seeds
-  ├── locations.sql          # Location presets
-  ├── dev-users.sql          # Development users (not for prod)
-  ├── dev-bookings.sql       # Sample bookings (not for prod)
-  └── README.md              # Seeding instructions
+/docs/sample_data              # CSV source data (dev/testing only)
+  ├── industries.csv           # Industry taxonomy with hierarchy
+  ├── technologies.csv         # Technology taxonomy with hierarchy
+  ├── mentors.csv              # Sample mentor profiles
+  └── portfolio_companies.csv  # Sample portfolio companies
+
+/seeds                         # Database seed scripts
+  ├── locations.sql            # Location presets (PRODUCTION-SAFE)
+  ├── sample-taxonomy.ts       # Load taxonomy from CSVs (dev only)
+  ├── sample-users.ts          # Load users from mentors.csv (dev only)
+  ├── sample-companies.ts      # Load companies from CSV (dev only)
+  ├── dev-bookings.sql         # Sample bookings (dev only)
+  └── README.md                # Seeding instructions
 ```
+
+### CSV Loading Process
+
+**Normalization Rules:**
+1. **Taxonomy values** (industries, technologies):
+   - `display_name` = Original CSV value (e.g., "Cloud Software & Infrastructure")
+   - `name` = Normalized value (e.g., "cloud_software_infrastructure")
+   - Normalization: lowercase, replace spaces/special chars with underscores
+
+2. **User tags** (from mentors.csv):
+   - Parse comma-separated expertise columns
+   - Match against normalized taxonomy names
+   - Create `entity_tags` entries linking to taxonomy IDs
+
+3. **Hierarchy** (parent-child relationships):
+   - Load parent entries first (where Parent column is empty)
+   - Then load child entries, linking via `parent_id` FK
+
+**Approval Distribution:**
+- 90% of sample taxonomy entries: `is_approved=true`, `approved_at=NOW()`
+- 10% of sample taxonomy entries: `is_approved=false` (simulates pending coordinator approval)
+- Allows testing of tag approval workflow in development
 
 ### Execution
 
 - Development: Auto-run on `npm run dev:setup` or similar
-- Production: Manual execution of production-safe seeds only (locations)
+  - Loads all CSV data via TypeScript seed scripts
+  - Idempotent (safe to run multiple times)
+  - Skips if Airtable sync is configured (via env var check)
+
+- Production: Manual execution of production-safe seeds only
+  - `locations.sql` only
+  - **DO NOT** run sample data scripts in production
+  - Rely on Airtable sync for taxonomy, users, and portfolio companies
+
 - Document in deployment guide which seeds are safe for production
 
 ---
@@ -1493,12 +1645,12 @@ Airtable serves as the **source of truth** for user data and CF taxonomy. The we
 | Role | `users` | `role` | Yes | enum | Values: `mentee`, `mentor`, `coordinator` |
 | Name | `user_profiles` | `name` | No | text | Display name |
 | Title | `user_profiles` | `title` | No | text | Job title |
-| Company | `user_profiles` | `company` | No | text | Company/organization name |
+| Company | `user_profiles` | `company` | No | text | Company/organization name (mentors only) |
 | Phone | `user_profiles` | `phone` | No | text | Contact phone number |
-| LinkedIn URL | `user_profiles` | `linkedin_url` | No | text | LinkedIn profile URL |
-| Tags (Industries) | `user_tags` | Multiple rows | No | multi-select | Creates one `user_tags` row per selected industry, `category='industry'`, `source='airtable'`, `is_confirmed=true` |
-| Tags (Technologies) | `user_tags` | Multiple rows | No | multi-select | Creates one `user_tags` row per selected technology, `category='technology'`, `source='airtable'`, `is_confirmed=true` |
-| Tags (Stage) | `user_tags` | Multiple rows | No | multi-select | Creates one `user_tags` row per selected stage, `category='stage'`, `source='airtable'`, `is_confirmed=true` |
+| LinkedIn URL | `user_urls` | `url` | No | text | LinkedIn profile URL stored in `user_urls` table with `url_type='linkedin'` |
+| Tags (Industries) | `entity_tags` via `taxonomy` | Multiple rows | No | multi-select | Creates one `entity_tags` row per selected industry via `taxonomy_id`, `entity_type='user'`, tags sourced from `taxonomy` table |
+| Tags (Technologies) | `entity_tags` via `taxonomy` | Multiple rows | No | multi-select | Creates one `entity_tags` row per selected technology via `taxonomy_id`, `entity_type='user'`, tags sourced from `taxonomy` table |
+| Tags (Stage) | `entity_tags` via `taxonomy` | Multiple rows | No | multi-select | Creates one `entity_tags` row per selected stage via `taxonomy_id`, `entity_type='user'`, tags sourced from `taxonomy` table |
 
 **Unrecognized Columns:**
 - Logged as warnings (per NFR32)
@@ -1572,8 +1724,9 @@ CF maintains taxonomy in three separate Airtable tables (or tabs): **Industries*
    - Handles burst changes gracefully (per Section 1.7)
 
 3. **Process Records:**
-   - **Users:** Upsert into `users`, `user_profiles`, `user_tags` tables
+   - **Users:** Upsert into `users`, `user_profiles`, `entity_tags` tables (via `taxonomy` lookups for tag assignment)
    - **Taxonomy:** Upsert into `taxonomy` table
+   - **URLs:** Upsert LinkedIn URLs into `user_urls` table with `url_type='linkedin'`
    - Use `airtable_record_id` as stable join key
 
 4. **Handle Deletions:**

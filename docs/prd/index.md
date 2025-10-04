@@ -107,6 +107,7 @@
     - [4.8 Data Seeding & Initial Setup](./4-technical-constraints-and-integration.md#48-data-seeding-initial-setup)
       - [Seed Data Requirements](./4-technical-constraints-and-integration.md#seed-data-requirements)
       - [Seed Script Location](./4-technical-constraints-and-integration.md#seed-script-location)
+      - [CSV Loading Process](./4-technical-constraints-and-integration.md#csv-loading-process)
       - [Execution](./4-technical-constraints-and-integration.md#execution)
     - [4.9 Monitoring & Observability (Minimal MVP)](./4-technical-constraints-and-integration.md#49-monitoring-observability-minimal-mvp)
       - [Built-in Tools Only](./4-technical-constraints-and-integration.md#built-in-tools-only)

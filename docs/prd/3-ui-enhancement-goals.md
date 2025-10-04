@@ -355,14 +355,14 @@ useEffect(() => {
 **Tag Management Tab:**
 - Dedicated section in coordinator dashboard
 - **Pending Approvals** view:
-  - Table/list of new tags awaiting approval (from taxonomy table where `is_active = false`)
+  - Table/list of new tags awaiting approval (from taxonomy table where `is_approved = false`)
   - Columns: Tag category (industry/technology/stage), Tag value, Requested by, Date requested, Source
   - Row actions: Approve (button), Reject (button), View usage
   - Toast notification if user is currently online when new tag is submitted
 - **Active Tags** view:
   - Searchable/filterable list of all approved tags
   - Columns: Category, Value, Display name, Usage count, Date added
-  - Actions: Edit display name, Deactivate
+  - Actions: Edit display name
 - **Rejected Tags** view (optional):
   - Archive of rejected tags with rejection reasons
 

@@ -784,12 +784,26 @@ export class BookingService extends BaseService {
 
     if (meetingType === 'online') {
       // Generate Google Meet link (FR62)
-      googleMeetLink = await this.calendarService.generateMeetLink(
-        mentor.id,
-        timeSlot.start_time,
-        timeSlot.end_time,
-        `Meeting with ${mentee.profile.name}`
-      );
+      // Priority: mentee > mentor (mentee's account creates the Meet room)
+      const menteeCalendar = await this.calendarRepo.findByUserId(menteeId);
+      const mentorCalendar = await this.calendarRepo.findByUserId(mentor.id);
+
+      let meetCreatorId = null;
+      if (menteeCalendar?.provider === 'google' && menteeCalendar?.is_connected) {
+        meetCreatorId = menteeId; // Mentee has Google Calendar (priority)
+      } else if (mentorCalendar?.provider === 'google' && mentorCalendar?.is_connected) {
+        meetCreatorId = mentor.id; // Fallback to mentor's Google Calendar
+      }
+
+      if (meetCreatorId) {
+        googleMeetLink = await this.calendarService.generateMeetLink(
+          meetCreatorId,
+          timeSlot.start_time,
+          timeSlot.end_time,
+          `Meeting with ${mentee.profile.name}`
+        );
+      }
+      // If neither has Google Calendar, googleMeetLink remains null
     } else if (meetingType === 'in_person_preset') {
       location = await this.getLocationPreset(availabilityBlock.location_preset_id);
     }
@@ -1692,6 +1706,12 @@ export class GoogleCalendarProvider implements ICalendarProvider {
     endTime: Date,
     summary: string
   ): Promise<string> {
+    // IMPORTANT: userId should be determined using this priority:
+    // 1. Mentee's Google account (if connected)
+    // 2. Mentor's Google account (if connected)
+    // 3. null if neither has Google Calendar
+    // Caller is responsible for determining which user to pass
+
     const auth = await this.getOAuth2Client(userId);
     const calendar = google.calendar({ version: 'v3', auth });
 
@@ -1979,12 +1999,21 @@ export class AirtableService extends BaseService {
       title: fields.Title,
       company: fields.Company,
       phone: fields.Phone,
-      linkedin_url: fields.LinkedIn,
       bio: fields.Bio,
     };
 
     // Upsert user
     const user = await this.userRepo.upsertByAirtableId(airtableRecordId, userData, profileData);
+
+    // Sync LinkedIn URL to user_urls table
+    if (fields.LinkedIn) {
+      await this.urlRepo.upsertUserUrl({
+        user_id: user.id,
+        url: fields.LinkedIn,
+        url_type: 'linkedin',
+        label: null,
+      });
+    }
 
     // Sync tags (from Airtable multi-select fields)
     const industries = fields.Industries || [];
@@ -1992,9 +2021,9 @@ export class AirtableService extends BaseService {
     const stage = fields.Stage ? [fields.Stage] : [];
 
     await Promise.all([
-      this.tagRepo.syncUserTags(user.id, 'industry', industries, 'airtable'),
-      this.tagRepo.syncUserTags(user.id, 'technology', technologies, 'airtable'),
-      this.tagRepo.syncUserTags(user.id, 'stage', stage, 'airtable'),
+      this.tagRepo.syncEntityTags(user.id, 'user', 'industry', industries, 'airtable'),
+      this.tagRepo.syncEntityTags(user.id, 'user', 'technology', technologies, 'airtable'),
+      this.tagRepo.syncEntityTags(user.id, 'user', 'stage', stage, 'airtable'),
     ]);
   }
 
@@ -2576,6 +2605,452 @@ jobs:
           workingDirectory: 'apps/api'
           command: deploy --env production
 ```
+
+## 8.7 Background Jobs & Cron Tasks
+
+This section documents all automated background jobs that run on scheduled intervals to maintain data integrity, generate time slots, expire pending requests, and identify dormant users.
+
+### 8.7.1 Overview
+
+**Background Job Strategy:**
+The application uses **Supabase `pg_cron` extension** to execute scheduled tasks directly in the database. This approach is optimal because:
+- All jobs are database-heavy operations (minimal business logic)
+- Reduces cross-service calls (no Worker → Supabase hop)
+- Better transaction guarantees and atomicity
+- Simpler architecture (no separate Worker cron handlers needed)
+- Native Postgres stored procedures for complex operations
+
+**Architecture Decision:**
+While Cloudflare Workers support cron triggers, database-centric jobs belong in the database layer. Workers cron triggers are reserved for external API calls (e.g., batch email notifications via SendGrid if needed in future).
+
+**Implementation Pattern:**
+```sql
+-- Enable pg_cron extension (Supabase Dashboard: Database → Extensions)
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Schedule jobs via SQL
+SELECT cron.schedule(
+  'generate-time-slots',      -- job name
+  '0 */4 * * *',              -- cron schedule (every 4 hours)
+  $$ SELECT generate_time_slots(); $$
+);
+```
+
+**Job Management:**
+All cron jobs are managed via SQL migrations in `apps/api/supabase/migrations/`. Each job consists of:
+1. **Stored Procedure** (e.g., `generate_time_slots()`) - contains job logic
+2. **Cron Schedule** - registered via `cron.schedule()`
+3. **Logging** - jobs write to `cron_job_logs` table for monitoring
+
+### 8.7.2 Job #1: Time Slot Generation
+
+**Purpose:** Generate future time slots from availability blocks to maintain a rolling 30-day booking window (FR77-FR82)
+
+**Schedule:** Every 4 hours (`0 */4 * * *`)
+
+**Stored Procedure:**
+```sql
+-- Migration: 0010_create_time_slot_generation_job.sql
+
+CREATE OR REPLACE FUNCTION generate_time_slots()
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_block RECORD;
+  v_slot_count INTEGER := 0;
+  v_start_time TIMESTAMP := clock_timestamp();
+  v_end_date TIMESTAMP := NOW() + INTERVAL '30 days';
+BEGIN
+  -- Loop through all active availability blocks
+  FOR v_block IN
+    SELECT * FROM availability_blocks
+    WHERE deleted_at IS NULL
+    AND is_active = TRUE
+  LOOP
+    -- Generate slots for next 30 days
+    INSERT INTO time_slots (
+      id, availability_block_id, mentor_id, start_time, end_time,
+      is_booked, created_at, updated_at
+    )
+    SELECT
+      gen_random_uuid(),
+      v_block.id,
+      v_block.mentor_id,
+      slot_start,
+      slot_start + (v_block.slot_duration_minutes || ' minutes')::INTERVAL,
+      FALSE,
+      NOW(),
+      NOW()
+    FROM generate_slot_instances(v_block.id, v_end_date) AS slot_start
+    ON CONFLICT (availability_block_id, start_time) DO NOTHING;
+
+    GET DIAGNOSTICS v_slot_count = v_slot_count + ROW_COUNT;
+  END LOOP;
+
+  -- Log job execution
+  INSERT INTO cron_job_logs (job_name, status, message, duration_ms, created_at)
+  VALUES (
+    'generate_time_slots',
+    'success',
+    format('Generated %s slots', v_slot_count),
+    EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000,
+    NOW()
+  );
+
+  RETURN jsonb_build_object(
+    'slots_generated', v_slot_count,
+    'duration_ms', EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000
+  );
+END;
+$$;
+
+-- Schedule the job
+SELECT cron.schedule(
+  'generate-time-slots',
+  '0 */4 * * *',  -- Every 4 hours
+  $$ SELECT generate_time_slots(); $$
+);
+```
+
+**Helper Function (Slot Instance Calculation):**
+```sql
+CREATE OR REPLACE FUNCTION generate_slot_instances(
+  p_block_id UUID,
+  p_end_date TIMESTAMP
+)
+RETURNS SETOF TIMESTAMP
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_block availability_blocks;
+  v_current_date DATE;
+  v_slot_time TIMESTAMP;
+BEGIN
+  SELECT * INTO v_block FROM availability_blocks WHERE id = p_block_id;
+
+  -- Handle different recurrence patterns
+  CASE v_block.recurrence_pattern
+    WHEN 'one_time' THEN
+      -- Single date
+      v_current_date := v_block.start_date::DATE;
+      WHILE make_timestamp_from_date_and_time(v_current_date, v_block.start_time) < make_timestamp_from_date_and_time(v_current_date, v_block.end_time) LOOP
+        RETURN NEXT make_timestamp_from_date_and_time(v_current_date, v_block.start_time);
+        v_block.start_time := v_block.start_time + (v_block.slot_duration_minutes + v_block.buffer_minutes || ' minutes')::INTERVAL;
+      END LOOP;
+
+    WHEN 'weekly' THEN
+      -- Weekly recurrence
+      v_current_date := NOW()::DATE;
+      WHILE v_current_date <= p_end_date::DATE LOOP
+        IF EXTRACT(DOW FROM v_current_date) = v_block.recurrence_day_of_week THEN
+          -- Generate all slots for this day
+          v_slot_time := make_timestamp_from_date_and_time(v_current_date, v_block.start_time);
+          WHILE v_slot_time < make_timestamp_from_date_and_time(v_current_date, v_block.end_time) LOOP
+            RETURN NEXT v_slot_time;
+            v_slot_time := v_slot_time + (v_block.slot_duration_minutes + v_block.buffer_minutes || ' minutes')::INTERVAL;
+          END LOOP;
+        END IF;
+        v_current_date := v_current_date + 1;
+      END LOOP;
+
+    -- Similar logic for 'monthly' and 'quarterly'
+  END CASE;
+END;
+$$;
+```
+
+### 8.7.3 Job #2: Pending Booking Expiration
+
+**Purpose:** Auto-expire booking requests not confirmed within 7 days and free up time slots (FR38)
+
+**Schedule:** Daily at midnight UTC (`0 0 * * *`)
+
+**Stored Procedure:**
+```sql
+-- Migration: 0011_create_booking_expiration_job.sql
+
+CREATE OR REPLACE FUNCTION expire_pending_bookings()
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_expired_count INTEGER;
+  v_start_time TIMESTAMP := clock_timestamp();
+BEGIN
+  -- Update pending bookings older than 7 days to expired
+  WITH expired_bookings AS (
+    UPDATE bookings
+    SET status = 'expired',
+        updated_at = NOW()
+    WHERE status = 'pending'
+    AND created_at < NOW() - INTERVAL '7 days'
+    RETURNING id, time_slot_id, mentee_id, meeting_start_time
+  ),
+  freed_slots AS (
+    UPDATE time_slots
+    SET is_booked = FALSE,
+        booking_id = NULL,
+        updated_at = NOW()
+    WHERE id IN (SELECT time_slot_id FROM expired_bookings)
+    RETURNING id
+  ),
+  notifications AS (
+    INSERT INTO notification_log (
+      user_id, type, title, message, delivery_channel, metadata, created_at
+    )
+    SELECT
+      mentee_id,
+      'booking_expired',
+      'Booking Request Expired',
+      'Your booking request for ' || to_char(meeting_start_time, 'FMDay, Mon DD at HH:MI AM') ||
+      ' has expired. The mentor did not confirm within 7 days.',
+      'both',
+      jsonb_build_object('booking_id', id),
+      NOW()
+    FROM expired_bookings
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO v_expired_count FROM expired_bookings;
+
+  -- Log job execution
+  INSERT INTO cron_job_logs (job_name, status, message, duration_ms, created_at)
+  VALUES (
+    'expire_pending_bookings',
+    'success',
+    format('Expired %s bookings', v_expired_count),
+    EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000,
+    NOW()
+  );
+
+  RETURN jsonb_build_object(
+    'expired_count', v_expired_count,
+    'duration_ms', EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000
+  );
+END;
+$$;
+
+-- Schedule the job
+SELECT cron.schedule(
+  'expire-pending-bookings',
+  '0 0 * * *',  -- Daily at midnight UTC
+  $$ SELECT expire_pending_bookings(); $$
+);
+```
+
+### 8.7.4 Job #3: Tier Override Auto-Rejection
+
+**Purpose:** Auto-reject tier override requests not reviewed within 7 days (FR54)
+
+**Schedule:** Daily at midnight UTC (`0 0 * * *`)
+
+**Stored Procedure:**
+```sql
+-- Migration: 0012_create_tier_override_rejection_job.sql
+
+CREATE OR REPLACE FUNCTION reject_expired_tier_overrides()
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_rejected_count INTEGER;
+  v_start_time TIMESTAMP := clock_timestamp();
+BEGIN
+  -- Auto-reject pending override requests past expiration
+  WITH rejected_requests AS (
+    UPDATE tier_override_requests
+    SET status = 'rejected',
+        review_notes = 'Auto-rejected: request expired after 7 days',
+        updated_at = NOW()
+    WHERE status = 'pending'
+    AND expires_at < NOW()
+    RETURNING id, mentee_id, mentor_id
+  ),
+  notifications AS (
+    INSERT INTO notification_log (
+      user_id, type, title, message, delivery_channel, metadata, created_at
+    )
+    SELECT
+      mentee_id,
+      'tier_override_rejected',
+      'Tier Override Request Expired',
+      'Your request to book a higher-tier mentor has expired after 7 days without coordinator review. You may submit a new request if still needed.',
+      'both',
+      jsonb_build_object('tier_override_request_id', id, 'mentor_id', mentor_id),
+      NOW()
+    FROM rejected_requests
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO v_rejected_count FROM rejected_requests;
+
+  -- Log job execution
+  INSERT INTO cron_job_logs (job_name, status, message, duration_ms, created_at)
+  VALUES (
+    'reject_expired_tier_overrides',
+    'success',
+    format('Auto-rejected %s tier override requests', v_rejected_count),
+    EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000,
+    NOW()
+  );
+
+  RETURN jsonb_build_object(
+    'rejected_count', v_rejected_count,
+    'duration_ms', EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000
+  );
+END;
+$$;
+
+-- Schedule the job
+SELECT cron.schedule(
+  'reject-expired-tier-overrides',
+  '0 0 * * *',  -- Daily at midnight UTC
+  $$ SELECT reject_expired_tier_overrides(); $$
+);
+```
+
+### 8.7.5 Job #4: Dormant User Detection
+
+**Purpose:** Mark users as dormant if no activity in 90 days (affects matching/recommendations per FR57, FR33)
+
+**Schedule:** Daily at midnight UTC (`0 0 * * *`)
+
+**Stored Procedure:**
+```sql
+-- Migration: 0013_create_dormant_user_detection_job.sql
+
+CREATE OR REPLACE FUNCTION mark_dormant_users()
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_dormant_count INTEGER;
+  v_start_time TIMESTAMP := clock_timestamp();
+BEGIN
+  -- Mark users with no activity in 90+ days as dormant
+  WITH dormant_users AS (
+    UPDATE users
+    SET metadata = jsonb_set(
+          COALESCE(metadata, '{}'::jsonb),
+          '{is_dormant}',
+          'true'::jsonb
+        ),
+        updated_at = NOW()
+    WHERE last_activity_at < NOW() - INTERVAL '90 days'
+    AND (metadata->>'is_dormant')::boolean IS DISTINCT FROM TRUE
+    RETURNING id, email, role, last_activity_at
+  )
+  SELECT COUNT(*) INTO v_dormant_count FROM dormant_users;
+
+  -- Log job execution
+  INSERT INTO cron_job_logs (job_name, status, message, duration_ms, created_at)
+  VALUES (
+    'mark_dormant_users',
+    'success',
+    format('Marked %s users as dormant', v_dormant_count),
+    EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000,
+    NOW()
+  );
+
+  RETURN jsonb_build_object(
+    'dormant_count', v_dormant_count,
+    'duration_ms', EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000
+  );
+END;
+$$;
+
+-- Schedule the job
+SELECT cron.schedule(
+  'mark-dormant-users',
+  '0 0 * * *',  -- Daily at midnight UTC
+  $$ SELECT mark_dormant_users(); $$
+);
+```
+
+### 8.7.6 Cron Job Logging Table
+
+**Schema:**
+```sql
+-- Migration: 0009_create_cron_job_logs_table.sql
+
+CREATE TABLE cron_job_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_name TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('success', 'failure')),
+  message TEXT,
+  duration_ms NUMERIC,
+  error_details JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cron_job_logs_job_name_created_at
+  ON cron_job_logs (job_name, created_at DESC);
+```
+
+**Querying Job History:**
+```sql
+-- View recent job executions
+SELECT job_name, status, message, duration_ms, created_at
+FROM cron_job_logs
+WHERE created_at > NOW() - INTERVAL '7 days'
+ORDER BY created_at DESC;
+
+-- Check for failures
+SELECT job_name, COUNT(*) as failure_count, MAX(created_at) as last_failure
+FROM cron_job_logs
+WHERE status = 'failure'
+AND created_at > NOW() - INTERVAL '24 hours'
+GROUP BY job_name;
+```
+
+### 8.7.7 Job Management & Monitoring
+
+**Viewing Active Jobs:**
+```sql
+SELECT * FROM cron.job;
+```
+
+**Unscheduling a Job:**
+```sql
+SELECT cron.unschedule('generate-time-slots');
+```
+
+**Manual Execution (Testing):**
+```sql
+SELECT generate_time_slots();
+SELECT expire_pending_bookings();
+SELECT reject_expired_tier_overrides();
+SELECT mark_dormant_users();
+```
+
+**Monitoring Dashboard Query:**
+```sql
+-- Coordinator dashboard: Recent cron job activity
+SELECT
+  job_name,
+  COUNT(*) as executions,
+  COUNT(*) FILTER (WHERE status = 'success') as successes,
+  COUNT(*) FILTER (WHERE status = 'failure') as failures,
+  AVG(duration_ms) as avg_duration_ms,
+  MAX(created_at) as last_run
+FROM cron_job_logs
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY job_name
+ORDER BY job_name;
+```
+
+### 8.7.8 Cron Job Summary Table
+
+| Job Name | Schedule | Purpose | PRD Reference | Estimated Runtime |
+|----------|----------|---------|---------------|-------------------|
+| **generate_time_slots** | Every 4 hours (`0 */4 * * *`) | Generate future time slots (30-day rolling window) | FR77-FR82 | 2-5 seconds |
+| **expire_pending_bookings** | Daily at midnight UTC (`0 0 * * *`) | Expire bookings not confirmed within 7 days | FR38 | <1 second |
+| **reject_expired_tier_overrides** | Daily at midnight UTC (`0 0 * * *`) | Auto-reject override requests after 7 days | FR54 | <1 second |
+| **mark_dormant_users** | Daily at midnight UTC (`0 0 * * *`) | Mark users with no activity in 90+ days | FR57, FR33 | <1 second |
+
+**Total Daily Database Load:**
+- Time slots: 6 runs/day × 2-5s = 12-30s query time
+- Daily cleanups: 1 run/day × 3s = 3s query time
+- **Total: ~35s query time per day** (negligible load on Supabase free tier)
 
 ---
 

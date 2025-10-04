@@ -1,7 +1,7 @@
 # CF Office Hours Platform - Technical PRD
 
-**Version:** 2.0
-**Date:** 2025-10-02
+**Version:** 2.4
+**Date:** 2025-10-03
 **Status:** Complete - Ready for Implementation (Walking Skeleton Approach)
 **Project Type:** Greenfield Development
 
@@ -166,10 +166,14 @@ Probationary Clamp (per FR48):
 Where:
 - Average Rating: Mean of all received ratings (1-5 stars)
 - Completion Rate: % of booked sessions attended (vs. canceled/no-show)
-- Responsiveness Factor:
-  - 1.2× if responds to requests within 24hrs
-  - 1.0× if 24-48hrs
-  - 0.8× if >48hrs or frequent cancellations
+- Responsiveness Factor (based on booking confirmation response time):
+  - **Measurement**: Time from booking creation (`bookings.created_at`) until acceptance/confirmation (`bookings.confirmed_at`)
+  - **Coordinator Exclusion**: Response time is `NULL` if `confirmed_by` is a coordinator (does not impact mentor reputation)
+  - **Multipliers**:
+    - 1.2× if average response time < 24 hours
+    - 1.0× if average response time 24-48 hours
+    - 0.8× if average response time > 48 hours OR frequent cancellations (>20% cancellation rate)
+  - **Timeout Protection**: Bookings not confirmed within 7 days auto-expire (`status='expired'`), freeing the time slot
 - Tenure Bonus: +0.1 per month active (max +1.0 after 10 months)
 ```
 
@@ -211,7 +215,7 @@ Where:
 - **FR9**: Mentees shall link Pitch.vc profiles in their profile
 - **FR10**: Mentors shall define default description of expertise areas and ideal mentee profiles
 - **FR11**: System shall support manual tag selection from CF's taxonomy (industries, technologies, stages) synced from Airtable. Tags may be populated from Airtable sync (`source=airtable`) or manual user selection (`source=user`). AI-based auto-generation deferred to post-MVP
-- **FR12**: System shall differentiate between "confirmed" tags (by user or from Airtable) and "user-submitted" tags pending coordinator approval
+- **FR12**: System shall differentiate between "approved" tags (from Airtable or approved by coordinators) and "user-submitted" tags pending coordinator approval
 
 #### Matching & Discovery
 
@@ -237,23 +241,23 @@ Where:
 
 #### Booking & Scheduling
 
-- **FR29**: Mentees shall book available mentor time slots from calendar view (requires connected calendar per FR105)
+- **FR29**: Mentees shall create booking requests for available mentor time slots (requires connected calendar per FR105). Booking requests immediately reserve the slot (`time_slots.is_booked=true`, `status='pending'`) to prevent concurrent bookings. Bookings require mentor or coordinator confirmation within 7 days, after which they expire and the slot is automatically freed for rebooking
 - **FR30**: Mentees shall provide meeting goal description and materials for mentor review when booking
 - **FR31**: [INTENTIONALLY LEFT BLANK]
-- **FR32**: System shall send automated confirmation emails to both parties via `INotificationProvider`
+- **FR32**: System shall send notification emails at three booking lifecycle stages via `INotificationProvider`: (1) Booking request creation: mentor receives "New booking request, please confirm" email, mentee receives "Request submitted, awaiting confirmation" receipt; (2) Mentor/coordinator confirmation: both parties receive "Meeting confirmed" email; (3) Expiration without confirmation (7 days): mentee receives "Booking request expired, please rebook if still interested" email
 - **FR33**: System shall send reminder emails based on user preference: 1 hour before / 24 hours before / Both (default: 1 hour)
 - **FR34**: Either party shall cancel meetings with automated email notification to other party
 - **FR35**: Canceled meetings do not auto-reschedule; mentee must rebook via standard flow
-- **FR36**: System shall generate calendar event with meeting details, Google Meet link, and attendee info
+- **FR36**: System shall generate a single calendar event with both mentor and mentee as attendees only after booking confirmation (`status='confirmed'`). Event shall include meeting details, Google Meet link (if applicable), and attendee information. Both parties receive calendar notifications via their connected calendar provider. Calendar events shall be updated or deleted when bookings are modified or canceled
 - **FR37**: Users shall add individual events to Google Calendar or subscribe via .ical feed
 - **FR38**: System shall enforce minimum 1-day advance booking requirement for all meetings
-- **FR39**: Calendar invites (.ics) shall include absolute UTC time + TZID for timezone-safe display
+- **FR39**: Calendar events shall include absolute UTC time + TZID for timezone-safe display
 
 #### Real-time & Notifications
 
 - **FR40**: System shall use Supabase Realtime to broadcast slot availability changes to all connected clients
-- **FR41**: When a time slot is booked, all users viewing that slot shall receive immediate UI update (slot disappears/grays out)
-- **FR42**: If a user attempts to book a slot already taken by another concurrent user, system shall display toast notification: "This slot was just booked by another user" and return to slot selection view
+- **FR41**: When a time slot is reserved (booking request created with `status='pending'`), all users viewing that slot shall receive immediate UI update (slot disappears/grays out). When a pending booking expires without confirmation, the slot shall reappear in real-time for other users
+- **FR42**: If a user attempts to book a slot already reserved by another concurrent user, system shall display toast notification: "This slot was just booked by another user" and return to slot selection view
 - **FR43**: System shall use toast notifications (Shadcn toast component) for all transient on-screen notifications
 
 #### Reputation & Ratings
@@ -321,15 +325,15 @@ Where:
 - **FR89**: System shall provide avatar cropping modal with circular crop area, supporting rotation, pan, and zoom
 - **FR90**: Avatar images shall be displayed as circles throughout the application
 - **FR91**: Users shall manually add custom tags to their profile from existing taxonomy
-- **FR92**: User-submitted tags that don't exist in taxonomy shall require coordinator approval before addition to system taxonomy
+- **FR92**: [MOVED TO FE35 - Tag approval workflow deferred to post-MVP]
 
 #### Calendar Integration
 
 - **FR93**: Users shall disconnect calendar integration via settings, removing OAuth tokens and stopping sync. System shall warn users if active bookings exist in next 7 days: "You have X upcoming meetings. Disconnecting will prevent calendar conflict checks, but existing calendar events will remain (you must delete them manually if needed)." System continues to send email notifications for existing bookings after disconnection. User must reconnect calendar to create new availability blocks or make new bookings (per FR105). Calendar events in external calendar (Google/Outlook) are not automatically deleted; users are responsible for manual cleanup if desired
 - **FR94**: Users shall configure reminder notification preferences in profile settings (default: 1 hour before)
-- **FR105**: Mentors and mentees must connect one calendar provider (Google or Microsoft) before performing booking/availability actions (viewing available slots, booking meetings, creating availability blocks). OAuth signup users (Google/Microsoft) have calendar connected automatically during signup per FR2. Magic link users and coordinators can connect calendar post-login via separate OAuth flow. System shall prompt calendar connection when user attempts booking/availability action without connected calendar
+- **FR105**: Mentors and mentees must connect one calendar provider (Google or Microsoft) before performing booking/availability actions (viewing available slots, booking meetings, creating availability blocks). OAuth signup users (Google/Microsoft) have calendar connected automatically during signup per FR2. Magic link users can connect calendar post-login via separate OAuth flow. **Coordinators are exempt from calendar connection requirement and can perform all booking/availability functions for mentors and mentees without having a connected calendar themselves.** System shall prompt calendar connection when non-coordinator user attempts booking/availability action without connected calendar
 - **FR106**: System shall check for calendar conflicts before confirming bookings using connected calendar provider's availability data
-- **FR107**: Coordinators shall receive notifications when new taxonomy tags are submitted for approval (delivery_channel='both'). Email notifications sent to all coordinators. In-app toast notifications delivered to online coordinators via Supabase Realtime subscription to taxonomy table changes (WHERE is_approved=false)
+- **FR107**: [MOVED TO FE36 - Tag approval notifications deferred to post-MVP]
 
 #### Centralized Error Handling
 
@@ -470,6 +474,9 @@ Where:
 - **FE31**: Interactive dashboard charts with drill-down (Recharts + historical data)
 - **FE32**: Email magic link approval for tier overrides (one-click approval from email)
 - **FE33**: Automated tag approval workflow with real-time toast notifications
+- **FE34**: Calendar event modification API support (update meeting time/location without cancel+rebook)
+- **FE35**: Tag approval workflow - User-submitted tags that don't exist in taxonomy shall require coordinator approval before addition to system taxonomy. Coordinator dashboard "Tag Management" tab shows pending tags with approve/reject actions. In MVP, coordinators manually approve tags via direct database updates
+- **FE36**: Tag approval notifications - Coordinators shall receive notifications when new taxonomy tags are submitted for approval (delivery_channel='both'). Email notifications sent to all coordinators. In-app toast notifications delivered to online coordinators via Supabase Realtime subscription to taxonomy table changes (WHERE is_approved=false)
 
 ---
 
@@ -830,14 +837,14 @@ useEffect(() => {
 **Tag Management Tab:**
 - Dedicated section in coordinator dashboard
 - **Pending Approvals** view:
-  - Table/list of new tags awaiting approval (from taxonomy table where `is_active = false`)
+  - Table/list of new tags awaiting approval (from taxonomy table where `is_approved = false`)
   - Columns: Tag category (industry/technology/stage), Tag value, Requested by, Date requested, Source
   - Row actions: Approve (button), Reject (button), View usage
   - Toast notification if user is currently online when new tag is submitted
 - **Active Tags** view:
   - Searchable/filterable list of all approved tags
   - Columns: Category, Value, Display name, Usage count, Date added
-  - Actions: Edit display name, Deactivate
+  - Actions: Edit display name
 - **Rejected Tags** view (optional):
   - Archive of rejected tags with rejection reasons
 
@@ -1026,15 +1033,24 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - id (uuid, pk)
 - airtable_record_id (text, unique) -- Stable ID from Airtable
 - email (text, unique, not null)
-- role (enum: mentee, mentor, coordinator)
+- role (enum: mentee, mentor, coordinator) -- SINGLE ROLE PER USER IN MVP
 - reputation_score (numeric, default 3.5)
 - reputation_tier (enum: bronze, silver, gold, platinum)
 - is_active (boolean, default true)
 - last_activity_at (timestamptz)
 - created_at (timestamptz, not null)
+- created_by (uuid, fk -> users, null)
 - updated_at (timestamptz, not null)
+- updated_by (uuid, fk -> users, null)
 - deleted_at (timestamptz, null)
+- deleted_by (uuid, fk -> users, null)
 ```
+
+**MVP Role Constraint:**
+- Users can have **only ONE role** per account in the MVP
+- No dual mentor+mentee roles supported in initial release
+- If a user needs both roles, they must use separate accounts (separate email addresses)
+- Future enhancement: Support multiple roles per user via many-to-many `user_roles` table
 
 **user_profiles (extended, changeable schema)**
 ```sql
@@ -1042,11 +1058,9 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - user_id (uuid, fk -> users, unique)
 - name (text)
 - title (text)
-- company (text)
+- portfolio_company_id (uuid, fk -> portfolio_companies, null) -- For employees
+- company (text) -- Free-text for mentors (mutually exclusive with portfolio_company_id)
 - phone (text)
-- linkedin_url (text)
-- website_url (text)
-- pitch_vc_url (text)
 - expertise_description (text) -- mentor only
 - ideal_mentee_description (text) -- mentor only
 - bio (text)
@@ -1054,46 +1068,134 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - avatar_source_type (enum: upload, url, null)
 - avatar_metadata (jsonb) -- Stores cropping settings: {zoom, pan_x, pan_y, rotation}
 - reminder_preference (enum: one_hour, twenty_four_hours, both, default: one_hour)
-- additional_links (jsonb) -- Flexible array for future links
 - metadata (jsonb) -- Catch-all for experimentation
 - created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
 - updated_at (timestamptz)
+- updated_by (uuid, fk -> users, null)
 ```
+
+**Note:**
+- **Mentees** (employees of CF portfolio companies): Use `portfolio_company_id` (FK to `portfolio_companies` table)
+- **Mentors** (external experts/advisors): Use `company` (free-text field for their organization)
+- These fields are **mutually exclusive** based on user role
+- **Airtable Sync Dependency**: Portfolio companies are synced from Airtable **before** mentee users (Airtable enforces company must exist before user can be assigned to it)
+- URLs for users are stored in the `user_urls` table
 
 **Rationale for Split:**
 - Core user data (auth, reputation, role) rarely changes → minimal migrations
 - Profile fields can be added/modified without touching core table
-- JSONB columns (`additional_links`, `metadata`) provide escape hatch for rapid iteration
+- JSONB column (`metadata`) provides escape hatch for rapid iteration
 - Better separation of concerns: identity vs. profile information
 
 ---
 
-**user_tags**
+**portfolio_companies**
 ```sql
 - id (uuid, pk)
-- user_id (uuid, fk -> users)
-- category (enum: industry, technology, stage)
-- tag_value (text, not null)
-- is_confirmed (boolean, default false)
-- source (enum: airtable, user, auto_generated, admin)
-- confirmed_at (timestamptz, null)
-- confirmed_by (uuid, fk -> users, null) -- User who confirmed or system
+- name (text, not null, unique)
+- description (text)
+- location (text)
+- customer_segment (text)
+- product_type (text)
+- sales_model (text)
+- stage (text)
+- website (text, null) -- Company website URL
+- pitch_vc_url (text, null) -- Pitch/VC profile URL
+- linkedin_url (text, null) -- LinkedIn company page URL
 - created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
 - updated_at (timestamptz)
-- deleted_at (timestamptz, null)
-- UNIQUE(user_id, category, tag_value) WHERE deleted_at IS NULL
+- updated_by (uuid, fk -> users, null)
 ```
 
-**Tag Confirmation Logic:**
-- **Airtable source** (source=airtable): Auto-populated from Airtable user records, `is_confirmed=true`, `confirmed_at` set to creation time, `confirmed_by=null` (system)
-- **Admin source** (source=admin): Coordinator adds tag to user profile, `is_confirmed=true` immediately, `confirmed_by` set to coordinator user_id
-- **User source** (source=user): User manually adds tag from taxonomy, `is_confirmed=false` initially, becomes true when user confirms, `confirmed_by` set to self
-- **Auto-generated source** (source=auto_generated): System suggests tags based on profile/activity, `is_confirmed=false` until user confirms, `confirmed_by` set to user when confirmed
+**Note:** Industries, technologies, and other taxonomies are stored in the `entity_tags` table. URLs are stored directly in dedicated columns.
 
-**Tag Confirmation Workflow:**
-- Auto-generated tags: `is_confirmed = false, confirmed_by = null`
-- User confirms: `is_confirmed = true, confirmed_at = NOW(), confirmed_by = user_id`
-- Airtable tags: `is_confirmed = true, source = airtable, confirmed_by = null` (system-confirmed)
+**Data Source:** Portfolio companies are created and maintained exclusively in Airtable. All portfolio company data is **read-only** in this application. Data may be processed and enriched (e.g., with tags via `entity_tags`), but no portfolio company records are ever created, updated, or deleted outside of the Airtable sync process. This is the same pattern used for user/mentor data sourced from Airtable.
+
+---
+
+**user_urls**
+```sql
+- id (uuid, pk)
+- user_id (uuid, fk -> users, not null)
+- url_type (enum: website, pitch_vc, linkedin, other, not null)
+- url (text, not null)
+- created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
+- updated_at (timestamptz)
+- updated_by (uuid, fk -> users, null)
+- UNIQUE(user_id, url_type)
+```
+
+**Note:** User URLs are stored in a dedicated table with direct foreign key to users. Portfolio company URLs are stored directly in the `portfolio_companies` table columns (website, pitch_vc_url, linkedin_url).
+
+---
+
+**taxonomy**
+```sql
+- id (uuid, pk)
+- airtable_record_id (text, unique, nullable) -- null for user-submitted/sample data tags
+- category (enum: industry, technology, stage, not null)
+- value (text, not null) -- Normalized value (lowercase, no spaces/special chars) for deduplication
+- display_name (text, not null) -- Original unprocessed value shown to users
+- parent_id (uuid, fk -> taxonomy, nullable) -- For hierarchical taxonomies
+- is_approved (boolean, default false, not null)
+- source (enum: airtable, user, auto_generated, admin, sample_data, not null)
+- requested_by (uuid, fk -> users, nullable) -- Only for source=user
+- approved_by (uuid, fk -> users, nullable)
+- requested_at (timestamptz, nullable)
+- approved_at (timestamptz, nullable)
+- created_at (timestamptz)
+- updated_at (timestamptz)
+- UNIQUE(category, value)
+```
+
+**Value Normalization:**
+- `value` field: Normalized for deduplication (lowercase, spaces replaced with underscores, special characters removed)
+- `display_name` field: Original unprocessed value shown to users in UI
+- Example: `display_name="Cloud Software & Infrastructure"` → `value="cloud_software_infrastructure"`
+
+**Tag Approval Logic:**
+- **Airtable source** (source=airtable): Auto-populated from Airtable, `is_approved=true`, `approved_at` set to creation time, `approved_by=null` (system), `airtable_record_id` populated
+- **Sample data source** (source=sample_data): Loaded from CSV seed files for development/testing, `is_approved` distribution: 90% true, 10% false (simulates pending approval workflow), `approved_at` set to creation time for approved entries, `approved_by=null`, `airtable_record_id=null`
+- **Admin source** (source=admin): Coordinator creates tag via admin UI, `is_approved=true` immediately, `approved_by` set to coordinator user_id, `airtable_record_id=null`
+- **User source** (source=user): User submits new tag request when selecting non-existent tag, `is_approved=false` initially, `requested_by` set to user_id, `requested_at=NOW()`, becomes approved when coordinator approves
+- **Auto-generated source** (source=auto_generated): System suggests tags based on profile/activity (future enhancement), `is_approved=false` until coordinator approves, `airtable_record_id=null`
+
+**Tag Approval Workflow:**
+- User-submitted/auto-generated tags: `is_approved = false, requested_by = user_id, requested_at = NOW()`
+- Coordinator approves: `is_approved = true, approved_at = NOW(), approved_by = coordinator_id`
+- Airtable/admin/sample data tags: `is_approved = true` immediately (trusted sources)
+
+**Taxonomy Hierarchy:**
+- `parent_id` enables hierarchical relationships (e.g., "Edge Computing" → parent: "Cloud Software & Infrastructure")
+- Supports multi-level hierarchies for both industries and technologies
+- Loaded from sample data CSVs during development (see Section 4.8)
+
+
+---
+
+**entity_tags**
+```sql
+- id (uuid, pk)
+- entity_type (enum: user, portfolio_company, not null)
+- entity_id (uuid, not null)
+- taxonomy_id (uuid, fk -> taxonomy, not null)
+- created_at (timestamptz)
+- created_by (uuid, fk -> users, null)
+- updated_at (timestamptz)
+- updated_by (uuid, fk -> users, null)
+- deleted_at (timestamptz, null)
+- deleted_by (uuid, fk -> users, null)
+- UNIQUE(entity_type, entity_id, taxonomy_id) WHERE deleted_at IS NULL
+```
+
+**Entity Tag Pattern:**
+- Polymorphic relationship: `entity_type` + `entity_id` references either `users` or `portfolio_companies`
+- `taxonomy_id` references the tag definition in the `taxonomy` table
+- Supports tagging both users (mentors/mentees) and portfolio companies
+- Pure junction table with FK to taxonomy for tag definitions
 
 ---
 
@@ -1146,7 +1248,9 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - meeting_type (enum: in_person_preset, in_person_custom, online)
 - location (text)
 - google_meet_link (text)
-- status (enum: confirmed, completed, canceled)
+- status (enum: pending, confirmed, completed, canceled, expired)
+- confirmed_by (uuid, fk -> users, null) -- Who accepted/confirmed the booking (mentor or coordinator)
+- confirmed_at (timestamptz, null) -- When booking was accepted/confirmed
 - canceled_by (uuid, fk -> users, null)
 - canceled_at (timestamptz, null)
 - cancellation_reason (enum: emergency, reschedule, other, null)
@@ -1157,6 +1261,15 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - updated_at (timestamptz)
 - deleted_at (timestamptz, null)
 ```
+
+**Booking Request Flow & Responsiveness Tracking:**
+- **Initial State**: `status='pending'` when booking is created by mentee
+- **7-Day Auto-Expiration**: Background job (daily cron) updates WHERE `status='pending' AND created_at < NOW() - INTERVAL '7 days'` to `status='expired'`
+- **Confirmation**: When mentor or coordinator accepts, set `status='confirmed'`, `confirmed_by=user_id`, `confirmed_at=NOW()`
+- **Responsiveness Calculation**: Response time = `confirmed_at - created_at` (only if not confirmed by coordinator)
+  - Coordinator confirmations: Response time left as `NULL` (does not affect reputation)
+  - Average response time across all bookings determines responsiveness factor in reputation calculation
+- **Timeout Cleanup**: Expired bookings free up time slots automatically (`time_slots.is_booked=false`)
 
 ---
 
@@ -1211,7 +1324,9 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - **one_time** (MVP default): Approved exception allows mentee to book this specific mentor once within 1 week of approval
 - **Expiration Logic:**
   - On creation (mentee request): `status='pending'`, `expires_at = created_at + 7 days`
-  - Pending requests expire after 7 days if not reviewed (system shows as expired in coordinator dashboard, can still be manually reviewed)
+  - **Auto-Rejection**: Background job (daily cron) auto-updates pending requests WHERE `expires_at < NOW()` to `status='rejected'`, `reviewed_by = NULL`, `review_notes = 'Auto-rejected: request expired after 7 days'`
+  - **Truly Locked**: Once auto-rejected, requests cannot be approved by coordinators
+  - **Resubmission**: Mentee can always create a new tier override request for the same mentor
   - On approval: `status='approved'`, `expires_at = reviewed_at + 7 days` (7-day window starts from approval, not request creation)
   - On mentor-initiated requests: `status='approved'` immediately upon creation, `expires_at = created_at + 7 days`, `reviewed_by = mentor_id`
   - Approved requests are valid until `expires_at` OR `used_at` is populated (whichever comes first)
@@ -1260,33 +1375,6 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - is_active (boolean, default true)
 - created_at (timestamptz)
 ```
-
----
-
-**taxonomy** (CF Taxonomy - synced from Airtable)
-```sql
-- id (uuid, pk)
-- airtable_record_id (text, unique, nullable - null for user-submitted tags)
-- category (enum: industry, technology, stage)
-- value (text, not null)
-- display_name (text, not null)
-- source (enum: airtable, admin, user_request, not null)
-- is_approved (boolean, default false, not null)
-- requested_by (uuid, fk -> users, nullable - only for source=user_request)
-- approved_by (uuid, fk -> users, nullable)
-- requested_at (timestamptz, nullable)
-- approved_at (timestamptz, nullable)
-- created_at (timestamptz)
-- updated_at (timestamptz)
-- UNIQUE(category, value)
-```
-
-**Taxonomy Sources & Approval Workflow:**
-- **Airtable** (source=airtable): Synced via webhooks, always approved (is_approved=true), airtable_record_id populated
-- **Admin-Created** (source=admin): Created by coordinators via admin UI, always approved (is_approved=true)
-- **User-Requested** (source=user_request): Submitted by mentors/mentees when selecting non-existent tag, requires coordinator approval (is_approved=false initially), requested_by/requested_at populated
-- Used for tag auto-generation and validation
-- Coordinators approve user-requested tags via admin UI, setting is_approved=true, approved_by, approved_at
 
 ---
 
@@ -1340,6 +1428,11 @@ While MVP is desktop-optimized, structure is mobile-responsive:
 - sent_at (timestamptz)
 - created_at (timestamptz)
 ```
+
+**Coordinator Broadcast Handling:**
+- When notifications need to be sent to **all coordinators** (e.g., `tag_approval_pending`, `tier_override_requested`), the system creates **multiple `notification_log` entries** (one per coordinator)
+- Implementation queries `users` table WHERE `role='coordinator'` and creates one notification record per coordinator
+- No notification groups or distribution lists in MVP
 
 **Retention Policy:**
 - MVP: Unlimited retention
@@ -2244,7 +2337,7 @@ Uses Supabase built-in email service. All email attempts logged per NFR27.
 1. **Booking Confirmation** (`sendBookingConfirmation`)
    - To: Both mentor and mentee
    - Data: Meeting date/time, timezone, location/Google Meet link, attendee info, meeting goal, materials
-   - CTA: "Add to Calendar" (.ics attachment)
+   - CTA: "Add to Calendar"
 
 2. **Meeting Reminder** (`sendReminder`)
    - To: Both mentor and mentee
@@ -2407,6 +2500,38 @@ zone_name = "cf-oh.com"
 
 #### Seed Data Requirements
 
+**Sample Data CSVs (Development/Testing Only):**
+
+The application includes comprehensive sample data CSVs for local development and testing. These files are located in `docs/sample_data/` and are **never used in production**.
+
+**Taxonomy CSVs:**
+- `industries.csv` - Industry taxonomy with hierarchical relationships
+- `technologies.csv` - Technology taxonomy with hierarchical relationships
+- Format: `Name,Parent` (parent field optional, references another taxonomy entry for hierarchy)
+- Example hierarchical entry: `Edge Computing,Cloud Software & Infrastructure`
+- Loaded into `taxonomy` table with:
+  - `source='sample_data'`
+  - `is_approved` distribution: 90% true, 10% false (simulates pending approval workflow)
+  - `value` field: Normalized (lowercase, underscores, no special chars)
+  - `display_name` field: Original CSV value preserved
+- Used to populate tag selection dropdowns during development
+
+**User/Mentor Data CSVs:**
+- `mentors.csv` - Sample mentor profiles with expertise and industry/technology tags
+- Format: `Full Name,Bio,Industry Expertise,Technology Expertise`
+- Expertise columns contain comma-separated lists matching taxonomy values
+- Loaded into `users`, `user_profiles`, and linked via `entity_tags` to taxonomy entries
+- Used to simulate Airtable-synced mentor data during development
+
+**Portfolio Company CSV:**
+- `portfolio_companies.csv` - Sample portfolio companies with metadata
+- Format: `Name,Description,Website,Pitch,Location,Industry,Technology,Stage,Customer Segment,Product Type,Sales Model`
+- Loaded into `portfolio_companies` table with tags linked via `entity_tags`, URLs stored directly in company columns (website, pitch_vc_url, linkedin_url)
+- Simulates Airtable-synced company data for mentee/employee associations
+
+**Production Data Flow:**
+In production, taxonomy and user data are synced from Airtable (see Section 4.10). Sample CSVs are only for development/testing environments where Airtable sync is not configured.
+
 **Location Presets (`locations` table):**
 - Seed script: `seeds/locations.sql` or `seeds/locations.ts`
 - Initial CF office locations (if applicable)
@@ -2416,11 +2541,7 @@ zone_name = "cf-oh.com"
 - Example in-person locations:
   - "CF Office - [City Name]"
   - "Coffee Shop - TBD"
-
-**Taxonomy (`taxonomy` table):**
-- Synced from Airtable on first webhook trigger
-- No manual seeding required (handled by Airtable sync)
-- For development/testing: Optional mock taxonomy seed file
+- **Production-safe:** These seeds can be run in production
 
 **Admin Users:**
 - First coordinator user creation process:
@@ -2429,7 +2550,7 @@ zone_name = "cf-oh.com"
   - Document in deployment README
 
 **Test Data (Development/Staging Only):**
-- Mock users with various roles and reputation tiers
+- Mock users with various roles and reputation tiers (from mentors.csv)
 - Sample availability blocks
 - Sample bookings (past, upcoming, canceled)
 - Sample ratings and reputation history
@@ -2437,17 +2558,55 @@ zone_name = "cf-oh.com"
 #### Seed Script Location
 
 ```
-/seeds
-  ├── locations.sql          # Location presets
-  ├── dev-users.sql          # Development users (not for prod)
-  ├── dev-bookings.sql       # Sample bookings (not for prod)
-  └── README.md              # Seeding instructions
+/docs/sample_data              # CSV source data (dev/testing only)
+  ├── industries.csv           # Industry taxonomy with hierarchy
+  ├── technologies.csv         # Technology taxonomy with hierarchy
+  ├── mentors.csv              # Sample mentor profiles
+  └── portfolio_companies.csv  # Sample portfolio companies
+
+/seeds                         # Database seed scripts
+  ├── locations.sql            # Location presets (PRODUCTION-SAFE)
+  ├── sample-taxonomy.ts       # Load taxonomy from CSVs (dev only)
+  ├── sample-users.ts          # Load users from mentors.csv (dev only)
+  ├── sample-companies.ts      # Load companies from CSV (dev only)
+  ├── dev-bookings.sql         # Sample bookings (dev only)
+  └── README.md                # Seeding instructions
 ```
+
+#### CSV Loading Process
+
+**Normalization Rules:**
+1. **Taxonomy values** (industries, technologies):
+   - `display_name` = Original CSV value (e.g., "Cloud Software & Infrastructure")
+   - `name` = Normalized value (e.g., "cloud_software_infrastructure")
+   - Normalization: lowercase, replace spaces/special chars with underscores
+
+2. **User tags** (from mentors.csv):
+   - Parse comma-separated expertise columns
+   - Match against normalized taxonomy names
+   - Create `entity_tags` entries linking to taxonomy IDs
+
+3. **Hierarchy** (parent-child relationships):
+   - Load parent entries first (where Parent column is empty)
+   - Then load child entries, linking via `parent_id` FK
+
+**Approval Distribution:**
+- 90% of sample taxonomy entries: `is_approved=true`, `approved_at=NOW()`
+- 10% of sample taxonomy entries: `is_approved=false` (simulates pending coordinator approval)
+- Allows testing of tag approval workflow in development
 
 #### Execution
 
 - Development: Auto-run on `npm run dev:setup` or similar
-- Production: Manual execution of production-safe seeds only (locations)
+  - Loads all CSV data via TypeScript seed scripts
+  - Idempotent (safe to run multiple times)
+  - Skips if Airtable sync is configured (via env var check)
+
+- Production: Manual execution of production-safe seeds only
+  - `locations.sql` only
+  - **DO NOT** run sample data scripts in production
+  - Rely on Airtable sync for taxonomy, users, and portfolio companies
+
 - Document in deployment guide which seeds are safe for production
 
 ---
@@ -2510,12 +2669,12 @@ Airtable serves as the **source of truth** for user data and CF taxonomy. The we
 | Role | `users` | `role` | Yes | enum | Values: `mentee`, `mentor`, `coordinator` |
 | Name | `user_profiles` | `name` | No | text | Display name |
 | Title | `user_profiles` | `title` | No | text | Job title |
-| Company | `user_profiles` | `company` | No | text | Company/organization name |
+| Company | `user_profiles` | `company` | No | text | Company/organization name (mentors only) |
 | Phone | `user_profiles` | `phone` | No | text | Contact phone number |
-| LinkedIn URL | `user_profiles` | `linkedin_url` | No | text | LinkedIn profile URL |
-| Tags (Industries) | `user_tags` | Multiple rows | No | multi-select | Creates one `user_tags` row per selected industry, `category='industry'`, `source='airtable'`, `is_confirmed=true` |
-| Tags (Technologies) | `user_tags` | Multiple rows | No | multi-select | Creates one `user_tags` row per selected technology, `category='technology'`, `source='airtable'`, `is_confirmed=true` |
-| Tags (Stage) | `user_tags` | Multiple rows | No | multi-select | Creates one `user_tags` row per selected stage, `category='stage'`, `source='airtable'`, `is_confirmed=true` |
+| LinkedIn URL | `user_urls` | `url` | No | text | LinkedIn profile URL stored in `user_urls` table with `url_type='linkedin'` |
+| Tags (Industries) | `entity_tags` via `taxonomy` | Multiple rows | No | multi-select | Creates one `entity_tags` row per selected industry via `taxonomy_id`, `entity_type='user'`, tags sourced from `taxonomy` table |
+| Tags (Technologies) | `entity_tags` via `taxonomy` | Multiple rows | No | multi-select | Creates one `entity_tags` row per selected technology via `taxonomy_id`, `entity_type='user'`, tags sourced from `taxonomy` table |
+| Tags (Stage) | `entity_tags` via `taxonomy` | Multiple rows | No | multi-select | Creates one `entity_tags` row per selected stage via `taxonomy_id`, `entity_type='user'`, tags sourced from `taxonomy` table |
 
 **Unrecognized Columns:**
 - Logged as warnings (per NFR32)
@@ -2589,8 +2748,9 @@ CF maintains taxonomy in three separate Airtable tables (or tabs): **Industries*
    - Handles burst changes gracefully (per Section 1.7)
 
 3. **Process Records:**
-   - **Users:** Upsert into `users`, `user_profiles`, `user_tags` tables
+   - **Users:** Upsert into `users`, `user_profiles`, `entity_tags` tables (via `taxonomy` lookups for tag assignment)
    - **Taxonomy:** Upsert into `taxonomy` table
+   - **URLs:** Upsert LinkedIn URLs into `user_urls` table with `url_type='linkedin'`
    - Use `airtable_record_id` as stable join key
 
 4. **Handle Deletions:**
@@ -2857,11 +3017,11 @@ Epic 8: Admin & Coordinator Tools
     - **Acceptance Criteria:**
       - `POST /api/bookings` accepts: slot_id, meeting_goal
       - Marks `time_slots.is_booked=true`
-      - Creates `bookings` record with status='confirmed'
-      - No conflict checking, no calendar integration yet
+      - Creates `bookings` record with status='pending'
+      - No conflict checking, no calendar integration, no confirmation flow yet
       - Returns created booking
     - **Related:** FR29, FR30
-    - **Note:** Calendar conflict checking added in Epic 3
+    - **Note:** Calendar conflict checking added in Epic 3, booking confirmation flow added in Epic 4
 
 14. **SKEL-BOOK-002: Booking Form (Simple)**
     - As a **mentee**, I want to provide meeting context when booking
@@ -2932,10 +3092,13 @@ Epic 8: Admin & Coordinator Tools
 19. **INFRA-DB-001: Full Database Schema Migration**
     - As a **developer**, I want to extend the minimal schema with all production fields
     - **Acceptance Criteria:**
-      - Add soft delete columns (`deleted_at`) to all tables
+      - Add soft delete columns (`deleted_at`, `deleted_by`) to all tables
+      - Add audit columns (`created_by`, `updated_by`) to all tables
       - Add reputation fields to `users` table (`reputation_score`, `reputation_tier`, `last_activity_at`)
       - Add calendar integration fields (`calendar_integrations` table)
-      - Add taxonomy tables (`taxonomy`, `user_tags`)
+      - Add taxonomy tables (`taxonomy`, `entity_tags`)
+      - Add URL management table (`user_urls`), add URL columns to `portfolio_companies` (website, pitch_vc_url, linkedin_url)
+      - Add portfolio company table (`portfolio_companies`)
       - Add audit tables (`audit_log`, `reputation_history`)
       - Migration script updates existing data safely
     - **Related:** FR82, NFR17, NFR18
@@ -3068,7 +3231,7 @@ Epic 8: Admin & Coordinator Tools
     - **Acceptance Criteria:**
       - Multi-select dropdown for industries, technologies, stages
       - Tags sourced from `taxonomy` table (WHERE `is_approved = true`)
-      - Visual distinction: confirmed tags (solid badge) vs. user-submitted (outlined badge)
+      - Visual distinction: approved tags (solid badge) vs. user-submitted pending approval (outlined badge)
       - "Add custom tag" option triggers new tag request workflow (saved as `is_approved=false`)
     - **Related:** FR11, FR12, FR91, FR92
 
@@ -3106,9 +3269,9 @@ Epic 8: Admin & Coordinator Tools
     - As a **user**, I want to add multiple custom links to my profile (website, portfolio, etc.)
     - **Acceptance Criteria:**
       - "Add link" button creates new URL input field
-      - Stored in `user_profiles.additional_links` JSONB array
+      - URLs stored in `user_urls` table with `url_type='other'`
       - Links displayed on profile with clickable icons
-      - Remove link button for each entry
+      - Remove link button for each entry (soft-deletes `user_urls` record)
     - **Related:** FR7
 
 36. **PROFILE-PREFS-001: Reminder Preferences**
@@ -3216,7 +3379,7 @@ Epic 8: Admin & Coordinator Tools
     - **Acceptance Criteria:**
       - On booking confirmation: `calendarProvider.createEvent()` called
       - Event includes: title, description, start/end time (UTC with TZID), attendees, location/Google Meet link
-      - Calendar invites (.ics) sent to both parties
+      - Calendar invitations sent to both parties
       - Event stored in user's connected calendar (Google or Outlook)
     - **Related:** FR36, FR37, FR39
 
@@ -3254,7 +3417,7 @@ Epic 8: Admin & Coordinator Tools
 #### **Epic 4: Availability & Booking Depth**
 **Goal:** Add advanced availability features (recurrence patterns, preset locations), booking management, and real-time updates
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 10
+**Estimated Stories:** 11
 **Dependencies:** Epic 3
 **Timeline:** Sprint 6 (Weeks 11-12)
 
@@ -3262,6 +3425,7 @@ Epic 8: Admin & Coordinator Tools
 - Recurrence patterns (weekly, monthly, quarterly)
 - Calendar grid slot picker with mutual availability
 - Real-time slot updates (Supabase Realtime)
+- Booking confirmation flow with pending/confirmed/expired states
 - Meeting cancellation with notifications
 - Meeting reminders based on user preferences
 - Preset location management
@@ -3363,20 +3527,33 @@ Epic 8: Admin & Coordinator Tools
       - Deletions send cancellation emails to affected mentees
     - **Related:** FR80
 
+59. **BOOK-CONFIRM-001: Booking Confirmation Flow with Pending/Expired States**
+    - As a **developer**, I want bookings to support pending, confirmed, and expired status flow
+    - **Acceptance Criteria:**
+      - Extend `bookings` schema with `confirmed_by` (uuid, fk -> users, null) and `confirmed_at` (timestamptz, null)
+      - Initial booking creation: `status='pending'`, `confirmed_by=NULL`, `confirmed_at=NULL`
+      - Mentor/coordinator confirmation: API endpoint `PUT /api/bookings/:id/confirm` sets `status='confirmed'`, `confirmed_by=current_user_id`, `confirmed_at=NOW()`
+      - Background job (daily cron): Auto-expire bookings WHERE `status='pending' AND created_at < NOW() - INTERVAL '7 days'` → `status='expired'`
+      - Responsiveness tracking: `confirmed_at - created_at` (only if `confirmed_by` is NOT a coordinator)
+      - UI shows pending bookings with "Confirm" button for mentors, "Pending confirmation" badge for mentees
+    - **Related:** FR29, FR30, FR46, Section 1.9
+
 ---
 
 #### **Epic 5: Airtable Integration**
-**Goal:** Replace mock data with live Airtable sync for users and taxonomy
+**Goal:** Replace mock data with live Airtable sync for all four data sources
 **Priority:** P1 (High)
-**Estimated Stories:** 5
+**Estimated Stories:** 6
 **Dependencies:** Epic 1 (schema must be ready)
 **Timeline:** Sprint 7 (Weeks 13-14)
 
 **Deliverable:** Live Airtable data sync:
 - Webhook endpoint receives Airtable change notifications
-- Full users table fetch and upsert
+- Full mentors/users table fetch and upsert
+- Portfolio companies table fetch and upsert
+- Taxonomy sync for industries (approved tags from Airtable)
+- Taxonomy sync for technologies (approved tags from Airtable)
 - User tags sync (industries, technologies, stages)
-- Taxonomy sync (approved tags from Airtable)
 - User deletion handling (cascading cancellations)
 
 **User Stories:**
@@ -3385,7 +3562,12 @@ Epic 8: Admin & Coordinator Tools
     - As a **developer**, I want a webhook endpoint to receive Airtable change notifications
     - **Acceptance Criteria:**
       - `POST /api/webhooks/airtable` endpoint created
-      - Webhook signature validation using `AIRTABLE_WEBHOOK_SECRET` (NFR16)
+      - **Webhook Signature Validation** (NFR16):
+        - Algorithm: **HMAC-SHA256**
+        - Header: `X-Airtable-Content-MAC`
+        - Secret: `AIRTABLE_WEBHOOK_SECRET` (base64-decoded MAC secret from Airtable webhook creation)
+        - Validation: Compute HMAC-SHA256 of request body using decoded secret, compare with header value
+        - Reject requests with invalid or missing signatures (401 Unauthorized)
       - Raw payload logged to `airtable_sync_log` table
       - Endpoint responds within 10ms (synchronous ack per NFR31)
     - **Related:** FR5, FR86, NFR4, NFR16, NFR31, Section 4.10
@@ -3396,6 +3578,8 @@ Epic 8: Admin & Coordinator Tools
       - Webhook triggers full users table fetch from Airtable
       - Field mapping per Section 4.10 (Record ID → airtable_record_id, Email, Role, Name, etc.)
       - Upsert into `users`, `user_profiles` tables (idempotent)
+      - **URL Extraction**: Each URL type (LinkedIn, Website, Pitch.vc, etc.) is a **separate column** in Airtable
+      - URLs extracted from dedicated columns and stored in `user_urls` table with appropriate `url_type` (`linkedin`, `website`, `pitch_vc`, `other`)
       - Missing records trigger soft-delete (`deleted_at` populated)
       - Processing completes within 5 seconds (NFR4)
     - **Related:** FR5, FR85, FR86, NFR4, Section 4.10
@@ -3403,28 +3587,62 @@ Epic 8: Admin & Coordinator Tools
 61. **AIRTABLE-TAGS-001: User Tags Sync**
     - As a **developer**, I want user tags (industries, technologies, stages) synced from Airtable
     - **Acceptance Criteria:**
-      - Multi-select tag columns in Airtable mapped to `user_tags` rows
-      - Each selected tag creates one `user_tags` row with `source='airtable'`, `is_confirmed=true`
-      - Old tags removed (soft-deleted) if no longer in Airtable
+      - Multi-select tag columns in Airtable mapped to `entity_tags` rows via `taxonomy` table lookups
+      - Each selected tag creates one `entity_tags` row with `entity_type='user'`, linked to matching `taxonomy` entry
+      - Tags from Airtable exist in `taxonomy` table with `source='airtable'`
+      - Old tags removed (soft-deleted in `entity_tags`) if no longer in Airtable
       - Tag values normalized (lowercase, underscores) per Section 4.10
     - **Related:** FR11, FR87, Section 4.10
 
-62. **AIRTABLE-TAXONOMY-001: Taxonomy Sync**
-    - As a **developer**, I want CF taxonomy (industries, technologies, stages) synced from Airtable
+62. **AIRTABLE-TAXONOMY-001: Industries Taxonomy Sync**
+    - As a **developer**, I want CF industries taxonomy synced from Airtable
     - **Acceptance Criteria:**
-      - Separate Airtable tables/tabs synced to `taxonomy` table
+      - Airtable Industries table synced to `taxonomy` table with `category='industry'`
       - Field mapping per Section 4.10 (Record ID, value, display_name, category)
+      - **Hierarchical Support**: Each Airtable taxonomy table has two columns: `Name` and `Parent` (optional)
+      - **Parent-Child Ordering**: Airtable ensures parent entries appear before child entries in API responses (application assumes correct ordering)
+      - Parent-child relationships linked via `parent_id` FK in `taxonomy` table
       - Synced tags have `source='airtable'`, `is_approved=true`
       - Upsert based on `airtable_record_id`
     - **Related:** FR87, Section 4.10
 
-63. **AIRTABLE-DELETE-001: User Deletion Handling**
+63. **AIRTABLE-TAXONOMY-002: Technologies Taxonomy Sync**
+    - As a **developer**, I want CF technologies taxonomy synced from Airtable
+    - **Acceptance Criteria:**
+      - Airtable Technologies table synced to `taxonomy` table with `category='technology'`
+      - Field mapping per Section 4.10 (Record ID, value, display_name, category)
+      - **Hierarchical Support**: Each Airtable taxonomy table has two columns: `Name` and `Parent` (optional)
+      - **Parent-Child Ordering**: Airtable ensures parent entries appear before child entries in API responses (application assumes correct ordering)
+      - Parent-child relationships linked via `parent_id` FK in `taxonomy` table
+      - Synced tags have `source='airtable'`, `is_approved=true`
+      - Upsert based on `airtable_record_id`
+    - **Related:** FR87, Section 4.10
+
+64. **AIRTABLE-COMPANIES-001: Portfolio Companies Sync**
+    - As a **developer**, I want portfolio companies synced from Airtable to Supabase on webhook trigger
+    - **Acceptance Criteria:**
+      - Webhook triggers full portfolio companies table fetch from Airtable
+      - Field mapping per Section 4.10 (Record ID → airtable_record_id, Name, Description, etc.)
+      - Upsert into `portfolio_companies` table (idempotent)
+      - **URL Extraction**: Website, Pitch.vc, LinkedIn URLs are **separate columns** in Airtable
+      - URLs stored directly in `portfolio_companies` columns: `website`, `pitch_vc_url`, `linkedin_url`
+      - Tags (industries, technologies, stages) mapped to `entity_tags` rows via `taxonomy` table lookups with `entity_type='portfolio_company'`
+      - Missing records trigger soft-delete (`deleted_at` populated)
+      - Processing completes within 5 seconds (NFR4)
+      - **Sync Order**: Portfolio companies synced **before** users (users reference `portfolio_company_id`)
+    - **Related:** FR85, FR86, NFR4, Section 4.10
+
+65. **AIRTABLE-DELETE-001: User Deletion Handling**
     - As a **developer**, I want user removals in Airtable to trigger cascading actions in the app
     - **Acceptance Criteria:**
       - User removed from Airtable: `users.deleted_at` populated (soft delete)
-      - All future bookings auto-canceled
-      - Notification sent to other party in canceled meetings
-      - User no longer appears in search results
+      - **Cascade Soft-Delete Rules:**
+        - User's **availability blocks**: Soft-deleted (`availability.deleted_at` populated)
+        - User's **time slots**: Soft-deleted (`time_slots.deleted_at` populated)
+        - **Past bookings**: Preserved (no deletion, historical record maintained)
+        - **Future bookings**: Status changed to `'canceled'`, `canceled_by = system`, `canceled_at = NOW()`
+      - Cancellation notifications sent to other party in all canceled meetings
+      - User no longer appears in search results (WHERE `deleted_at IS NULL`)
     - **Related:** FR73, FR81, NFR19
 
 ---
@@ -3446,7 +3664,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-64. **MATCH-INTERFACE-001: IMatchingEngine Interface Definition**
+66. **MATCH-INTERFACE-001: IMatchingEngine Interface Definition**
     - As a **developer**, I want a pluggable matching engine interface for algorithm flexibility
     - **Acceptance Criteria:**
       - `IMatchingEngine` interface defined per Section 4.5
@@ -3454,7 +3672,7 @@ Epic 8: Admin & Coordinator Tools
       - TypeScript types: `MatchingOptions`, `MatchResult`, `MatchExplanation`
     - **Related:** FR13, NFR21, Section 4.5
 
-65. **MATCH-TAG-001: Tag-Based Matching Algorithm (MVP)**
+67. **MATCH-TAG-001: Tag-Based Matching Algorithm (MVP)**
     - As a **developer**, I want a tag-based matching algorithm for mentor-mentee recommendations
     - **Acceptance Criteria:**
       - `TagBasedMatchingEngine implements IMatchingEngine`
@@ -3463,7 +3681,7 @@ Epic 8: Admin & Coordinator Tools
       - Includes match explanation: shared tags, stage match, reputation tier compatibility
     - **Related:** FR14, FR17, Section 4.5
 
-66. **MATCH-API-001: Recommended Mentors API**
+68. **MATCH-API-001: Recommended Mentors API**
     - As a **mentee**, I want personalized mentor recommendations based on my profile
     - **Acceptance Criteria:**
       - `GET /api/mentors/recommended?menteeId={uuid}` endpoint
@@ -3472,7 +3690,7 @@ Epic 8: Admin & Coordinator Tools
       - Filters out inactive/dormant mentors
     - **Related:** FR15, FR17
 
-67. **MATCH-API-002: Recommended Mentees API**
+69. **MATCH-API-002: Recommended Mentees API**
     - As a **mentor**, I want personalized mentee recommendations based on my expertise
     - **Acceptance Criteria:**
       - `GET /api/mentees/recommended?mentorId={uuid}` endpoint
@@ -3481,7 +3699,7 @@ Epic 8: Admin & Coordinator Tools
       - Filters out inactive/dormant mentees
     - **Related:** FR16, FR17
 
-68. **MATCH-UI-001: Enhanced Mentor Directory**
+70. **MATCH-UI-001: Enhanced Mentor Directory**
     - As a **mentee**, I want to browse all mentors with filtering, search, and recommendations
     - **Acceptance Criteria:**
       - "Recommended for you" section at top (3-5 mentor cards with match scores)
@@ -3492,7 +3710,7 @@ Epic 8: Admin & Coordinator Tools
       - Mentor cards: avatar, name, title, company, tags, reputation badge, "View Profile" + "Book Meeting" buttons
     - **Related:** FR15, FR17, FR18, Section 3.3
 
-69. **MATCH-UI-002: Enhanced Mentee Directory**
+71. **MATCH-UI-002: Enhanced Mentee Directory**
     - As a **mentor**, I want to browse all mentees with filtering, search, and recommendations
     - **Acceptance Criteria:**
       - Similar layout to mentor directory
@@ -3501,7 +3719,7 @@ Epic 8: Admin & Coordinator Tools
       - Match explanations focused on how mentor can help
     - **Related:** FR16, FR18, Section 3.3
 
-70. **MATCH-REACH-001: Mentor Send Interest (Reach Out)**
+72. **MATCH-REACH-001: Mentor Send Interest (Reach Out)**
     - As a **mentor**, I want to express interest in meeting a mentee
     - **Acceptance Criteria:**
       - "Reach Out" button on mentee profile/card
@@ -3534,7 +3752,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-71. **REP-INTERFACE-001: IReputationCalculator Interface Definition**
+73. **REP-INTERFACE-001: IReputationCalculator Interface Definition**
     - As a **developer**, I want a pluggable reputation calculator interface for formula flexibility
     - **Acceptance Criteria:**
       - `IReputationCalculator` interface defined per Section 4.5
@@ -3542,7 +3760,7 @@ Epic 8: Admin & Coordinator Tools
       - TypeScript types: `ReputationScore`, `ReputationTier`
     - **Related:** FR44, NFR21, Section 4.5
 
-72. **REP-CALC-001: Reputation Score Calculation Logic**
+74. **REP-CALC-001: Reputation Score Calculation Logic**
     - As a **developer**, I want reputation scores calculated using rating, completion, responsiveness, and tenure
     - **Acceptance Criteria:**
       - Formula: `(AvgRating × CompletionRate × ResponsivenessFactor) + TenureBonus`
@@ -3552,7 +3770,7 @@ Epic 8: Admin & Coordinator Tools
       - Completion rate: % of booked sessions attended (vs. canceled/no-show)
     - **Related:** FR46, FR47, FR48, Section 1.9
 
-73. **REP-TIER-001: Reputation Tier Assignment**
+75. **REP-TIER-001: Reputation Tier Assignment**
     - As a **developer**, I want users assigned reputation tiers based on their score
     - **Acceptance Criteria:**
       - Tiers: Bronze (0-3.0), Silver (3.0-4.0), Gold (4.0-4.5), Platinum (4.5+)
@@ -3560,7 +3778,7 @@ Epic 8: Admin & Coordinator Tools
       - `users.reputation_tier` updated, change logged in `reputation_history`
     - **Related:** FR49, Section 1.9
 
-74. **REP-LIMIT-001: Tier-Based Booking Limits**
+76. **REP-LIMIT-001: Tier-Based Booking Limits**
     - As a **developer**, I want booking limits enforced based on user reputation tier
     - **Acceptance Criteria:**
       - Limits: Bronze (2/week), Silver (5/week), Gold (10/week), Platinum (unlimited)
@@ -3569,7 +3787,7 @@ Epic 8: Admin & Coordinator Tools
       - Frontend displays remaining bookings count
     - **Related:** FR50
 
-75. **REP-RESTRICT-001: Tier Restriction on Mentor Booking**
+77. **REP-RESTRICT-001: Tier Restriction on Mentor Booking**
     - As a **developer**, I want to prevent mentees from booking mentors more than one tier above them
     - **Acceptance Criteria:**
       - Before booking: API checks `canBookMentor(menteeId, mentorId)` (tier difference validation)
@@ -3578,7 +3796,7 @@ Epic 8: Admin & Coordinator Tools
       - Exception request workflow in REP-OVERRIDE-001
     - **Related:** FR51, FR71
 
-76. **REP-RATING-001: Post-Meeting Rating Prompt**
+78. **REP-RATING-001: Post-Meeting Rating Prompt**
     - As a **user**, I want to rate meetings after they complete
     - **Acceptance Criteria:**
       - 1 hour after meeting end: Email sent "How was your session with [NAME]?" with rating link
@@ -3589,7 +3807,7 @@ Epic 8: Admin & Coordinator Tools
       - Toast: "Thank you for your feedback!"
     - **Related:** FR45, FR60, NFR20
 
-77. **REP-UI-001: Reputation Score Display**
+79. **REP-UI-001: Reputation Score Display**
     - As a **user**, I want to see my reputation score breakdown
     - **Acceptance Criteria:**
       - Profile page section: Large score number + tier badge
@@ -3598,7 +3816,7 @@ Epic 8: Admin & Coordinator Tools
       - Simple bar chart or progress indicators for visual breakdown
     - **Related:** FR52, Section 3.3
 
-78. **REP-OVERRIDE-001: Tier Override Request (Mentee-Initiated)**
+80. **REP-OVERRIDE-001: Tier Override Request (Mentee-Initiated)**
     - As a **mentee**, I want to request an exception to book a higher-tier mentor
     - **Acceptance Criteria:**
       - "Request Exception" button on restricted mentor profile
@@ -3608,7 +3826,7 @@ Epic 8: Admin & Coordinator Tools
       - Email notification sent to coordinators (with approve magic link + dashboard link)
     - **Related:** FR54, FR55, FR56
 
-79. **REP-DORMANT-001: Dormant User Detection**
+81. **REP-DORMANT-001: Dormant User Detection**
     - As a **developer**, I want users with no meetings for 90+ days marked as dormant
     - **Acceptance Criteria:**
       - `users.last_activity_at` updated on every booking creation (as mentor or mentee)
@@ -3618,7 +3836,7 @@ Epic 8: Admin & Coordinator Tools
       - Dormant users cannot be booked directly (requires coordinator override)
     - **Related:** FR57, FR58
 
-80. **REP-HISTORY-001: Reputation History Tracking**
+82. **REP-HISTORY-001: Reputation History Tracking**
     - As a **coordinator**, I want to view reputation score changes over time for a user
     - **Acceptance Criteria:**
       - `reputation_history` table logs all score changes
@@ -3651,7 +3869,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-81. **ADMIN-DASH-001-LITE: Basic Dashboard KPI Cards (MVP)**
+83. **ADMIN-DASH-001-LITE: Basic Dashboard KPI Cards (MVP)**
     - As a **coordinator**, I want to see essential platform metrics as simple KPI cards
     - **Acceptance Criteria:**
       - Four static KPI cards only (no charts): Mentor utilization rate (%), Weekly slots filled (#), Active users (#), Upcoming meetings (#)
@@ -3662,7 +3880,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR68, FR69, Section 3.3
     - **Note:** Interactive dashboard with charts deferred to FE31 (post-MVP)
 
-82. **ADMIN-OVERRIDE-001: Tier Override Request Management**
+84. **ADMIN-OVERRIDE-001: Tier Override Request Management**
     - As a **coordinator**, I want to review and approve/deny tier override requests
     - **Acceptance Criteria:**
       - "Override Requests" tab in coordinator dashboard
@@ -3673,7 +3891,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR54, FR55, FR56
     - **Note:** Email magic link approval deferred to FE32 (post-MVP)
 
-83. **ADMIN-REP-001: Manual Reputation Override**
+85. **ADMIN-REP-001: Manual Reputation Override**
     - As a **coordinator**, I want to manually adjust user reputation scores with audit trail
     - **Acceptance Criteria:**
       - User profile (admin view): "Override Reputation" button
@@ -3682,7 +3900,7 @@ Epic 8: Admin & Coordinator Tools
       - Audit log: before/after values, admin user, reason, timestamp
     - **Related:** FR53, FR71, FR72
 
-84. **ADMIN-SCHEDULE-001: White-Glove Scheduling**
+86. **ADMIN-SCHEDULE-001: White-Glove Scheduling**
     - As a **coordinator**, I want to manually schedule meetings on behalf of mentors/mentees
     - **Acceptance Criteria:**
       - "Schedule Meeting" button on any user's profile (coordinator view)
@@ -3692,7 +3910,7 @@ Epic 8: Admin & Coordinator Tools
       - Logged as admin action in `audit_log`
     - **Related:** FR65, FR67, FR71
 
-85. **ADMIN-MEETINGS-001: Meeting Management**
+87. **ADMIN-MEETINGS-001: Meeting Management**
     - As a **coordinator**, I want to view, edit, and cancel any meeting
     - **Acceptance Criteria:**
       - "Meetings" tab in coordinator dashboard
@@ -3701,7 +3919,7 @@ Epic 8: Admin & Coordinator Tools
       - All edits logged in `audit_log` with before/after values
     - **Related:** FR66, FR71, FR72
 
-86. **ADMIN-DOCS-001: User Documentation and Coordinator Manual**
+88. **ADMIN-DOCS-001: User Documentation and Coordinator Manual**
     - As a **coordinator/user**, I want comprehensive documentation for using the platform
     - **Acceptance Criteria:**
       - User guide documentation structure created: Getting started, Mentor guide, Mentee guide, FAQ, Troubleshooting
@@ -3717,9 +3935,9 @@ Epic 8: Admin & Coordinator Tools
 
 ### 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 87
-**Critical Path (P0):** Epics 0-4 (59 stories)
-**High Priority (P1):** Epics 5-7 (22 stories)
+**Total Stories:** 89
+**Critical Path (P0):** Epics 0-4 (60 stories)
+**High Priority (P1):** Epics 5-7 (23 stories)
 **Medium Priority (P2):** Epic 8 (6 stories)
 
 **Recommended Sprint Breakdown (2-week sprints):**
@@ -3728,8 +3946,8 @@ Epic 8: Admin & Coordinator Tools
 - **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories
 - **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories
 - **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories
-- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 10 stories
-- **Sprint 7:** Epic 5 (Airtable Integration) - 5 stories
+- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 11 stories (includes booking confirmation flow)
+- **Sprint 7:** Epic 5 (Airtable Integration) - 7 stories (mentors, portfolio companies, industries, technologies)
 - **Sprint 8:** Epic 6 (Matching & Discovery) - 7 stories
 - **Sprint 9:** Epic 7 (Reputation & Ratings) - 10 stories
 - **Sprint 9.5:** Epic 8 (Admin & Coordinator Tools) - 6 stories
@@ -3820,6 +4038,10 @@ Epic 8 (Admin & Coordinator Tools)
 | Internal Consistency Audit | 2025-10-01 | 1.3 | Schema updates: taxonomy approval workflow (source, is_approved, requested_by, approved_by fields), user_tags admin source type, avatar_metadata JSONB, tier_override_requests scope/expiration, calendar_integrations one-per-user constraint, notification_type tag_approval_pending. Clarified: FR62/FR63 meeting duration (nullable for in-person), FR57 dormant users (no scheduled meetings), NFR31 webhook sync/async split, NFR34 openapi-typescript for frontend types. Added: INotificationProvider.sendTagApprovalNotification, email template specifications, avatars storage bucket, data seeding section | John (PM Agent) |
 | Post-Review Updates | 2025-10-01 | 1.4 | **SCOPE CHANGE:** Calendar sync now mandatory for all users (FR105-FR107). Consolidated FR19/FR31 (mentor reach-out with auto-exception). Updated FR11 (manual tags only for MVP, defer AI to post-MVP). Clarified FR62/FR63 (meeting duration fetched 1hr after end, best-effort). Updated NFR5/NFR28 (scoped realtime subscriptions). Schema: tier_override_requests.expires_at now required (7-day expiration), bookings.actual_duration_minutes clarified. API: Added /taxonomy endpoints (GET /, GET /pending, PUT /:id/approve, PUT /:id/reject). Google Meet link logic: prefer mentee's Google account, fallback to mentor, manual link for Outlook-only meetings. Reputation: added probationary clamp logic (isProbationary flag). Section 4.10: Added complete Airtable field mapping documentation | John (PM Agent) |
 | OAuth Flow Simplification | 2025-10-01 | 1.5 | **UX IMPROVEMENT:** OAuth signup (Google/Microsoft) now requests both auth + calendar permissions in single combined flow (FR2, FR108). Magic link users see dismissible banner, prompted for calendar only when attempting booking/availability actions (action-level blocking per FR105). Coordinators exempt from calendar requirement. Schema: calendar_integrations.connection_method added (oauth_signup vs post_login). UI: Updated authentication flow screens with OAuth scope details, calendar connection banner/modal, action-level blocking. UX flows updated to reflect OAuth auto-connection and just-in-time prompts for magic link users. API: Documented combined OAuth flow and post-login calendar connection. Section 3.3: Added calendar permission scopes, action-level blocking requirements | John (PM Agent) |
+| Data Model Restructuring | 2025-10-03 | 2.0 | **BREAKING CHANGE:** Restructured data model for polymorphic relationships and scalability. Changed: Renamed `user_tags` → `entity_tags`, split tag definitions into `taxonomy` table with hierarchical support (`parent_id`). Removed URL fields (`linkedin_url`, `website_url`, `pitch_vc_url`, `additional_links`) from `user_profiles`, added centralized `urls` + `entity_urls` tables for URL deduplication and polymorphic entity linking. Added `portfolio_companies` table with `portfolio_company_id` reference in `user_profiles` (mutually exclusive with `company` field for mentors). Added comprehensive audit trail fields (`created_by`, `updated_by`, `deleted_by`) across all tables. Updated Airtable field mapping, Epic 1 acceptance criteria, and user story PROFILE-LINKS-001 to reflect new structure. Taxonomy now supports hierarchical relationships and `sample_data` source type | Sarah (PO Agent) |
 | Internal Consistency Resolution | 2025-10-01 | 1.6 | **CONSISTENCY FIXES:** Clarified coordinator calendar exemption in schema documentation (application-level enforcement). Expanded FR93 with calendar disconnection behavior (warning on active bookings, manual cleanup responsibility, email notifications continue). Updated tier override expiration logic: approved overrides expire 7 days after approval (not creation), mentor-initiated overrides auto-approved. Updated FR54 to reflect new expiration model. FR107 clarified: tag approval notifications use delivery_channel='both'. FR57 expanded: dormant status is user-wide (90+ days no meetings in any role), tracked via users.last_activity_at. **SCOPE REDUCTION:** Removed meeting duration tracking from MVP (FR62/FR63 simplified, bookings.actual_duration_minutes removed, moved to FE12). API: Added POST /mentors/:mentorId/send-interest with auto-approval logic for tier-restricted mentor-initiated requests. UI: Added SlotPicker realtime subscription implementation example (scoped per NFR28) | John (PM Agent) |
 | Epic & Story Structure | 2025-10-02 | 1.7 | **SECTION COMPLETE:** Added comprehensive Section 5 (Epic and Story Structure) with 9 epics, 78 user stories, acceptance criteria, priority levels, dependencies, sprint breakdown, and 18-week estimated timeline. Status: PRD now 100% complete and ready for epic/story generation. All requirements mapped to implementable stories with clear dependencies and acceptance criteria | John (PM Agent) |
 | Walking Skeleton Restructure | 2025-10-02 | 2.0 | **MAJOR RESTRUCTURE:** Reorganized all epics using Walking Skeleton approach for faster time-to-value. Added Epic 0 (18 stories) delivering end-to-end working product by Week 4. Mock data seeding replaces Airtable dependency for initial development. Resequenced Epics 1-8 to iteratively add depth (infrastructure, OAuth, calendar, advanced booking, Airtable sync, matching, reputation, admin). Total: 86 stories across 10 sprints (20 weeks). Key improvement: working product in 4 weeks vs. 12 weeks, enabling early user feedback and risk mitigation. All stories renumbered (SKEL-*, INFRA-*, AUTH-*, PROFILE-*, CAL-*, AVAIL-*, BOOK-*, AIRTABLE-*, MATCH-*, REP-*, ADMIN-*) | John (PM Agent) |
+| Alignment Review & Clarifications | 2025-10-03 | 2.1 | **COMPREHENSIVE REVIEW:** Internal alignment audit completed based on user feedback. **Clarifications Added:** (1) Portfolio companies vs company field: mentees use `portfolio_company_id` (FK), mentors use `company` (text), Airtable syncs companies before users. (2) URL handling: each URL type is separate Airtable column, extracted and deduplicated in `urls` table. (3) Taxonomy hierarchy: Airtable provides `Name` and `Parent` columns, parent-child ordering guaranteed by Airtable. (4) Coordinator broadcasts: multiple `notification_log` entries created (one per coordinator), no groups in MVP. (5) Cascade soft-deletes: user deletion soft-deletes availability/time_slots, preserves past bookings, cancels future bookings. (6) Tier override expiration: pending requests auto-rejected after 7 days (truly locked), mentee can resubmit. (7) Booking request flow: added `status='pending'`, 7-day timeout, responsiveness tracking via `confirmed_at - created_at`. (8) Airtable webhook: HMAC-SHA256 signature validation via `X-Airtable-Content-MAC` header. (9) Single-role constraint: users can only have one role in MVP (separate accounts required for dual roles). Updated schema, story acceptance criteria, and reputation calculation documentation | Sarah (PO Agent) |
+| URL Model Simplification | 2025-10-03 | 2.2 | **BREAKING CHANGE:** Simplified URL storage model per architecture.md v1.3. Removed polymorphic complexity: deleted `urls` table (centralized deduplication - premature optimization) and `entity_urls` table (polymorphic junction). Added direct URL columns to `portfolio_companies` table (`website`, `pitch_vc_url`, `linkedin_url`). Replaced `entity_urls` with dedicated `user_urls` table (non-polymorphic, direct `user_id` FK). Updated all references: schema documentation, Airtable sync logic (Section 4.10), Epic 1 acceptance criteria (INFRA-DB-001), user story PROFILE-LINKS-001, and seed data documentation. This change reduces join complexity and improves query performance while maintaining all required URL storage functionality | Sarah (PO Agent) |
+| Booking Confirmation Flow & Calendar Events Clarification | 2025-10-03 | 2.4 | **CRITICAL CLARIFICATIONS:** (1) Booking confirmation flow: Updated FR29 to clarify pending/confirmed states with 7-day expiration. Updated FR32 with three-email touchpoint flow (request creation, confirmation, expiration). Updated FR36 to specify calendar events created only after confirmation with single event model (both parties as attendees). Updated FR40-FR42 to clarify real-time slot reservation behavior (pending bookings immediately reserve slots, expired bookings free slots in real-time). (2) Tag approval workflow scope: Moved FR92 and FR107 to post-MVP Future Enhancements (FE35, FE36). In MVP, user-submitted tags are saved but not displayed; coordinators manually approve via database. (3) Google Meet and calendar events: Clarified that system creates single calendar event with both mentor and mentee as attendees, with implementation details deferred to development (calendar provider API research required). Added FE34 for calendar event modification support (post-MVP) | Sarah (PO Agent) |

@@ -201,11 +201,11 @@ Epic 8: Admin & Coordinator Tools
     - **Acceptance Criteria:**
       - `POST /api/bookings` accepts: slot_id, meeting_goal
       - Marks `time_slots.is_booked=true`
-      - Creates `bookings` record with status='confirmed'
-      - No conflict checking, no calendar integration yet
+      - Creates `bookings` record with status='pending'
+      - No conflict checking, no calendar integration, no confirmation flow yet
       - Returns created booking
     - **Related:** FR29, FR30
-    - **Note:** Calendar conflict checking added in Epic 3
+    - **Note:** Calendar conflict checking added in Epic 3, booking confirmation flow added in Epic 4
 
 14. **SKEL-BOOK-002: Booking Form (Simple)**
     - As a **mentee**, I want to provide meeting context when booking
@@ -276,10 +276,13 @@ Epic 8: Admin & Coordinator Tools
 19. **INFRA-DB-001: Full Database Schema Migration**
     - As a **developer**, I want to extend the minimal schema with all production fields
     - **Acceptance Criteria:**
-      - Add soft delete columns (`deleted_at`) to all tables
+      - Add soft delete columns (`deleted_at`, `deleted_by`) to all tables
+      - Add audit columns (`created_by`, `updated_by`) to all tables
       - Add reputation fields to `users` table (`reputation_score`, `reputation_tier`, `last_activity_at`)
       - Add calendar integration fields (`calendar_integrations` table)
-      - Add taxonomy tables (`taxonomy`, `user_tags`)
+      - Add taxonomy tables (`taxonomy`, `entity_tags`)
+      - Add URL management table (`user_urls`), add URL columns to `portfolio_companies` (website, pitch_vc_url, linkedin_url)
+      - Add portfolio company table (`portfolio_companies`)
       - Add audit tables (`audit_log`, `reputation_history`)
       - Migration script updates existing data safely
     - **Related:** FR82, NFR17, NFR18
@@ -412,7 +415,7 @@ Epic 8: Admin & Coordinator Tools
     - **Acceptance Criteria:**
       - Multi-select dropdown for industries, technologies, stages
       - Tags sourced from `taxonomy` table (WHERE `is_approved = true`)
-      - Visual distinction: confirmed tags (solid badge) vs. user-submitted (outlined badge)
+      - Visual distinction: approved tags (solid badge) vs. user-submitted pending approval (outlined badge)
       - "Add custom tag" option triggers new tag request workflow (saved as `is_approved=false`)
     - **Related:** FR11, FR12, FR91, FR92
 
@@ -450,9 +453,9 @@ Epic 8: Admin & Coordinator Tools
     - As a **user**, I want to add multiple custom links to my profile (website, portfolio, etc.)
     - **Acceptance Criteria:**
       - "Add link" button creates new URL input field
-      - Stored in `user_profiles.additional_links` JSONB array
+      - URLs stored in `user_urls` table with `url_type='other'`
       - Links displayed on profile with clickable icons
-      - Remove link button for each entry
+      - Remove link button for each entry (soft-deletes `user_urls` record)
     - **Related:** FR7
 
 36. **PROFILE-PREFS-001: Reminder Preferences**
@@ -560,7 +563,7 @@ Epic 8: Admin & Coordinator Tools
     - **Acceptance Criteria:**
       - On booking confirmation: `calendarProvider.createEvent()` called
       - Event includes: title, description, start/end time (UTC with TZID), attendees, location/Google Meet link
-      - Calendar invites (.ics) sent to both parties
+      - Calendar invitations sent to both parties
       - Event stored in user's connected calendar (Google or Outlook)
     - **Related:** FR36, FR37, FR39
 
@@ -598,7 +601,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 4: Availability & Booking Depth**
 **Goal:** Add advanced availability features (recurrence patterns, preset locations), booking management, and real-time updates
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 10
+**Estimated Stories:** 11
 **Dependencies:** Epic 3
 **Timeline:** Sprint 6 (Weeks 11-12)
 
@@ -606,6 +609,7 @@ Epic 8: Admin & Coordinator Tools
 - Recurrence patterns (weekly, monthly, quarterly)
 - Calendar grid slot picker with mutual availability
 - Real-time slot updates (Supabase Realtime)
+- Booking confirmation flow with pending/confirmed/expired states
 - Meeting cancellation with notifications
 - Meeting reminders based on user preferences
 - Preset location management
@@ -707,20 +711,33 @@ Epic 8: Admin & Coordinator Tools
       - Deletions send cancellation emails to affected mentees
     - **Related:** FR80
 
+59. **BOOK-CONFIRM-001: Booking Confirmation Flow with Pending/Expired States**
+    - As a **developer**, I want bookings to support pending, confirmed, and expired status flow
+    - **Acceptance Criteria:**
+      - Extend `bookings` schema with `confirmed_by` (uuid, fk -> users, null) and `confirmed_at` (timestamptz, null)
+      - Initial booking creation: `status='pending'`, `confirmed_by=NULL`, `confirmed_at=NULL`
+      - Mentor/coordinator confirmation: API endpoint `PUT /api/bookings/:id/confirm` sets `status='confirmed'`, `confirmed_by=current_user_id`, `confirmed_at=NOW()`
+      - Background job (daily cron): Auto-expire bookings WHERE `status='pending' AND created_at < NOW() - INTERVAL '7 days'` → `status='expired'`
+      - Responsiveness tracking: `confirmed_at - created_at` (only if `confirmed_by` is NOT a coordinator)
+      - UI shows pending bookings with "Confirm" button for mentors, "Pending confirmation" badge for mentees
+    - **Related:** FR29, FR30, FR46, Section 1.9
+
 ---
 
 ### **Epic 5: Airtable Integration**
-**Goal:** Replace mock data with live Airtable sync for users and taxonomy
+**Goal:** Replace mock data with live Airtable sync for all four data sources
 **Priority:** P1 (High)
-**Estimated Stories:** 5
+**Estimated Stories:** 6
 **Dependencies:** Epic 1 (schema must be ready)
 **Timeline:** Sprint 7 (Weeks 13-14)
 
 **Deliverable:** Live Airtable data sync:
 - Webhook endpoint receives Airtable change notifications
-- Full users table fetch and upsert
+- Full mentors/users table fetch and upsert
+- Portfolio companies table fetch and upsert
+- Taxonomy sync for industries (approved tags from Airtable)
+- Taxonomy sync for technologies (approved tags from Airtable)
 - User tags sync (industries, technologies, stages)
-- Taxonomy sync (approved tags from Airtable)
 - User deletion handling (cascading cancellations)
 
 **User Stories:**
@@ -729,7 +746,12 @@ Epic 8: Admin & Coordinator Tools
     - As a **developer**, I want a webhook endpoint to receive Airtable change notifications
     - **Acceptance Criteria:**
       - `POST /api/webhooks/airtable` endpoint created
-      - Webhook signature validation using `AIRTABLE_WEBHOOK_SECRET` (NFR16)
+      - **Webhook Signature Validation** (NFR16):
+        - Algorithm: **HMAC-SHA256**
+        - Header: `X-Airtable-Content-MAC`
+        - Secret: `AIRTABLE_WEBHOOK_SECRET` (base64-decoded MAC secret from Airtable webhook creation)
+        - Validation: Compute HMAC-SHA256 of request body using decoded secret, compare with header value
+        - Reject requests with invalid or missing signatures (401 Unauthorized)
       - Raw payload logged to `airtable_sync_log` table
       - Endpoint responds within 10ms (synchronous ack per NFR31)
     - **Related:** FR5, FR86, NFR4, NFR16, NFR31, Section 4.10
@@ -740,6 +762,8 @@ Epic 8: Admin & Coordinator Tools
       - Webhook triggers full users table fetch from Airtable
       - Field mapping per Section 4.10 (Record ID → airtable_record_id, Email, Role, Name, etc.)
       - Upsert into `users`, `user_profiles` tables (idempotent)
+      - **URL Extraction**: Each URL type (LinkedIn, Website, Pitch.vc, etc.) is a **separate column** in Airtable
+      - URLs extracted from dedicated columns and stored in `user_urls` table with appropriate `url_type` (`linkedin`, `website`, `pitch_vc`, `other`)
       - Missing records trigger soft-delete (`deleted_at` populated)
       - Processing completes within 5 seconds (NFR4)
     - **Related:** FR5, FR85, FR86, NFR4, Section 4.10
@@ -747,28 +771,62 @@ Epic 8: Admin & Coordinator Tools
 61. **AIRTABLE-TAGS-001: User Tags Sync**
     - As a **developer**, I want user tags (industries, technologies, stages) synced from Airtable
     - **Acceptance Criteria:**
-      - Multi-select tag columns in Airtable mapped to `user_tags` rows
-      - Each selected tag creates one `user_tags` row with `source='airtable'`, `is_confirmed=true`
-      - Old tags removed (soft-deleted) if no longer in Airtable
+      - Multi-select tag columns in Airtable mapped to `entity_tags` rows via `taxonomy` table lookups
+      - Each selected tag creates one `entity_tags` row with `entity_type='user'`, linked to matching `taxonomy` entry
+      - Tags from Airtable exist in `taxonomy` table with `source='airtable'`
+      - Old tags removed (soft-deleted in `entity_tags`) if no longer in Airtable
       - Tag values normalized (lowercase, underscores) per Section 4.10
     - **Related:** FR11, FR87, Section 4.10
 
-62. **AIRTABLE-TAXONOMY-001: Taxonomy Sync**
-    - As a **developer**, I want CF taxonomy (industries, technologies, stages) synced from Airtable
+62. **AIRTABLE-TAXONOMY-001: Industries Taxonomy Sync**
+    - As a **developer**, I want CF industries taxonomy synced from Airtable
     - **Acceptance Criteria:**
-      - Separate Airtable tables/tabs synced to `taxonomy` table
+      - Airtable Industries table synced to `taxonomy` table with `category='industry'`
       - Field mapping per Section 4.10 (Record ID, value, display_name, category)
+      - **Hierarchical Support**: Each Airtable taxonomy table has two columns: `Name` and `Parent` (optional)
+      - **Parent-Child Ordering**: Airtable ensures parent entries appear before child entries in API responses (application assumes correct ordering)
+      - Parent-child relationships linked via `parent_id` FK in `taxonomy` table
       - Synced tags have `source='airtable'`, `is_approved=true`
       - Upsert based on `airtable_record_id`
     - **Related:** FR87, Section 4.10
 
-63. **AIRTABLE-DELETE-001: User Deletion Handling**
+63. **AIRTABLE-TAXONOMY-002: Technologies Taxonomy Sync**
+    - As a **developer**, I want CF technologies taxonomy synced from Airtable
+    - **Acceptance Criteria:**
+      - Airtable Technologies table synced to `taxonomy` table with `category='technology'`
+      - Field mapping per Section 4.10 (Record ID, value, display_name, category)
+      - **Hierarchical Support**: Each Airtable taxonomy table has two columns: `Name` and `Parent` (optional)
+      - **Parent-Child Ordering**: Airtable ensures parent entries appear before child entries in API responses (application assumes correct ordering)
+      - Parent-child relationships linked via `parent_id` FK in `taxonomy` table
+      - Synced tags have `source='airtable'`, `is_approved=true`
+      - Upsert based on `airtable_record_id`
+    - **Related:** FR87, Section 4.10
+
+64. **AIRTABLE-COMPANIES-001: Portfolio Companies Sync**
+    - As a **developer**, I want portfolio companies synced from Airtable to Supabase on webhook trigger
+    - **Acceptance Criteria:**
+      - Webhook triggers full portfolio companies table fetch from Airtable
+      - Field mapping per Section 4.10 (Record ID → airtable_record_id, Name, Description, etc.)
+      - Upsert into `portfolio_companies` table (idempotent)
+      - **URL Extraction**: Website, Pitch.vc, LinkedIn URLs are **separate columns** in Airtable
+      - URLs stored directly in `portfolio_companies` columns: `website`, `pitch_vc_url`, `linkedin_url`
+      - Tags (industries, technologies, stages) mapped to `entity_tags` rows via `taxonomy` table lookups with `entity_type='portfolio_company'`
+      - Missing records trigger soft-delete (`deleted_at` populated)
+      - Processing completes within 5 seconds (NFR4)
+      - **Sync Order**: Portfolio companies synced **before** users (users reference `portfolio_company_id`)
+    - **Related:** FR85, FR86, NFR4, Section 4.10
+
+65. **AIRTABLE-DELETE-001: User Deletion Handling**
     - As a **developer**, I want user removals in Airtable to trigger cascading actions in the app
     - **Acceptance Criteria:**
       - User removed from Airtable: `users.deleted_at` populated (soft delete)
-      - All future bookings auto-canceled
-      - Notification sent to other party in canceled meetings
-      - User no longer appears in search results
+      - **Cascade Soft-Delete Rules:**
+        - User's **availability blocks**: Soft-deleted (`availability.deleted_at` populated)
+        - User's **time slots**: Soft-deleted (`time_slots.deleted_at` populated)
+        - **Past bookings**: Preserved (no deletion, historical record maintained)
+        - **Future bookings**: Status changed to `'canceled'`, `canceled_by = system`, `canceled_at = NOW()`
+      - Cancellation notifications sent to other party in all canceled meetings
+      - User no longer appears in search results (WHERE `deleted_at IS NULL`)
     - **Related:** FR73, FR81, NFR19
 
 ---
@@ -790,7 +848,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-64. **MATCH-INTERFACE-001: IMatchingEngine Interface Definition**
+66. **MATCH-INTERFACE-001: IMatchingEngine Interface Definition**
     - As a **developer**, I want a pluggable matching engine interface for algorithm flexibility
     - **Acceptance Criteria:**
       - `IMatchingEngine` interface defined per Section 4.5
@@ -798,7 +856,7 @@ Epic 8: Admin & Coordinator Tools
       - TypeScript types: `MatchingOptions`, `MatchResult`, `MatchExplanation`
     - **Related:** FR13, NFR21, Section 4.5
 
-65. **MATCH-TAG-001: Tag-Based Matching Algorithm (MVP)**
+67. **MATCH-TAG-001: Tag-Based Matching Algorithm (MVP)**
     - As a **developer**, I want a tag-based matching algorithm for mentor-mentee recommendations
     - **Acceptance Criteria:**
       - `TagBasedMatchingEngine implements IMatchingEngine`
@@ -807,7 +865,7 @@ Epic 8: Admin & Coordinator Tools
       - Includes match explanation: shared tags, stage match, reputation tier compatibility
     - **Related:** FR14, FR17, Section 4.5
 
-66. **MATCH-API-001: Recommended Mentors API**
+68. **MATCH-API-001: Recommended Mentors API**
     - As a **mentee**, I want personalized mentor recommendations based on my profile
     - **Acceptance Criteria:**
       - `GET /api/mentors/recommended?menteeId={uuid}` endpoint
@@ -816,7 +874,7 @@ Epic 8: Admin & Coordinator Tools
       - Filters out inactive/dormant mentors
     - **Related:** FR15, FR17
 
-67. **MATCH-API-002: Recommended Mentees API**
+69. **MATCH-API-002: Recommended Mentees API**
     - As a **mentor**, I want personalized mentee recommendations based on my expertise
     - **Acceptance Criteria:**
       - `GET /api/mentees/recommended?mentorId={uuid}` endpoint
@@ -825,7 +883,7 @@ Epic 8: Admin & Coordinator Tools
       - Filters out inactive/dormant mentees
     - **Related:** FR16, FR17
 
-68. **MATCH-UI-001: Enhanced Mentor Directory**
+70. **MATCH-UI-001: Enhanced Mentor Directory**
     - As a **mentee**, I want to browse all mentors with filtering, search, and recommendations
     - **Acceptance Criteria:**
       - "Recommended for you" section at top (3-5 mentor cards with match scores)
@@ -836,7 +894,7 @@ Epic 8: Admin & Coordinator Tools
       - Mentor cards: avatar, name, title, company, tags, reputation badge, "View Profile" + "Book Meeting" buttons
     - **Related:** FR15, FR17, FR18, Section 3.3
 
-69. **MATCH-UI-002: Enhanced Mentee Directory**
+71. **MATCH-UI-002: Enhanced Mentee Directory**
     - As a **mentor**, I want to browse all mentees with filtering, search, and recommendations
     - **Acceptance Criteria:**
       - Similar layout to mentor directory
@@ -845,7 +903,7 @@ Epic 8: Admin & Coordinator Tools
       - Match explanations focused on how mentor can help
     - **Related:** FR16, FR18, Section 3.3
 
-70. **MATCH-REACH-001: Mentor Send Interest (Reach Out)**
+72. **MATCH-REACH-001: Mentor Send Interest (Reach Out)**
     - As a **mentor**, I want to express interest in meeting a mentee
     - **Acceptance Criteria:**
       - "Reach Out" button on mentee profile/card
@@ -878,7 +936,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-71. **REP-INTERFACE-001: IReputationCalculator Interface Definition**
+73. **REP-INTERFACE-001: IReputationCalculator Interface Definition**
     - As a **developer**, I want a pluggable reputation calculator interface for formula flexibility
     - **Acceptance Criteria:**
       - `IReputationCalculator` interface defined per Section 4.5
@@ -886,7 +944,7 @@ Epic 8: Admin & Coordinator Tools
       - TypeScript types: `ReputationScore`, `ReputationTier`
     - **Related:** FR44, NFR21, Section 4.5
 
-72. **REP-CALC-001: Reputation Score Calculation Logic**
+74. **REP-CALC-001: Reputation Score Calculation Logic**
     - As a **developer**, I want reputation scores calculated using rating, completion, responsiveness, and tenure
     - **Acceptance Criteria:**
       - Formula: `(AvgRating × CompletionRate × ResponsivenessFactor) + TenureBonus`
@@ -896,7 +954,7 @@ Epic 8: Admin & Coordinator Tools
       - Completion rate: % of booked sessions attended (vs. canceled/no-show)
     - **Related:** FR46, FR47, FR48, Section 1.9
 
-73. **REP-TIER-001: Reputation Tier Assignment**
+75. **REP-TIER-001: Reputation Tier Assignment**
     - As a **developer**, I want users assigned reputation tiers based on their score
     - **Acceptance Criteria:**
       - Tiers: Bronze (0-3.0), Silver (3.0-4.0), Gold (4.0-4.5), Platinum (4.5+)
@@ -904,7 +962,7 @@ Epic 8: Admin & Coordinator Tools
       - `users.reputation_tier` updated, change logged in `reputation_history`
     - **Related:** FR49, Section 1.9
 
-74. **REP-LIMIT-001: Tier-Based Booking Limits**
+76. **REP-LIMIT-001: Tier-Based Booking Limits**
     - As a **developer**, I want booking limits enforced based on user reputation tier
     - **Acceptance Criteria:**
       - Limits: Bronze (2/week), Silver (5/week), Gold (10/week), Platinum (unlimited)
@@ -913,7 +971,7 @@ Epic 8: Admin & Coordinator Tools
       - Frontend displays remaining bookings count
     - **Related:** FR50
 
-75. **REP-RESTRICT-001: Tier Restriction on Mentor Booking**
+77. **REP-RESTRICT-001: Tier Restriction on Mentor Booking**
     - As a **developer**, I want to prevent mentees from booking mentors more than one tier above them
     - **Acceptance Criteria:**
       - Before booking: API checks `canBookMentor(menteeId, mentorId)` (tier difference validation)
@@ -922,7 +980,7 @@ Epic 8: Admin & Coordinator Tools
       - Exception request workflow in REP-OVERRIDE-001
     - **Related:** FR51, FR71
 
-76. **REP-RATING-001: Post-Meeting Rating Prompt**
+78. **REP-RATING-001: Post-Meeting Rating Prompt**
     - As a **user**, I want to rate meetings after they complete
     - **Acceptance Criteria:**
       - 1 hour after meeting end: Email sent "How was your session with [NAME]?" with rating link
@@ -933,7 +991,7 @@ Epic 8: Admin & Coordinator Tools
       - Toast: "Thank you for your feedback!"
     - **Related:** FR45, FR60, NFR20
 
-77. **REP-UI-001: Reputation Score Display**
+79. **REP-UI-001: Reputation Score Display**
     - As a **user**, I want to see my reputation score breakdown
     - **Acceptance Criteria:**
       - Profile page section: Large score number + tier badge
@@ -942,7 +1000,7 @@ Epic 8: Admin & Coordinator Tools
       - Simple bar chart or progress indicators for visual breakdown
     - **Related:** FR52, Section 3.3
 
-78. **REP-OVERRIDE-001: Tier Override Request (Mentee-Initiated)**
+80. **REP-OVERRIDE-001: Tier Override Request (Mentee-Initiated)**
     - As a **mentee**, I want to request an exception to book a higher-tier mentor
     - **Acceptance Criteria:**
       - "Request Exception" button on restricted mentor profile
@@ -952,7 +1010,7 @@ Epic 8: Admin & Coordinator Tools
       - Email notification sent to coordinators (with approve magic link + dashboard link)
     - **Related:** FR54, FR55, FR56
 
-79. **REP-DORMANT-001: Dormant User Detection**
+81. **REP-DORMANT-001: Dormant User Detection**
     - As a **developer**, I want users with no meetings for 90+ days marked as dormant
     - **Acceptance Criteria:**
       - `users.last_activity_at` updated on every booking creation (as mentor or mentee)
@@ -962,7 +1020,7 @@ Epic 8: Admin & Coordinator Tools
       - Dormant users cannot be booked directly (requires coordinator override)
     - **Related:** FR57, FR58
 
-80. **REP-HISTORY-001: Reputation History Tracking**
+82. **REP-HISTORY-001: Reputation History Tracking**
     - As a **coordinator**, I want to view reputation score changes over time for a user
     - **Acceptance Criteria:**
       - `reputation_history` table logs all score changes
@@ -995,7 +1053,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-81. **ADMIN-DASH-001-LITE: Basic Dashboard KPI Cards (MVP)**
+83. **ADMIN-DASH-001-LITE: Basic Dashboard KPI Cards (MVP)**
     - As a **coordinator**, I want to see essential platform metrics as simple KPI cards
     - **Acceptance Criteria:**
       - Four static KPI cards only (no charts): Mentor utilization rate (%), Weekly slots filled (#), Active users (#), Upcoming meetings (#)
@@ -1006,7 +1064,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR68, FR69, Section 3.3
     - **Note:** Interactive dashboard with charts deferred to FE31 (post-MVP)
 
-82. **ADMIN-OVERRIDE-001: Tier Override Request Management**
+84. **ADMIN-OVERRIDE-001: Tier Override Request Management**
     - As a **coordinator**, I want to review and approve/deny tier override requests
     - **Acceptance Criteria:**
       - "Override Requests" tab in coordinator dashboard
@@ -1017,7 +1075,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR54, FR55, FR56
     - **Note:** Email magic link approval deferred to FE32 (post-MVP)
 
-83. **ADMIN-REP-001: Manual Reputation Override**
+85. **ADMIN-REP-001: Manual Reputation Override**
     - As a **coordinator**, I want to manually adjust user reputation scores with audit trail
     - **Acceptance Criteria:**
       - User profile (admin view): "Override Reputation" button
@@ -1026,7 +1084,7 @@ Epic 8: Admin & Coordinator Tools
       - Audit log: before/after values, admin user, reason, timestamp
     - **Related:** FR53, FR71, FR72
 
-84. **ADMIN-SCHEDULE-001: White-Glove Scheduling**
+86. **ADMIN-SCHEDULE-001: White-Glove Scheduling**
     - As a **coordinator**, I want to manually schedule meetings on behalf of mentors/mentees
     - **Acceptance Criteria:**
       - "Schedule Meeting" button on any user's profile (coordinator view)
@@ -1036,7 +1094,7 @@ Epic 8: Admin & Coordinator Tools
       - Logged as admin action in `audit_log`
     - **Related:** FR65, FR67, FR71
 
-85. **ADMIN-MEETINGS-001: Meeting Management**
+87. **ADMIN-MEETINGS-001: Meeting Management**
     - As a **coordinator**, I want to view, edit, and cancel any meeting
     - **Acceptance Criteria:**
       - "Meetings" tab in coordinator dashboard
@@ -1045,7 +1103,7 @@ Epic 8: Admin & Coordinator Tools
       - All edits logged in `audit_log` with before/after values
     - **Related:** FR66, FR71, FR72
 
-86. **ADMIN-DOCS-001: User Documentation and Coordinator Manual**
+88. **ADMIN-DOCS-001: User Documentation and Coordinator Manual**
     - As a **coordinator/user**, I want comprehensive documentation for using the platform
     - **Acceptance Criteria:**
       - User guide documentation structure created: Getting started, Mentor guide, Mentee guide, FAQ, Troubleshooting
@@ -1061,9 +1119,9 @@ Epic 8: Admin & Coordinator Tools
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 87
-**Critical Path (P0):** Epics 0-4 (59 stories)
-**High Priority (P1):** Epics 5-7 (22 stories)
+**Total Stories:** 89
+**Critical Path (P0):** Epics 0-4 (60 stories)
+**High Priority (P1):** Epics 5-7 (23 stories)
 **Medium Priority (P2):** Epic 8 (6 stories)
 
 **Recommended Sprint Breakdown (2-week sprints):**
@@ -1072,8 +1130,8 @@ Epic 8: Admin & Coordinator Tools
 - **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories
 - **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories
 - **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories
-- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 10 stories
-- **Sprint 7:** Epic 5 (Airtable Integration) - 5 stories
+- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 11 stories (includes booking confirmation flow)
+- **Sprint 7:** Epic 5 (Airtable Integration) - 7 stories (mentors, portfolio companies, industries, technologies)
 - **Sprint 8:** Epic 6 (Matching & Discovery) - 7 stories
 - **Sprint 9:** Epic 7 (Reputation & Ratings) - 10 stories
 - **Sprint 9.5:** Epic 8 (Admin & Coordinator Tools) - 6 stories

@@ -27,5 +27,8 @@ This is a **greenfield project** with a clearly defined tech stack:
 | Date | Version | Description | Author |
 |------|---------|-------------|--------|
 | 2025-10-02 | 1.0 | Initial architecture document | Winston (Architect Agent) |
+| 2025-10-03 | 1.1 | Updated Section 4 Data Models for PRD v2.1 alignment | Winston (Architect Agent) |
+| 2025-10-03 | 2.3 | Updated for PRD v2.3 alignment, added Section 4.10 (External Integrations) and Section 8.7 (Background Jobs), added PRD requirement cross-references | Winston (Architect Agent) |
+| 2025-10-03 | 2.4 | Clarified Google Meet link generation priority (mentee > mentor), added explicit coordinator role check in responsiveness calculation, extended AvatarCropSettings with crop coordinates | Sarah (PO Agent) |
 
 ---

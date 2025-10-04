@@ -18,7 +18,7 @@
 - **FR9**: Mentees shall link Pitch.vc profiles in their profile
 - **FR10**: Mentors shall define default description of expertise areas and ideal mentee profiles
 - **FR11**: System shall support manual tag selection from CF's taxonomy (industries, technologies, stages) synced from Airtable. Tags may be populated from Airtable sync (`source=airtable`) or manual user selection (`source=user`). AI-based auto-generation deferred to post-MVP
-- **FR12**: System shall differentiate between "confirmed" tags (by user or from Airtable) and "user-submitted" tags pending coordinator approval
+- **FR12**: System shall differentiate between "approved" tags (from Airtable or approved by coordinators) and "user-submitted" tags pending coordinator approval
 
 ### Matching & Discovery
 
@@ -44,23 +44,23 @@
 
 ### Booking & Scheduling
 
-- **FR29**: Mentees shall book available mentor time slots from calendar view (requires connected calendar per FR105)
+- **FR29**: Mentees shall create booking requests for available mentor time slots (requires connected calendar per FR105). Booking requests immediately reserve the slot (`time_slots.is_booked=true`, `status='pending'`) to prevent concurrent bookings. Bookings require mentor or coordinator confirmation within 7 days, after which they expire and the slot is automatically freed for rebooking
 - **FR30**: Mentees shall provide meeting goal description and materials for mentor review when booking
 - **FR31**: [INTENTIONALLY LEFT BLANK]
-- **FR32**: System shall send automated confirmation emails to both parties via `INotificationProvider`
+- **FR32**: System shall send notification emails at three booking lifecycle stages via `INotificationProvider`: (1) Booking request creation: mentor receives "New booking request, please confirm" email, mentee receives "Request submitted, awaiting confirmation" receipt; (2) Mentor/coordinator confirmation: both parties receive "Meeting confirmed" email; (3) Expiration without confirmation (7 days): mentee receives "Booking request expired, please rebook if still interested" email
 - **FR33**: System shall send reminder emails based on user preference: 1 hour before / 24 hours before / Both (default: 1 hour)
 - **FR34**: Either party shall cancel meetings with automated email notification to other party
 - **FR35**: Canceled meetings do not auto-reschedule; mentee must rebook via standard flow
-- **FR36**: System shall generate calendar event with meeting details, Google Meet link, and attendee info
+- **FR36**: System shall generate a single calendar event with both mentor and mentee as attendees only after booking confirmation (`status='confirmed'`). Event shall include meeting details, Google Meet link (if applicable), and attendee information. Both parties receive calendar notifications via their connected calendar provider. Calendar events shall be updated or deleted when bookings are modified or canceled
 - **FR37**: Users shall add individual events to Google Calendar or subscribe via .ical feed
 - **FR38**: System shall enforce minimum 1-day advance booking requirement for all meetings
-- **FR39**: Calendar invites (.ics) shall include absolute UTC time + TZID for timezone-safe display
+- **FR39**: Calendar events shall include absolute UTC time + TZID for timezone-safe display
 
 ### Real-time & Notifications
 
 - **FR40**: System shall use Supabase Realtime to broadcast slot availability changes to all connected clients
-- **FR41**: When a time slot is booked, all users viewing that slot shall receive immediate UI update (slot disappears/grays out)
-- **FR42**: If a user attempts to book a slot already taken by another concurrent user, system shall display toast notification: "This slot was just booked by another user" and return to slot selection view
+- **FR41**: When a time slot is reserved (booking request created with `status='pending'`), all users viewing that slot shall receive immediate UI update (slot disappears/grays out). When a pending booking expires without confirmation, the slot shall reappear in real-time for other users
+- **FR42**: If a user attempts to book a slot already reserved by another concurrent user, system shall display toast notification: "This slot was just booked by another user" and return to slot selection view
 - **FR43**: System shall use toast notifications (Shadcn toast component) for all transient on-screen notifications
 
 ### Reputation & Ratings
@@ -128,15 +128,15 @@
 - **FR89**: System shall provide avatar cropping modal with circular crop area, supporting rotation, pan, and zoom
 - **FR90**: Avatar images shall be displayed as circles throughout the application
 - **FR91**: Users shall manually add custom tags to their profile from existing taxonomy
-- **FR92**: User-submitted tags that don't exist in taxonomy shall require coordinator approval before addition to system taxonomy
+- **FR92**: [MOVED TO FE35 - Tag approval workflow deferred to post-MVP]
 
 ### Calendar Integration
 
 - **FR93**: Users shall disconnect calendar integration via settings, removing OAuth tokens and stopping sync. System shall warn users if active bookings exist in next 7 days: "You have X upcoming meetings. Disconnecting will prevent calendar conflict checks, but existing calendar events will remain (you must delete them manually if needed)." System continues to send email notifications for existing bookings after disconnection. User must reconnect calendar to create new availability blocks or make new bookings (per FR105). Calendar events in external calendar (Google/Outlook) are not automatically deleted; users are responsible for manual cleanup if desired
 - **FR94**: Users shall configure reminder notification preferences in profile settings (default: 1 hour before)
-- **FR105**: Mentors and mentees must connect one calendar provider (Google or Microsoft) before performing booking/availability actions (viewing available slots, booking meetings, creating availability blocks). OAuth signup users (Google/Microsoft) have calendar connected automatically during signup per FR2. Magic link users and coordinators can connect calendar post-login via separate OAuth flow. System shall prompt calendar connection when user attempts booking/availability action without connected calendar
+- **FR105**: Mentors and mentees must connect one calendar provider (Google or Microsoft) before performing booking/availability actions (viewing available slots, booking meetings, creating availability blocks). OAuth signup users (Google/Microsoft) have calendar connected automatically during signup per FR2. Magic link users can connect calendar post-login via separate OAuth flow. **Coordinators are exempt from calendar connection requirement and can perform all booking/availability functions for mentors and mentees without having a connected calendar themselves.** System shall prompt calendar connection when non-coordinator user attempts booking/availability action without connected calendar
 - **FR106**: System shall check for calendar conflicts before confirming bookings using connected calendar provider's availability data
-- **FR107**: Coordinators shall receive notifications when new taxonomy tags are submitted for approval (delivery_channel='both'). Email notifications sent to all coordinators. In-app toast notifications delivered to online coordinators via Supabase Realtime subscription to taxonomy table changes (WHERE is_approved=false)
+- **FR107**: [MOVED TO FE36 - Tag approval notifications deferred to post-MVP]
 
 ### Centralized Error Handling
 
@@ -277,5 +277,8 @@
 - **FE31**: Interactive dashboard charts with drill-down (Recharts + historical data)
 - **FE32**: Email magic link approval for tier overrides (one-click approval from email)
 - **FE33**: Automated tag approval workflow with real-time toast notifications
+- **FE34**: Calendar event modification API support (update meeting time/location without cancel+rebook)
+- **FE35**: Tag approval workflow - User-submitted tags that don't exist in taxonomy shall require coordinator approval before addition to system taxonomy. Coordinator dashboard "Tag Management" tab shows pending tags with approve/reject actions. In MVP, coordinators manually approve tags via direct database updates
+- **FE36**: Tag approval notifications - Coordinators shall receive notifications when new taxonomy tags are submitted for approval (delivery_channel='both'). Email notifications sent to all coordinators. In-app toast notifications delivered to online coordinators via Supabase Realtime subscription to taxonomy table changes (WHERE is_approved=false)
 
 ---

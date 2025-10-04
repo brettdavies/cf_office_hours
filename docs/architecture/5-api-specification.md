@@ -74,7 +74,9 @@ export const BookingResponseSchema = z.object({
   meeting_type: z.enum(['in_person_preset', 'in_person_custom', 'online']),
   location: z.string().nullable(),
   google_meet_link: z.string().url().nullable(),
-  status: z.enum(['confirmed', 'completed', 'canceled']),
+  status: z.enum(['pending', 'confirmed', 'completed', 'canceled', 'expired']),
+  confirmed_by: z.string().uuid().nullable(),
+  confirmed_at: z.string().datetime().nullable(),
   meeting_start_time: z.string().datetime(),
   meeting_end_time: z.string().datetime(),
   created_at: z.string().datetime(),
@@ -323,33 +325,46 @@ GET /exceptions/approve/:token
 GET /taxonomy
   Headers: Authorization Bearer <token>
   Query: { category?: TagCategory, is_approved?: boolean }
-  Response: TaxonomyEntry[]
+  Response: Taxonomy[]
+  Description: Get taxonomy entries (industries, technologies, stages)
 
 POST /taxonomy/request
   Headers: Authorization Bearer <token>
-  Body: { category: TagCategory, value: string, display_name: string }
-  Response: 201 TaxonomyEntry
+  Body: { category: TagCategory, name: string }
+  Response: 201 Taxonomy
   Description: User requests new tag (normalized to lowercase_snake_case, requires coordinator approval per FR75)
 
 PUT /taxonomy/:id/approve
   Headers: Authorization Bearer <token>
-  Response: TaxonomyEntry
+  Response: Taxonomy
   Description: Coordinator approves user-requested tag
 
 GET /users/me/tags
   Headers: Authorization Bearer <token>
-  Response: UserTag[]
+  Response: EntityWithTags
+  Description: Get tags assigned to current user
 
 POST /users/me/tags
   Headers: Authorization Bearer <token>
-  Body: { category: TagCategory, tag_value: string }
-  Response: 201 UserTag
-  Description: Add tag to user profile (from approved taxonomy)
+  Body: { taxonomy_id: string }
+  Response: 201 EntityTag
+  Description: Assign tag from taxonomy to user profile
 
-PUT /users/me/tags/:id/confirm
+DELETE /users/me/tags/:id
   Headers: Authorization Bearer <token>
-  Response: UserTag
-  Description: Confirm auto-generated tag
+  Response: { message: "Tag removed" }
+  Description: Remove tag from user profile (soft delete)
+
+GET /portfolio-companies
+  Headers: Authorization Bearer <token>
+  Query: { search?: string, limit?: number, offset?: number }
+  Response: { companies: PortfolioCompany[], total: number }
+  Description: Search portfolio companies
+
+GET /portfolio-companies/:id
+  Headers: Authorization Bearer <token>
+  Response: PortfolioCompany with tags and URLs
+  Description: Get portfolio company details
 ```
 
 ### **8. Matching & Recommendations**
@@ -691,7 +706,9 @@ Content-Type: application/json
     "meeting_type": "online",
     "location": null,
     "google_meet_link": "https://meet.google.com/abc-defg-hij",
-    "status": "confirmed",
+    "status": "pending",
+    "confirmed_by": null,
+    "confirmed_at": null,
     "meeting_start_time": "2025-10-15T14:00:00Z",
     "meeting_end_time": "2025-10-15T14:30:00Z",
     "created_at": "2025-10-02T14:30:00Z",
@@ -795,7 +812,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
 **Query Parameters:**
-- `status` (optional): Filter by status (confirmed, completed, canceled)
+- `status` (optional): Filter by status (pending, confirmed, completed, canceled, expired)
 - `role` (optional): Filter by user role (mentee, mentor) - defaults to all
 - `start_date` (optional): Filter bookings starting after this date (ISO 8601)
 - `end_date` (optional): Filter bookings starting before this date (ISO 8601)
@@ -1062,10 +1079,10 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         "reputation_score": 4.8,
         "expertise_description": "15+ years building SaaS products. Expert in go-to-market strategy, product-market fit, and scaling engineering teams.",
         "tags": [
-          { "category": "industry", "value": "saas", "display_name": "SaaS" },
-          { "category": "industry", "value": "fintech", "display_name": "FinTech" },
-          { "category": "technology", "value": "cloud_native", "display_name": "Cloud Native" },
-          { "category": "stage", "value": "series_a", "display_name": "Series A" }
+          { "taxonomy_id": "tax-001", "category": "industry", "name": "saas", "source": "airtable", "is_approved": true },
+          { "taxonomy_id": "tax-002", "category": "industry", "name": "fintech", "source": "user", "is_approved": true },
+          { "taxonomy_id": "tax-003", "category": "technology", "name": "cloud_native", "source": "airtable", "is_approved": true },
+          { "taxonomy_id": "tax-004", "category": "stage", "name": "series_a", "source": "airtable", "is_approved": true }
         ]
       }
     },
@@ -1088,10 +1105,10 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         "reputation_score": 4.8,
         "expertise_description": "15+ years building SaaS products. Expert in go-to-market strategy, product-market fit, and scaling engineering teams.",
         "tags": [
-          { "category": "industry", "value": "saas", "display_name": "SaaS" },
-          { "category": "industry", "value": "fintech", "display_name": "FinTech" },
-          { "category": "technology", "value": "cloud_native", "display_name": "Cloud Native" },
-          { "category": "stage", "value": "series_a", "display_name": "Series A" }
+          { "taxonomy_id": "tax-001", "category": "industry", "name": "saas", "source": "airtable", "is_approved": true },
+          { "taxonomy_id": "tax-002", "category": "industry", "name": "fintech", "source": "user", "is_approved": true },
+          { "taxonomy_id": "tax-003", "category": "technology", "name": "cloud_native", "source": "airtable", "is_approved": true },
+          { "taxonomy_id": "tax-004", "category": "stage", "name": "series_a", "source": "airtable", "is_approved": true }
         ]
       }
     }
@@ -1134,64 +1151,66 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     "user_id": "550e8400-e29b-41d4-a716-446655440001",
     "name": "Sarah Mentor",
     "title": "VP of Product",
+    "portfolio_company_id": null,
     "company": "TechCorp",
     "phone": "+1 (512) 555-0123",
-    "linkedin_url": "https://www.linkedin.com/in/sarahmentor",
-    "website_url": "https://www.sarahmentor.com",
-    "pitch_vc_url": null,
     "expertise_description": "15+ years building SaaS products. Expert in go-to-market strategy, product-market fit, and scaling engineering teams. Passionate about helping early-stage founders avoid common pitfalls.",
     "ideal_mentee_description": "Series A-B SaaS founders looking to scale their product and engineering teams. Also enjoy working with first-time founders on product strategy.",
     "bio": "Former VP of Product at two successful exits. Angel investor in 12 companies. Love connecting founders with resources.",
     "avatar_url": "https://storage.supabase.co/avatars/sarah.jpg",
     "avatar_source_type": "upload",
     "reminder_preference": "both",
-    "additional_links": {
-      "twitter": "https://twitter.com/sarahmentor",
-      "blog": "https://blog.sarahmentor.com"
-    },
+    "metadata": {},
     "created_at": "2024-03-15T10:00:00Z",
-    "updated_at": "2025-09-28T14:20:00Z"
+    "created_by": null,
+    "updated_at": "2025-09-28T14:20:00Z",
+    "updated_by": "550e8400-e29b-41d4-a716-446655440001"
+  },
+  "urls": {
+    "linkedin": "https://www.linkedin.com/in/sarahmentor",
+    "website": "https://www.sarahmentor.com",
+    "other": "https://twitter.com/sarahmentor"
   },
   "tags": [
     {
-      "id": "tag-001",
+      "entity_tag_id": "etag-001",
+      "taxonomy_id": "tax-001",
       "category": "industry",
-      "tag_value": "saas",
-      "display_name": "SaaS",
+      "name": "saas",
       "source": "airtable",
-      "is_confirmed": true
+      "is_approved": true
     },
     {
-      "id": "tag-002",
+      "entity_tag_id": "etag-002",
+      "taxonomy_id": "tax-002",
       "category": "industry",
-      "tag_value": "fintech",
-      "display_name": "FinTech",
+      "name": "fintech",
       "source": "user",
-      "is_confirmed": true
+      "is_approved": true
     },
     {
-      "id": "tag-003",
+      "entity_tag_id": "etag-003",
+      "taxonomy_id": "tax-003",
       "category": "technology",
-      "tag_value": "cloud_native",
-      "display_name": "Cloud Native",
+      "name": "cloud_native",
       "source": "airtable",
-      "is_confirmed": true
+      "is_approved": true
     },
     {
-      "id": "tag-004",
+      "entity_tag_id": "etag-004",
+      "taxonomy_id": "tax-004",
       "category": "stage",
-      "tag_value": "series_a",
-      "display_name": "Series A",
+      "name": "series_a",
       "source": "user",
-      "is_confirmed": true
+      "is_approved": true
     },
     {
-      "id": "tag-005",
+      "entity_tag_id": "etag-005",
+      "taxonomy_id": "tax-005",
       "category": "stage",
-      "tag_value": "series_b",
-      "display_name": "Series B",
+      "name": "series_b",
       "source": "user",
-      "is_confirmed": true
+      "is_approved": true
     }
   ],
   "reputation_breakdown": {

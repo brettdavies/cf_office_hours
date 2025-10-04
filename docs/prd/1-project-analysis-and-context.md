@@ -147,10 +147,14 @@ Probationary Clamp (per FR48):
 Where:
 - Average Rating: Mean of all received ratings (1-5 stars)
 - Completion Rate: % of booked sessions attended (vs. canceled/no-show)
-- Responsiveness Factor:
-  - 1.2× if responds to requests within 24hrs
-  - 1.0× if 24-48hrs
-  - 0.8× if >48hrs or frequent cancellations
+- Responsiveness Factor (based on booking confirmation response time):
+  - **Measurement**: Time from booking creation (`bookings.created_at`) until acceptance/confirmation (`bookings.confirmed_at`)
+  - **Coordinator Exclusion**: Response time is `NULL` if `confirmed_by` is a coordinator (does not impact mentor reputation)
+  - **Multipliers**:
+    - 1.2× if average response time < 24 hours
+    - 1.0× if average response time 24-48 hours
+    - 0.8× if average response time > 48 hours OR frequent cancellations (>20% cancellation rate)
+  - **Timeout Protection**: Bookings not confirmed within 7 days auto-expire (`status='expired'`), freeing the time slot
 - Tenure Bonus: +0.1 per month active (max +1.0 after 10 months)
 ```
 

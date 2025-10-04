@@ -205,7 +205,7 @@ The CF Office Hours platform uses Supabase CLI for database schema version contr
 npx supabase db push
 
 # Create new migration
-npx supabase migration new add_user_tags_table
+npx supabase migration new add_entity_tags_table
 
 # View migration status
 npx supabase migration list
@@ -255,7 +255,7 @@ supabase/
    ```
 
 3. **Make migrations atomic** - Single logical change per file
-   - ✅ Good: `add_user_tags_table.sql` creates user_tags table only
+   - ✅ Good: `add_entity_tags_table.sql` creates entity_tags table only
    - ❌ Bad: `update_schema.sql` adds 5 unrelated tables
 
 4. **Never edit committed migrations** - Create new migration to fix issues
