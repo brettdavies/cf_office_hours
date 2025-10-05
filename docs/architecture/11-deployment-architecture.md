@@ -17,6 +17,47 @@ This section covers the production deployment strategy, infrastructure configura
 - Global edge deployment (300+ locations)
 - Git-based deployments (push to deploy)
 
+## 11.1.1 Epic 0 Local Development Approach
+
+**Epic 0 Philosophy: Build Locally, Deploy Later**
+
+Epic 0 delivers a fully functional local development environment with complete end-to-end booking flow. No cloud deployment required.
+
+**Local Stack:**
+- **Frontend:** Vite dev server (`localhost:3000`)
+- **Backend:** Wrangler dev server (`localhost:8787`)
+- **Database:** Local Supabase (`supabase start` → PostgreSQL on localhost:54322)
+- **Auth:** Local Supabase Auth
+- **Storage:** Local Supabase Storage
+
+**Epic 0 Local Development Workflow:**
+```bash
+# Terminal 1: Start local Supabase
+cd /project-root
+supabase start
+
+# Terminal 2: Start API dev server
+cd apps/api
+npm run dev  # Wrangler dev on localhost:8787
+
+# Terminal 3: Start frontend dev server
+cd apps/web
+npm run dev  # Vite on localhost:3000
+```
+
+**No Cloud Setup Required:**
+- ✅ All development local
+- ✅ All testing local
+- ✅ Complete booking flow works locally
+- ❌ No Cloudflare account needed
+- ❌ No production Supabase needed
+- ❌ No deployment needed
+
+**Deployment Phase (Post-Epic-0):**
+- Stories SKEL-DEPLOY-001 and SKEL-DEPLOY-002 moved to post-Epic-0
+- Deployment follows procedures in Sections 11.2-11.4 below
+- Deploy only after Epic 0 local functionality verified
+
 ## 11.2 Environment Strategy
 
 **Environments:**

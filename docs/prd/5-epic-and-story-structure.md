@@ -44,20 +44,36 @@ Epic 8: Admin & Coordinator Tools
 
 ---
 
-### **Epic 0: Walking Skeleton (END-TO-END MVP)**
+### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 19
+**Estimated Stories:** 16 (Stories SKEL-DEPLOY-001 and SKEL-DEPLOY-002 moved post-Epic-0)
 **Dependencies:** None (foundation)
 **Timeline:** Sprint 1-2 (Weeks 1-4)
+**Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
 
-**Deliverable:** By end of Sprint 2, users can:
-1. ✅ Log in with email magic link
-2. ✅ Create/edit basic profile (name, email, role, bio)
-3. ✅ (Mentor) Create one-time availability slots with manual location entry
-4. ✅ (Mentee) Browse and book available slots
-5. ✅ View "My Bookings" dashboard
-6. ✅ Receive email confirmations (basic)
+**Deliverable:** By end of Sprint 2, users can (IN LOCAL ENVIRONMENT):
+1. ✅ Log in with email magic link (local Supabase Auth)
+2. ✅ Create/edit basic profile (local database)
+3. ✅ (Mentor) Create one-time availability slots (local database)
+4. ✅ (Mentee) Browse and book available slots (local database)
+5. ✅ View "My Bookings" dashboard (local database)
+6. ✅ Receive email confirmations (local Supabase email or console logs)
+
+**Local Development Stack:**
+- Frontend: `npm run dev` (Vite dev server on localhost:3000)
+- Backend: `npm run dev` (Wrangler dev server on localhost:8787)
+- Database: Local Supabase (`supabase start`)
+- Auth: Local Supabase Auth
+- Storage: Local Supabase Storage
+
+**No Cloud Requirements:**
+- ❌ No Cloudflare account needed
+- ❌ No production Supabase project needed
+- ❌ No deployment required
+- ✅ Complete development and testing locally
+
+**Deployment:** Handled in post-Epic-0 deployment stories
 
 **User Stories:**
 
@@ -77,55 +93,59 @@ Epic 8: Admin & Coordinator Tools
 1. **SKEL-DB-001: Minimal Database Schema**
    - As a **developer**, I want a minimal database schema for the core booking flow
    - **Acceptance Criteria:**
-     - Tables created: `users`, `user_profiles`, `availability`, `time_slots`, `bookings`
+     - Tables created in LOCAL Supabase instance: `users`, `user_profiles`, `availability`, `time_slots`, `bookings`
      - Basic columns only (no soft deletes, no reputation fields, no calendar integrations yet)
      - Timestamp columns (`created_at`, `updated_at`) auto-populated
      - Foreign keys and basic indexes
      - Simple RLS: Users can only read/update own data
    - **Related:** FR82, NFR17
-   - **Note:** Simplified schema - full features added in Epic 1
+   - **Note:** LOCAL DATABASE ONLY. Simplified schema - full features added in Epic 1
 
 2. **SKEL-DB-002: Mock Data Seeding Script**
    - As a **developer**, I want mock user and taxonomy data for development/testing
    - **Acceptance Criteria:**
-     - Seed script (`seed.sql` or TypeScript migration)
+     - Seed script applied to LOCAL Supabase database
      - Creates 20 mock users (10 mentors, 8 mentees, 2 coordinators)
      - Mock taxonomy tags: 10 industries, 10 technologies, 5 stages
      - Mock user profiles with varied tags
      - Idempotent (can run multiple times safely)
      - Documented in README
    - **Related:** Section 4.8
-   - **Note:** This data will be replaced by Airtable sync in Epic 5
+   - **Note:** LOCAL DATABASE SEEDING. This data will be replaced by Airtable sync in Epic 5
 
 3. **SKEL-API-001: Hono Framework Setup**
-   - As a **developer**, I want a basic Hono API framework configured
+   - As a **developer**, I want a basic Hono API framework configured with local development environment
    - **Acceptance Criteria:**
      - Hono app initialized with basic routing
-     - Health check endpoint (`/api/health`) returns 200 OK
+     - Health check endpoint (`/health`) returns 200 OK via local Wrangler dev server
      - CORS middleware configured
      - Basic error handling (return JSON errors)
+     - Local development server runs successfully on `http://localhost:8787`
+     - All tests pass locally without requiring Cloudflare account or deployment
    - **Related:** FR76, NFR44
-   - **Note:** Full error handling, OpenAPI, Zod schemas added in Epic 1
+   - **Note:** LOCAL DEVELOPMENT ONLY. No cloud deployment in Epic 0. Full error handling, OpenAPI, Zod schemas added in Epic 1
 
 4. **SKEL-API-002: Auth Middleware (Basic)**
    - As a **developer**, I want basic auth middleware to protect endpoints
    - **Acceptance Criteria:**
-     - `requireAuth` middleware verifies Supabase JWT tokens
+     - `requireAuth` middleware verifies Supabase JWT tokens (local Supabase)
      - User context injected into request: `c.set('user', user)`
      - 401 error for missing/invalid tokens
      - No role checking yet (added in Epic 1)
    - **Related:** FR100, NFR11
+   - **Note:** LOCAL AUTH MIDDLEWARE working with local Supabase Auth
 
-5. **SKEL-DEPLOY-001: Cloudflare Workers Deployment**
+5. **SKEL-DEPLOY-001: Cloudflare Workers Deployment** → **MOVED POST-EPIC-0**
    - As a **developer**, I want the API deployed to Cloudflare Workers
    - **Acceptance Criteria:**
-     - `wrangler.toml` configured with basic settings
+     - `wrangler.toml` configured with deployment settings
      - Environment secrets configured: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
      - Production deployment accessible
      - Health check endpoint returns 200 OK
    - **Related:** Section 4.6, NFR44
+   - **Note:** Deployment deferred to post-Epic-0 to allow local-first development
 
-6. **SKEL-DEPLOY-002: Cloudflare Pages Deployment**
+6. **SKEL-DEPLOY-002: Cloudflare Pages Deployment** → **MOVED POST-EPIC-0**
    - As a **developer**, I want the frontend deployed to Cloudflare Pages
    - **Acceptance Criteria:**
      - Vite build configuration working
@@ -133,17 +153,18 @@ Epic 8: Admin & Coordinator Tools
      - Auto-deployment on main branch push
      - Production URL accessible
    - **Related:** Section 4.6
+   - **Note:** Deployment deferred to post-Epic-0 to allow local-first development
 
 7. **SKEL-AUTH-001: Magic Link Authentication**
    - As a **user**, I want to log in via passwordless magic link
    - **Acceptance Criteria:**
      - Login page with email input field
-     - "Send magic link" triggers Supabase Auth email
+     - "Send magic link" triggers local Supabase Auth email
      - Magic link redirects to app with session token
      - No email whitelist validation yet (any email can register for testing)
      - Session stored in localStorage, auto-logout on expiry
    - **Related:** FR1, Section 3.3
-   - **Note:** Email whitelist validation added in Epic 2
+   - **Note:** LOCAL SUPABASE AUTH. Email whitelist validation added in Epic 2
 
 8. **SKEL-USER-001: User Profile API (Minimal)**
    - As a **developer**, I want minimal API endpoints for user profiles
@@ -1121,14 +1142,15 @@ Epic 8: Admin & Coordinator Tools
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 89
-**Critical Path (P0):** Epics 0-4 (60 stories)
+**Total Stories:** 87 (SKEL-DEPLOY-001 and SKEL-DEPLOY-002 moved to post-Epic-0 deployment phase)
+**Critical Path (P0):** Epics 0-4 (58 stories local dev + 2 deployment stories)
 **High Priority (P1):** Epics 5-7 (23 stories)
 **Medium Priority (P2):** Epic 8 (6 stories)
 
 **Recommended Sprint Breakdown (2-week sprints):**
 
-- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 19 stories → **END-TO-END WORKING PRODUCT**
+- **Sprint 1-2:** Epic 0 (Local Walking Skeleton) - 16 stories → **LOCAL END-TO-END WORKING PRODUCT**
+- **Post-Epic-0:** Deployment Phase - 2 stories (SKEL-DEPLOY-001, SKEL-DEPLOY-002)
 - **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories
 - **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories
 - **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories

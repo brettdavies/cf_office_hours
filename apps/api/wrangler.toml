@@ -1,0 +1,7 @@
+name = "cf-office-hours-api"
+main = "src/index.ts"
+compatibility_date = "2025-03-11"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "development"
