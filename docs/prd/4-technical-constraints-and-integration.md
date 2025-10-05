@@ -134,7 +134,7 @@
 
 **Tag Approval Logic:**
 - **Airtable source** (source=airtable): Auto-populated from Airtable, `is_approved=true`, `approved_at` set to creation time, `approved_by=null` (system), `airtable_record_id` populated
-- **Sample data source** (source=sample_data): Loaded from CSV seed files for development/testing, `is_approved` distribution: 90% true, 10% false (simulates pending approval workflow), `approved_at` set to creation time for approved entries, `approved_by=null`, `airtable_record_id=null`
+- **Sample data source** (source=sample_data): Loaded from SQL seed files for development/testing, `is_approved` distribution: 90% true, 10% false (simulates pending approval workflow), `approved_at` set to creation time for approved entries, `approved_by=null`, `airtable_record_id=null`
 - **Admin source** (source=admin): Coordinator creates tag via admin UI, `is_approved=true` immediately, `approved_by` set to coordinator user_id, `airtable_record_id=null`
 - **User source** (source=user): User submits new tag request when selecting non-existent tag, `is_approved=false` initially, `requested_by` set to user_id, `requested_at=NOW()`, becomes approved when coordinator approves
 - **Auto-generated source** (source=auto_generated): System suggests tags based on profile/activity (future enhancement), `is_approved=false` until coordinator approves, `airtable_record_id=null`
@@ -147,7 +147,7 @@
 **Taxonomy Hierarchy:**
 - `parent_id` enables hierarchical relationships (e.g., "Edge Computing" → parent: "Cloud Software & Infrastructure")
 - Supports multi-level hierarchies for both industries and technologies
-- Loaded from sample data CSVs during development (see Section 4.8)
+- Loaded from sample data SQL seed files during development (see Section 4.8)
 
 
 ---
@@ -1476,37 +1476,38 @@ zone_name = "cf-oh.com"
 
 ### Seed Data Requirements
 
-**Sample Data CSVs (Development/Testing Only):**
+**Sample Data SQL Seeds (Development/Testing Only):**
 
-The application includes comprehensive sample data CSVs for local development and testing. These files are located in `docs/sample_data/` and are **never used in production**.
+The application includes comprehensive sample data in SQL seed files for local development and testing. These files are located in `supabase/seeds/` and are **never used in production**.
 
-**Taxonomy CSVs:**
-- `industries.csv` - Industry taxonomy with hierarchical relationships
-- `technologies.csv` - Technology taxonomy with hierarchical relationships
-- Format: `Name,Parent` (parent field optional, references another taxonomy entry for hierarchy)
-- Example hierarchical entry: `Edge Computing,Cloud Software & Infrastructure`
-- Loaded into `taxonomy` table with:
+**Taxonomy Seeds:**
+- `01_seed_industries.sql` - Industry taxonomy with hierarchical relationships
+- `02_seed_technologies.sql` - Technology taxonomy with hierarchical relationships
+- Data hard-coded directly in SQL INSERT statements
+- Hierarchical relationships via parent column
+- Loaded into `raw_industries` and `raw_technologies` tables for ETL processing (Epic 5)
+- Future ETL will transform to `taxonomy` table with:
   - `source='sample_data'`
   - `is_approved` distribution: 90% true, 10% false (simulates pending approval workflow)
   - `value` field: Normalized (lowercase, underscores, no special chars)
-  - `display_name` field: Original CSV value preserved
-- Used to populate tag selection dropdowns during development
+  - `display_name` field: Original value preserved
+- Used to populate tag selection dropdowns during development (after ETL)
 
-**User/Mentor Data CSVs:**
-- `mentors.csv` - Sample mentor profiles with expertise and industry/technology tags
-- Format: `Full Name,Bio,Industry Expertise,Technology Expertise`
-- Expertise columns contain comma-separated lists matching taxonomy values
+**User/Mentor Data Seeds:**
+- `06_seed_mentors.sql` - Sample mentor profiles with expertise and industry/technology tags
+- Hard-coded SQL INSERT statements (individual statements due to data complexity)
+- Includes bio, expertise areas, and tag associations
 - Loaded into `users`, `user_profiles`, and linked via `entity_tags` to taxonomy entries
 - Used to simulate Airtable-synced mentor data during development
 
-**Portfolio Company CSV:**
-- `portfolio_companies.csv` - Sample portfolio companies with metadata
-- Format: `Name,Description,Website,Pitch,Location,Industry,Technology,Stage,Customer Segment,Product Type,Sales Model`
-- Loaded into `portfolio_companies` table with tags linked via `entity_tags`, URLs stored directly in company columns (website, pitch_vc_url, linkedin_url)
+**Portfolio Company Seed:**
+- `03_seed_portfolio_companies.sql` - Sample portfolio companies with metadata
+- Hard-coded SQL INSERT statements (individual statements due to data complexity)
+- Loaded into `raw_portfolio_companies` table for ETL processing
 - Simulates Airtable-synced company data for mentee/employee associations
 
 **Production Data Flow:**
-In production, taxonomy and user data are synced from Airtable (see Section 4.10). Sample CSVs are only for development/testing environments where Airtable sync is not configured.
+In production, taxonomy and user data are synced from Airtable (see Section 4.10). Sample SQL seeds are only for development/testing environments where Airtable sync is not configured.
 
 **Location Presets (`locations` table):**
 - Seed script: `seeds/locations.sql` or `seeds/locations.ts`
@@ -1526,7 +1527,7 @@ In production, taxonomy and user data are synced from Airtable (see Section 4.10
   - Document in deployment README
 
 **Test Data (Development/Staging Only):**
-- Mock users with various roles and reputation tiers (from mentors.csv)
+- Mock users with various roles and reputation tiers (from SQL seeds)
 - Sample availability blocks
 - Sample bookings (past, upcoming, canceled)
 - Sample ratings and reputation history
@@ -1534,32 +1535,28 @@ In production, taxonomy and user data are synced from Airtable (see Section 4.10
 ### Seed Script Location
 
 ```
-/docs/sample_data              # CSV source data (dev/testing only)
-  ├── industries.csv           # Industry taxonomy with hierarchy
-  ├── technologies.csv         # Technology taxonomy with hierarchy
-  ├── mentors.csv              # Sample mentor profiles
-  └── portfolio_companies.csv  # Sample portfolio companies
-
-/seeds                         # Database seed scripts
-  ├── locations.sql            # Location presets (PRODUCTION-SAFE)
-  ├── sample-taxonomy.ts       # Load taxonomy from CSVs (dev only)
-  ├── sample-users.ts          # Load users from mentors.csv (dev only)
-  ├── sample-companies.ts      # Load companies from CSV (dev only)
-  ├── dev-bookings.sql         # Sample bookings (dev only)
+/supabase/seeds/               # Database seed scripts (SQL)
+  ├── 01_seed_industries.sql   # Industry taxonomy with hierarchy (dev only)
+  ├── 02_seed_technologies.sql # Technology taxonomy with hierarchy (dev only)
+  ├── 03_seed_portfolio_companies.sql # Sample portfolio companies (dev only)
+  ├── 04_seed_mentees.sql      # Sample mentee profiles (dev only)
+  ├── 05_seed_users.sql        # Coordinator/admin users (dev only)
+  ├── 06_seed_mentors.sql      # Sample mentor profiles (dev only)
   └── README.md                # Seeding instructions
 ```
 
-### CSV Loading Process
+### SQL Seed Loading Process
 
-**Normalization Rules:**
+**Data Format:**
 1. **Taxonomy values** (industries, technologies):
-   - `display_name` = Original CSV value (e.g., "Cloud Software & Infrastructure")
-   - `name` = Normalized value (e.g., "cloud_software_infrastructure")
-   - Normalization: lowercase, replace spaces/special chars with underscores
+   - Hard-coded directly in SQL INSERT statements
+   - Multi-value INSERT syntax for efficiency
+   - Hierarchical relationships via parent column
 
-2. **User tags** (from mentors.csv):
-   - Parse comma-separated expertise columns
-   - Match against normalized taxonomy names
+2. **User/Company data** (mentors, portfolio companies):
+   - Hard-coded directly in SQL INSERT statements
+   - Individual INSERT statements used due to data complexity and escaping requirements
+   - More maintainable than multi-value INSERT for complex data
    - Create `entity_tags` entries linking to taxonomy IDs
 
 3. **Hierarchy** (parent-child relationships):
@@ -1573,9 +1570,9 @@ In production, taxonomy and user data are synced from Airtable (see Section 4.10
 
 ### Execution
 
-- Development: Auto-run on `npm run dev:setup` or similar
-  - Loads all CSV data via TypeScript seed scripts
-  - Idempotent (safe to run multiple times)
+- Development: Auto-run on `supabase db reset`
+  - Loads all SQL seed data automatically
+  - Idempotent via TRUNCATE pattern (safe to run multiple times)
   - Skips if Airtable sync is configured (via env var check)
 
 - Production: Manual execution of production-safe seeds only

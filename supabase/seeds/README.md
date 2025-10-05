@@ -6,7 +6,6 @@ This directory contains SQL files for seeding the database with sample data for 
 
 **Note: Schema creation is handled by migrations, not seed files**
 
-- `data/` - CSV data files used by seeds
 - `01_seed_industries.sql` - Loads industry taxonomy data (55 records)
 - `02_seed_technologies.sql` - Loads technology taxonomy data (45 records)
 - `03_seed_portfolio_companies.sql` - Loads portfolio company data (830 records)
@@ -35,13 +34,19 @@ Run individual seed files as needed:
 
 ## Data Sources
 
-CSV files loaded from `supabase/seeds/data/`:
-- `industries.csv` - Industry taxonomy with hierarchical structure
-- `technologies.csv` - Technology taxonomy with hierarchical structure
-- `portfolio_companies.csv` - Portfolio company data with tags
-- `mentees.csv` - Mentee data with roles and company affiliations
-- `mentors.csv` - Mentor data with bio and expertise information
-- `users.csv` - Coordinator/admin user data
+All data is hard-coded directly in the SQL seed files as INSERT statements. This approach:
+- Ensures version control of all test data
+- Eliminates external file dependencies
+- Provides immediate visibility into data structure and content
+- Simplifies database reset operations
+
+**Data includes:**
+- Industry taxonomy with hierarchical structure (55 records)
+- Technology taxonomy with hierarchical structure (45 records)
+- Portfolio company data with anonymized information (830 records)
+- Mentee data with roles and company affiliations (50 records)
+- Mentor data with professional bios and expertise (400 records)
+- Coordinator/admin user data (2 records)
 
 ## Schema Separation
 
@@ -58,7 +63,7 @@ This separation ensures:
 
 ## Raw Schema
 
-The raw tables store data exactly as it comes from the CSVs:
+The raw tables store seed data for ETL processing:
 
 - `raw_industries` - Industry taxonomy data
 - `raw_technologies` - Technology taxonomy data
@@ -79,7 +84,9 @@ The raw data is meant to be processed by ETL functions that will:
 ## Development Notes
 
 - Schema is managed by migrations (not seeds)
-- Seed data is loaded automatically during `supabase db reset`
-- Raw tables preserve original CSV structure for ETL processing
+- Seed data is hard-coded in SQL files (no external CSV dependencies)
+- Seed files are loaded automatically during `supabase db reset`
+- All seed files use TRUNCATE pattern for idempotent execution
+- Raw tables preserve data for ETL processing into public schema
 - Production systems should use Airtable sync instead of these seeds
 
