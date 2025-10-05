@@ -1,3 +1,6 @@
+# Seed data
+/supabase/seeds/data
+
 # Supabase
 .branches
 .temp
