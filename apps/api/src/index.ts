@@ -1,12 +1,19 @@
+// External dependencies
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { errorHandler } from './middleware/error-handler';
-import type { Env } from './types/bindings';
 
-// Create Hono app with Cloudflare bindings
-const app = new Hono<{ Bindings: Env }>();
+// Internal modules
+import { errorHandler } from './middleware/error-handler';
+import { requireAuth } from './middleware/auth';
+
+// Types
+import type { Env } from './types/bindings';
+import type { Variables } from './types/context';
+
+// Create Hono app with Cloudflare bindings and variables
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
 app.use('*', logger());
@@ -16,9 +23,15 @@ app.use('*', cors({
 }));
 app.use('*', prettyJSON());
 
-// Health check
+// Health check (no auth required)
 app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Protected test route (requires auth)
+app.get('/protected', requireAuth, (c) => {
+  const user = c.get('user');
+  return c.json({ message: 'Authenticated', user });
 });
 
 // Global error handler (must be last)

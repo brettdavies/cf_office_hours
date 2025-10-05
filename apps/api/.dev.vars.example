@@ -1,0 +1,6 @@
+# Local Development Environment Variables
+# Get these values from: npx supabase start
+# Copy this file to .dev.vars and replace with your actual values
+
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+SUPABASE_JWT_SECRET=your-jwt-secret-here

@@ -32,7 +32,7 @@ The local server automatically reloads when you make changes to the code. No res
 
 **GET /health**
 
-Returns the API health status.
+Returns the API health status. No authentication required.
 
 **Response:**
 ```json
@@ -45,6 +45,47 @@ Returns the API health status.
 **Example:**
 ```bash
 curl http://localhost:8787/health
+```
+
+### Protected Route (Test Endpoint)
+
+**GET /protected**
+
+Test endpoint that requires authentication. Returns authenticated user information.
+
+**Headers:**
+- `Authorization: Bearer <jwt_token>` (required)
+
+**Response (200 OK):**
+```json
+{
+  "message": "Authenticated",
+  "user": {
+    "id": "user-123",
+    "email": "user@example.com",
+    "role": "mentee"
+  }
+}
+```
+
+**Response (401 Unauthorized):**
+```json
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Missing or invalid Authorization header",
+    "timestamp": "2025-10-05T12:34:56.789Z"
+  }
+}
+```
+
+**Example:**
+```bash
+# Without token (will fail)
+curl http://localhost:8787/protected
+
+# With valid token
+curl -H "Authorization: Bearer <your-jwt-token>" http://localhost:8787/protected
 ```
 
 ### 404 Not Found
@@ -91,19 +132,58 @@ curl http://localhost:8787/invalid
 
 ## Environment Variables
 
-### Epic 0 (Current)
+### Local Development Setup
 
-No environment variables are required for local development in Epic 0.
+The API now requires Supabase for authentication. Follow these steps:
 
-### Future (Epic 1+)
+**1. Start Local Supabase:**
 
-The following environment variables will be used:
+```bash
+npx supabase start
+```
 
-- `SUPABASE_URL` - Supabase project URL
-- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
-- `SUPABASE_JWT_SECRET` - JWT secret for token validation
+This will output the credentials you need, including:
+- API URL (typically `http://localhost:54321`)
+- Service role key
+- JWT secret
 
-These will be configured in Cloudflare Workers settings during deployment.
+**2. Configure Environment Variables:**
+
+Copy the example file:
+```bash
+cd apps/api
+cp .dev.vars.example .dev.vars
+```
+
+Edit `.dev.vars` and add your local Supabase credentials:
+```bash
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-from-supabase-start
+SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-start
+```
+
+**3. Obtain a JWT Token for Testing:**
+
+Option 1: Use Supabase Studio (http://localhost:54323)
+- Create a test user via Authentication UI
+- Sign in to get a JWT token
+
+Option 2: Use the Supabase CLI:
+```bash
+# Create a user
+npx supabase db seed
+
+# Or use Supabase client to generate token programmatically
+```
+
+**Environment Variables Reference:**
+
+| Variable | Location | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | `wrangler.toml` | Local Supabase API URL (committed) |
+| `SUPABASE_SERVICE_ROLE_KEY` | `.dev.vars` | Service role key (NOT committed) |
+| `SUPABASE_JWT_SECRET` | `.dev.vars` | JWT secret for validation (NOT committed) |
+
+**Note:** The `.dev.vars` file is gitignored and should never be committed.
 
 ## Project Structure
 
@@ -112,23 +192,52 @@ apps/api/
 ├── src/
 │   ├── index.ts                    # Main Hono app entry point
 │   ├── middleware/
-│   │   └── error-handler.ts        # Global error handling
+│   │   ├── error-handler.ts        # Global error handling
+│   │   └── auth.ts                 # Authentication middleware
+│   ├── lib/
+│   │   └── db.ts                   # Supabase client utility
 │   └── types/
-│       └── bindings.ts             # Cloudflare Workers bindings types
+│       ├── bindings.ts             # Cloudflare Workers bindings types
+│       └── context.ts              # Hono context variables types
 ├── wrangler.toml                   # Cloudflare Workers configuration
+├── .dev.vars.example               # Environment variables template
 ├── package.json
 └── README.md                       # This file
 ```
 
 ## Middleware
 
-The API includes the following global middleware:
+The API includes the following middleware:
+
+### Global Middleware (applied to all routes)
 
 - **Logger** (`hono/logger`) - Request/response logging
 - **CORS** (`hono/cors`) - Cross-origin resource sharing
   - Allowed origins: `http://localhost:3000`, `https://officehours.youcanjustdothings.io`
   - Credentials: enabled
 - **Pretty JSON** (`hono/pretty-json`) - Formatted JSON responses
+
+### Authentication Middleware
+
+- **requireAuth** (`src/middleware/auth.ts`) - JWT token verification
+  - Verifies Supabase JWT tokens from Authorization header
+  - Injects user context into request: `c.get('user')`
+  - Returns 401 for missing/invalid tokens
+  - Applied to protected routes only
+
+**Usage Example:**
+```typescript
+import { requireAuth } from './middleware/auth';
+
+// Apply to specific route
+app.get('/protected', requireAuth, (c) => {
+  const user = c.get('user');
+  return c.json({ user });
+});
+
+// Apply to route group
+app.use('/api/*', requireAuth);
+```
 
 ## Error Handling
 
@@ -146,6 +255,7 @@ All errors return JSON responses with the following structure:
 
 Common error codes:
 - `NOT_FOUND` (404) - Resource not found
+- `UNAUTHORIZED` (401) - Missing or invalid authentication
 - `INTERNAL_ERROR` (500) - Server error
 
 ## Deployment
