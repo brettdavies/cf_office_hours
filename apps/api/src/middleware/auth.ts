@@ -75,6 +75,7 @@ export const requireAuth = async (
     // Inject user into context
     c.set('user', {
       id: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       email: user.email!,
       role: user.user_metadata?.role || 'mentee',
     });

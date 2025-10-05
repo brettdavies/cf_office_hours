@@ -20,7 +20,7 @@
  * - FK: portfolio_company_id, taxonomy_id, user_id
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { supabase } from './test-client';
 
 describe('UNIQUE Constraints', () => {
