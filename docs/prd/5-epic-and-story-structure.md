@@ -357,11 +357,13 @@ Epic 8: Admin & Coordinator Tools
    - As a **developer**, I want testing tools configured for unit and integration tests
    - **Acceptance Criteria:**
      - Vitest configured for unit tests
+     - Database schema tests in `supabase/tests/` (see [supabase/tests/README.md](../../supabase/tests/README.md))
      - Supabase test database for integration tests
      - Playwright configured for E2E tests
      - CI pipeline runs tests on PR
-     - Test coverage for critical paths (booking flow, auth)
-   - **Related:** Section 4.7, NFR33
+     - Test coverage for critical paths (booking flow, auth, database schema)
+   - **Related:** Section 4.7, NFR33, Architecture Section 13.3.5
+   - **Note:** Database schema tests use Hybrid Approach (Option 3) - update tests directly when migrations change, no version-specific test files
 
 ---
 

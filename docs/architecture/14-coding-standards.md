@@ -751,15 +751,71 @@ describe('calculateReputationScore', () => {
 **Test Coverage Goals:**
 - **Unit Tests**: 80%+ coverage for business logic (services, utilities, calculators)
 - **Integration Tests**: Critical API endpoints, database operations
+- **Database Schema Tests**: All migrations (tables, constraints, RLS policies) - See [supabase/tests/README.md](../../supabase/tests/README.md)
 - **E2E Tests**: Key user journeys (booking flow, tier override)
 - **Component Tests**: Complex stateful components, forms
 
 **What to Test:**
 - ✅ Business logic (reputation calculation, matching algorithms)
 - ✅ API contracts (request/response validation)
+- ✅ Database schema (tables, constraints, RLS policies) - See Section 14.11.1
 - ✅ Error handling paths
 - ✅ Edge cases (empty states, boundary values)
 - ❌ Don't test: Implementation details, third-party libraries, trivial getters/setters
+
+### 14.11.1 Database Schema Testing
+
+**Location:** `supabase/tests/`
+
+**Strategy:** Single current test suite (Hybrid Approach - Option 3)
+- Update tests directly when migrations change
+- No version-specific test files
+- File headers document current migration version
+- Git history preserves old versions if needed
+
+**When creating database migrations:**
+
+1. **Update existing schema tests** in `supabase/tests/`:
+   ```typescript
+   // Add tests for new tables
+   it('should have new_table with required columns', async () => {
+     const { data, error } = await supabase
+       .from('new_table')
+       .select('id, name, created_at')
+       .limit(0);
+     expect(error).toBeNull();
+   });
+
+   // Update tests for modified tables
+   it('should have updated_table with new column', async () => {
+     const { data, error } = await supabase
+       .from('updated_table')
+       .select('..., new_column')  // Add new column
+       .limit(0);
+   });
+   ```
+
+2. **Update file header** with new migration details:
+   ```typescript
+   /**
+    * Current Schema Version: v2.5  // Update
+    * Current Migration: 20251010...  // Update
+    * Last Updated: 2025-10-10 (Story X.Y)  // Update
+    */
+   ```
+
+3. **Document breaking changes** in comments:
+   ```typescript
+   // BREAKING CHANGE (Story X.Y): Removed column_name
+   ```
+
+**Running schema tests:**
+```bash
+cd supabase/tests
+npm test
+```
+
+**Full Documentation:** See [supabase/tests/README.md](../../supabase/tests/README.md) for complete testing strategy, examples, and update procedures.
 
 ---
 

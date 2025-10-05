@@ -585,6 +585,186 @@ describe('BookingRepository', () => {
 });
 ```
 
+### 13.3.5 Database Schema Testing
+
+**Overview:**
+
+Database schema tests validate the CURRENT production schema state using integration tests against a local Supabase instance. These tests ensure migrations create the correct tables, columns, constraints, indexes, and RLS policies.
+
+**Test Location:** `supabase/tests/`
+
+**Documentation:** See [supabase/tests/README.md](../../supabase/tests/README.md) for complete testing strategy and update procedures.
+
+**Test Strategy: Hybrid Approach (Single Current Test Suite)**
+
+- ✅ Tests are updated directly when migrations change (no version-specific test files)
+- ✅ File headers document current migration version
+- ✅ Git history preserves old test versions if needed
+- ❌ No migration-specific test files (e.g., `1.1-schema-validation.test.ts`)
+
+**Test Files:**
+
+| File | Purpose | Tests |
+|------|---------|-------|
+| `schema-validation.test.ts` | Table structure, columns, CHECK constraints | 14 |
+| `constraints.test.ts` | UNIQUE, CHECK, FK constraint enforcement | 8 |
+| `rls-policies.test.ts` | Row Level Security access control | 15 |
+| `test-client.ts` | Supabase client helper (`.env` configuration) | - |
+
+**Total:** 37 tests
+
+**Running Schema Tests:**
+
+```bash
+cd supabase/tests
+
+# First time setup
+cp .env.example .env  # Configure local Supabase credentials
+npm install
+
+# Run tests
+npm test              # Run once
+npm run test:watch    # Watch mode
+npm run test:ui       # UI mode
+```
+
+**Example: Schema Validation Test**
+
+```typescript
+// supabase/tests/schema-validation.test.ts
+/**
+ * Current Schema Version: v2.4
+ * Current Migration: 20251003041821_minimal_database_schema.sql
+ * Last Updated: 2025-10-05 (Story 1.1)
+ */
+
+describe('Database Schema v2.4 - Table Structure', () => {
+  it('should have users table with audit columns', async () => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, role, created_at, updated_at, created_by, updated_by')
+      .limit(0);
+
+    expect(error).toBeNull();
+    expect(data).toBeDefined();
+  });
+
+  it('should have bookings table with confirmation tracking', async () => {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, status, confirmed_by, confirmed_at, ...')
+      .limit(0);
+
+    expect(error).toBeNull();
+    expect(data).toBeDefined();
+  });
+});
+```
+
+**Example: RLS Policy Test**
+
+```typescript
+// supabase/tests/rls-policies.test.ts
+describe('RLS Policies - Public Read Access', () => {
+  it('should allow reading from portfolio_companies (public read)', async () => {
+    const { data, error } = await supabase
+      .from('portfolio_companies')
+      .select('id, name')
+      .limit(10);
+
+    // Should succeed (public read policy)
+    expect(error).toBeNull();
+    expect(data).toBeDefined();
+  });
+
+  it('should block anonymous insert to users table', async () => {
+    const { error } = await supabase
+      .from('users')
+      .insert({ email: 'test@example.com', role: 'mentee' });
+
+    // RLS blocks anonymous inserts
+    expect(error).not.toBeNull();
+  });
+});
+```
+
+**Updating Schema Tests for New Migrations:**
+
+When creating a new migration, update the existing test files:
+
+1. **Add tests for new tables/columns:**
+   ```typescript
+   // Story 2.x adds "notifications" table
+   it('should have notifications table with user_id FK', async () => {
+     const { data, error } = await supabase
+       .from('notifications')
+       .select('id, user_id, message, read_at')
+       .limit(0);
+     expect(error).toBeNull();
+   });
+   ```
+
+2. **Update existing tests for schema changes:**
+   ```typescript
+   // Story 3.x adds "tags" column to bookings
+   it('should have bookings table...', async () => {
+     const { data, error } = await supabase
+       .from('bookings')
+       .select('..., tags')  // Add new column
+       .limit(0);
+   });
+   ```
+
+3. **Update file header:**
+   ```typescript
+   /**
+    * Current Schema Version: v2.5  // Update version
+    * Current Migration: 20251010...  // Update migration
+    * Last Updated: 2025-10-10 (Story 2.x)  // Update date
+    */
+   ```
+
+4. **Document breaking changes:**
+   ```typescript
+   // Story 4.x removes "company" column from user_profiles
+   // BREAKING CHANGE: Removed "company" column (now uses portfolio_company_id FK)
+   it('should have user_profiles table...', async () => {
+     // "company" no longer in select
+   });
+   ```
+
+**Test Coverage:**
+
+- ✅ Schema structure (tables, columns, data types)
+- ✅ Constraints (UNIQUE, CHECK, FK)
+- ✅ RLS policies (public read, user-owned CRUD, coordinator overrides)
+- ✅ Soft delete filtering (WHERE deleted_at IS NULL)
+- ✅ Cascade behaviors (ON DELETE CASCADE/SET NULL/RESTRICT)
+
+**Why This Approach:**
+
+1. **Migrations are immutable** - Once applied, they never change
+2. **Tests validate current state** - "Does my database work now?"
+3. **Single source of truth** - One test suite, always current
+4. **Git history available** - Previous test versions preserved if needed
+
+**CI/CD Integration:**
+
+```yaml
+# .github/workflows/test.yml
+- name: Start Supabase
+  run: supabase start
+
+- name: Run database schema tests
+  working-directory: supabase/tests
+  run: npm test
+```
+
+**References:**
+- Full documentation: [supabase/tests/README.md](../../supabase/tests/README.md)
+- Example implementation: Story 1.1
+- Test strategy discussion: Story 1.1 Dev Notes
+
 ## 13.4 End-to-End Testing (Playwright)
 
 **Playwright Configuration:**
