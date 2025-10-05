@@ -5,16 +5,14 @@
  * used across both frontend and backend applications.
  */
 
-// Export types when they are created
-// export * from './types';
+// Export types
+export * from './types/user';
 
-// Export schemas when they are created
-// export * from './schemas';
+// Export schemas
+export * from './schemas/user';
 
 // Export constants when they are created
 // export * from './constants';
 
 // Export utilities when they are created
 // export * from './utils';
-
-export {};

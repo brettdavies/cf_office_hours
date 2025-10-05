@@ -56,7 +56,7 @@ describe('requireAuth middleware', () => {
       },
       { SUPABASE_URL: mockEnv.SUPABASE_URL } as Env
     );
-    const data = await res.json();
+    const data = await res.json() as { error: { code: string; message: string } };
 
     expect(res.status).toBe(401);
     expect(data.error.code).toBe('UNAUTHORIZED');
@@ -82,7 +82,7 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json();
+    const data = await res.json() as { error: { code: string; message: string } };
 
     expect(res.status).toBe(401);
     expect(data.error.code).toBe('UNAUTHORIZED');
@@ -114,7 +114,7 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json();
+    const data = await res.json() as { message: string; user: { id: string; email: string; role: string } };
 
     expect(res.status).toBe(200);
     expect(data.message).toBe('success');
@@ -150,7 +150,7 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json();
+    const data = await res.json() as { user: { id: string; email: string; role: string } };
 
     expect(res.status).toBe(200);
     expect(data.user.role).toBe('mentee');
@@ -168,7 +168,7 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json();
+    const data = await res.json() as { error: { code: string; message: string } };
 
     expect(res.status).toBe(500);
     expect(data.error.code).toBe('INTERNAL_ERROR');

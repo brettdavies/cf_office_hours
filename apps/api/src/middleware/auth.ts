@@ -80,7 +80,7 @@ export const requireAuth = async (
       role: user.user_metadata?.role || 'mentee',
     });
 
-    await next();
+    return await next();
   } catch (err) {
     console.error('Auth middleware error:', err);
     return c.json(

@@ -4,7 +4,7 @@ import app from './index';
 describe('GET /health', () => {
   it('should return 200 OK with status and timestamp', async () => {
     const res = await app.request('/health');
-    const data = await res.json();
+    const data = await res.json() as { status: string; timestamp: string };
 
     expect(res.status).toBe(200);
     expect(data).toHaveProperty('status', 'ok');
@@ -14,7 +14,7 @@ describe('GET /health', () => {
 
   it('should return valid ISO timestamp', async () => {
     const res = await app.request('/health');
-    const data = await res.json();
+    const data = await res.json() as { status: string; timestamp: string };
 
     const timestamp = new Date(data.timestamp);
     expect(timestamp.toISOString()).toBe(data.timestamp);
@@ -43,7 +43,7 @@ describe('CORS Middleware', () => {
 describe('Error Handling', () => {
   it('should return 404 for non-existent routes', async () => {
     const res = await app.request('/nonexistent');
-    const data = await res.json();
+    const data = await res.json() as { error: { code: string; message: string; timestamp: string } };
 
     expect(res.status).toBe(404);
     expect(data.error).toHaveProperty('code', 'NOT_FOUND');
@@ -53,7 +53,7 @@ describe('Error Handling', () => {
 
   it('should return JSON error format', async () => {
     const res = await app.request('/nonexistent');
-    const data = await res.json();
+    const data = await res.json() as { error: { code: string; message: string; timestamp: string } };
 
     expect(data).toHaveProperty('error');
     expect(data.error).toHaveProperty('code');

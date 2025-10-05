@@ -1,5 +1,6 @@
 // External dependencies
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
@@ -7,13 +8,14 @@ import { prettyJSON } from 'hono/pretty-json';
 // Internal modules
 import { errorHandler } from './middleware/error-handler';
 import { requireAuth } from './middleware/auth';
+import { routes } from './routes';
 
 // Types
 import type { Env } from './types/bindings';
 import type { Variables } from './types/context';
 
-// Create Hono app with Cloudflare bindings and variables
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+// Create OpenAPI-enabled Hono app with Cloudflare bindings and variables
+const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
 app.use('*', logger());
@@ -33,6 +35,32 @@ app.get('/protected', requireAuth, (c) => {
   const user = c.get('user');
   return c.json({ message: 'Authenticated', user });
 });
+
+// Mount API v1 routes
+app.route('/v1', routes);
+
+// OpenAPI documentation
+app.doc('/api/openapi.json', {
+  openapi: '3.1.0',
+  info: {
+    title: 'CF Office Hours API',
+    version: '1.0.0',
+    description: 'API for Capital Factory Office Hours platform',
+  },
+  servers: [
+    {
+      url: 'http://localhost:8787',
+      description: 'Local development',
+    },
+    {
+      url: 'https://api.officehours.youcanjustdothings.io',
+      description: 'Production',
+    },
+  ],
+});
+
+// Swagger UI for API documentation
+app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
 
 // Global error handler (must be last)
 app.onError(errorHandler);
