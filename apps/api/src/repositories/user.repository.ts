@@ -77,6 +77,67 @@ export class UserRepository {
   }
 
   /**
+   * Lists users with optional role filter.
+   *
+   * Returns active users (not soft-deleted) with their profiles.
+   *
+   * @param filters - Optional filters (role)
+   * @returns Array of users with profiles
+   */
+  async listUsers(filters?: { role?: 'mentee' | 'mentor' | 'coordinator' }): Promise<UserResponse[]> {
+    let query = this.supabase
+      .from('users')
+      .select(
+        `
+        id,
+        airtable_record_id,
+        email,
+        role,
+        created_at,
+        updated_at,
+        profile:user_profiles(
+          id,
+          user_id,
+          name,
+          title,
+          company,
+          bio,
+          created_at,
+          updated_at
+        )
+      `
+      )
+      .is('deleted_at', null);
+
+    if (filters?.role) {
+      query = query.eq('role', filters.role);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Failed to list users:', { filters, error });
+      return [];
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    // Transform nested arrays to single objects
+    return data
+      .filter(user => user.profile)
+      .map(user => {
+        const profileArray = user.profile as unknown as UserProfileResponse[];
+        const profile = Array.isArray(profileArray) ? profileArray[0] : profileArray;
+        return {
+          ...user,
+          profile,
+        } as UserResponse;
+      });
+  }
+
+  /**
    * Updates a user's profile.
    *
    * Uses PostgreSQL RETURNING clause to get updated data in single query,

@@ -150,6 +150,54 @@ userRoutes.openapi(updateMeRoute, async c => {
 });
 
 /**
+ * GET / - List users with optional role filter
+ */
+const listUsersRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Users'],
+  summary: 'List users',
+  description: 'Returns a list of users, optionally filtered by role',
+  security: [{ Bearer: [] }],
+  request: {
+    query: z.object({
+      role: z.enum(['mentee', 'mentor', 'coordinator']).optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'List of users',
+      content: {
+        'application/json': {
+          schema: z.array(UserResponseSchema),
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized - Missing or invalid token',
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.object({
+              code: z.string(),
+              message: z.string(),
+              timestamp: z.string(),
+            }),
+          }),
+        },
+      },
+    },
+  },
+});
+
+userRoutes.openapi(listUsersRoute, async c => {
+  const { role } = c.req.valid('query');
+  const userService = new UserService(c.env);
+  const users = await userService.listUsers({ role });
+  return c.json(users, 200);
+});
+
+/**
  * GET /:id - Get public user profile by ID
  */
 const getPublicProfileRoute = createRoute({

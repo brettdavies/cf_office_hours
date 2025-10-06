@@ -59,6 +59,17 @@ export class UserService {
   }
 
   /**
+   * Lists users with optional role filter.
+   *
+   * @param filters - Optional filters (role)
+   * @returns Array of users with profiles
+   */
+  async listUsers(filters?: { role?: 'mentee' | 'mentor' | 'coordinator' }): Promise<UserResponse[]> {
+    const users = await this.userRepo.listUsers(filters);
+    return users;
+  }
+
+  /**
    * Gets a public user profile by ID.
    *
    * For Epic 0, returns same data as getMe().
