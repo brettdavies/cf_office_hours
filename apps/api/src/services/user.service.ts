@@ -13,8 +13,7 @@ import { UserRepository } from '../repositories/user.repository';
 import { AppError } from '../lib/errors';
 
 // Types
-import type { UpdateProfileRequest } from '@cf-office-hours/shared';
-import type { IUserWithProfile } from '@cf-office-hours/shared';
+import type { UpdateProfileRequest, UserResponse } from '@cf-office-hours/shared';
 import type { Env } from '../types/bindings';
 
 export class UserService {
@@ -31,7 +30,7 @@ export class UserService {
    * @returns User with profile
    * @throws {AppError} 404 if user not found
    */
-  async getMe(userId: string): Promise<IUserWithProfile> {
+  async getMe(userId: string): Promise<UserResponse> {
     const user = await this.userRepo.getUserWithProfile(userId);
 
     if (!user) {
@@ -49,7 +48,7 @@ export class UserService {
    * @returns Updated user with profile
    * @throws {AppError} 500 if update fails
    */
-  async updateMe(userId: string, data: UpdateProfileRequest): Promise<IUserWithProfile> {
+  async updateMe(userId: string, data: UpdateProfileRequest): Promise<UserResponse> {
     const updated = await this.userRepo.updateProfile(userId, data);
 
     if (!updated) {
@@ -69,7 +68,7 @@ export class UserService {
    * @returns User with profile
    * @throws {AppError} 404 if user not found
    */
-  async getPublicProfile(userId: string): Promise<IUserWithProfile> {
+  async getPublicProfile(userId: string): Promise<UserResponse> {
     // For Epic 0, same as getMe()
     // Epic 2 will filter private fields based on privacy settings
     return this.getMe(userId);

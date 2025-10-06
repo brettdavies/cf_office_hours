@@ -13,7 +13,7 @@ import { createSupabaseClient } from '../lib/db';
 
 // Types
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { IUserWithProfile, IUserProfile } from '@cf-office-hours/shared';
+import type { UserResponse, UserProfileResponse } from '@cf-office-hours/shared';
 import type { Env } from '../types/bindings';
 
 export class UserRepository {
@@ -31,7 +31,7 @@ export class UserRepository {
    * @param userId - UUID of the user
    * @returns User with profile or null if not found
    */
-  async getUserWithProfile(userId: string): Promise<IUserWithProfile | null> {
+  async getUserWithProfile(userId: string): Promise<UserResponse | null> {
     const { data, error } = await this.supabase
       .from('users')
       .select(`
@@ -65,13 +65,13 @@ export class UserRepository {
     }
 
     // Transform nested array to single object (Supabase returns profile as array)
-    const profileArray = data.profile as unknown as IUserProfile[];
+    const profileArray = data.profile as unknown as UserProfileResponse[];
     const profile = Array.isArray(profileArray) ? profileArray[0] : profileArray;
 
     return {
       ...data,
       profile,
-    } as IUserWithProfile;
+    } as UserResponse;
   }
 
   /**
@@ -86,8 +86,8 @@ export class UserRepository {
    */
   async updateProfile(
     userId: string,
-    updates: Partial<Omit<IUserProfile, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
-  ): Promise<IUserWithProfile | null> {
+    updates: Partial<Omit<UserProfileResponse, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
+  ): Promise<UserResponse | null> {
     // Update profile and verify success
     const { error } = await this.supabase
       .from('user_profiles')

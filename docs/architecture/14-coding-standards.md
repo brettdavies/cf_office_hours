@@ -1,5 +1,15 @@
 # 14. Coding Standards
 
+---
+> **⚠️ Type System Migration (Story 0.7.1)**
+> This document has been updated to reflect the new automated type generation system.
+> Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
+> - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
+> - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
+>
+> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+---
+
 This section defines the coding standards, conventions, and best practices for the CF Office Hours platform. Consistent code style improves readability, maintainability, and collaboration across the development team.
 
 ## 14.1 General Principles
@@ -48,19 +58,28 @@ const processData = (data: any) => {
 **Type Definitions:**
 
 ```typescript
-// ✅ Good: Interface for object shapes
-interface IUserProfile {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-}
+// ✅ Good: Zod schema for data models (single source of truth)
+import { z } from 'zod';
+
+export const UserProfileSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email(),
+  avatarUrl: z.string().url().optional(),
+});
+
+// Backend: Infer type from schema
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+
+// Frontend: Use OpenAPI-generated types
+import type { paths } from '@shared/types/api.generated';
+type UserProfileResponse = paths['/v1/users/me']['get']['responses']['200']['content']['application/json']['profile'];
 
 // ✅ Good: Type for unions, primitives, or computed types
 type ReputationTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 type UserRole = 'mentee' | 'mentor' | 'coordinator';
 
-// ✅ Good: Props interface with I prefix
+// ✅ Good: Component props interface (props don't need Zod validation)
 interface IButtonProps {
   variant: 'primary' | 'secondary' | 'destructive';
   onClick: () => void;
@@ -73,10 +92,13 @@ interface IButtonProps {
 
 ```typescript
 // Use built-in utility types where appropriate
-type PartialUser = Partial<IUser>;
-type ReadonlyUser = Readonly<IUser>;
-type UserWithoutEmail = Omit<IUser, 'email'>;
-type UserIdAndName = Pick<IUser, 'id' | 'name'>;
+import { UserSchema } from '@shared/schemas/user';
+type User = z.infer<typeof UserSchema>;
+
+type PartialUser = Partial<User>;
+type ReadonlyUser = Readonly<User>;
+type UserWithoutEmail = Omit<User, 'email'>;
+type UserIdAndName = Pick<User, 'id' | 'name'>;
 ```
 
 **Type Guards:**
@@ -321,12 +343,17 @@ export const getBookings = () => {
 **Interfaces & Types:**
 
 ```typescript
-// ✅ Good: I prefix for interfaces
-interface IUser {
-  id: string;
-  name: string;
-}
+// ✅ Good: Zod schemas for data models
+import { z } from 'zod';
 
+export const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+
+export type User = z.infer<typeof UserSchema>;
+
+// ✅ Good: Interfaces for component props (no validation needed)
 interface IButtonProps {
   onClick: () => void;
   children: React.ReactNode;
@@ -417,17 +444,16 @@ export const calculateReputationScore = async (userId: string) => {
 - Required parameters first, optional last
 
 ```typescript
-// ✅ Good: Object destructuring for multiple params
-interface ICreateBookingParams {
-  mentorId: string;
-  menteeId: string;
-  timeSlotId: string;
-  meetingGoal: string;
-  materialsUrls?: string[];
-}
+// ✅ Good: Use Zod schema for input validation
+import { CreateBookingSchema, BookingResponseSchema } from '@shared/schemas/booking';
 
-const createBooking = async (params: ICreateBookingParams): Promise<IBooking> => {
-  const { mentorId, menteeId, timeSlotId, meetingGoal, materialsUrls } = params;
+type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
+type Booking = z.infer<typeof BookingResponseSchema>;
+
+const createBooking = async (params: CreateBookingInput): Promise<Booking> => {
+  // Validate at runtime
+  const validatedParams = CreateBookingSchema.parse(params);
+  const { mentorId, menteeId, timeSlotId, meetingGoal, materialsUrls } = validatedParams;
   // implementation
 };
 
@@ -438,7 +464,7 @@ const createBooking = async (
   timeSlotId: string,
   meetingGoal: string,
   materialsUrls?: string[]
-): Promise<IBooking> => {
+): Promise<Booking> => {
   // hard to read, easy to mix up order
 };
 ```
@@ -458,7 +484,8 @@ import { Button } from '@/components/common/Button';
 import { useAuth } from '@/hooks/useAuth';
 
 // Types
-import type { IBooking } from '@/types/booking-types';
+import type { paths } from '@shared/types/api.generated';
+type Booking = paths['/v1/bookings/{id}']['get']['responses']['200']['content']['application/json'];
 
 // Styles (if component-specific)
 import './BookingCard.css';
@@ -470,7 +497,7 @@ import './BookingCard.css';
  * @param onCancel - Callback when cancel button is clicked
  */
 interface IBookingCardProps {
-  booking: IBooking;
+  booking: Booking;
   onCancel?: (bookingId: string) => void;
 }
 

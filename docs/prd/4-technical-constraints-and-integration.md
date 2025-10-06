@@ -1,5 +1,15 @@
 # 4. Technical Constraints and Integration
 
+---
+> **⚠️ Type System Migration (Story 0.7.1)**
+> This document has been updated to reflect the new automated type generation system.
+> Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
+> - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
+> - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
+>
+> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+---
+
 ## 4.1 Database Schema Design
 
 ### Core Tables
@@ -587,6 +597,7 @@ WHERE deleted_at IS NULL
 
 **Create Booking Schema:**
 ```typescript
+// packages/shared/src/schemas/booking.ts
 const CreateBookingSchema = z.object({
   mentorId: z.string().uuid(),
   timeSlotId: z.string().uuid(),
@@ -594,7 +605,13 @@ const CreateBookingSchema = z.object({
   materialsUrls: z.array(z.string().url()).optional(),
 });
 
+// Backend usage: Infer type from schema
 type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
+
+// Frontend usage: Import from generated types
+import type { paths } from '@cf-office-hours/shared';
+type CreateBookingRequest = paths['/v1/bookings']['post']['requestBody']['content']['application/json'];
+type CreateBookingResponse = paths['/v1/bookings']['post']['responses']['201']['content']['application/json'];
 ```
 
 **Availability Block Schema:**

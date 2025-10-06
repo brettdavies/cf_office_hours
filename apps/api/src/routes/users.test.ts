@@ -12,7 +12,7 @@ import app from '../index';
 import { UserService } from '../services/user.service';
 
 // Types
-import type { IUserWithProfile } from '@cf-office-hours/shared';
+import type { UserResponse } from '@cf-office-hours/shared';
 
 // Mock UserService
 vi.mock('../services/user.service');
@@ -30,7 +30,7 @@ vi.mock('../middleware/auth', () => ({
 }));
 
 describe('User API Routes', () => {
-  const mockUser: IUserWithProfile = {
+  const mockUser: UserResponse = {
     id: 'test-user-123',
     airtable_record_id: null,
     email: 'test@example.com',
@@ -62,7 +62,7 @@ describe('User API Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = (await res.json()) as IUserWithProfile;
+      const data = (await res.json()) as UserResponse;
       expect(data.id).toBe('test-user-123');
       expect(data.email).toBe('test@example.com');
       expect(data.profile.name).toBe('Test User');
@@ -107,7 +107,7 @@ describe('User API Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = (await res.json()) as IUserWithProfile;
+      const data = (await res.json()) as UserResponse;
       expect(data.profile.name).toBe('Updated Name');
       expect(data.profile.bio).toBe('Updated bio');
     });
@@ -163,7 +163,7 @@ describe('User API Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = (await res.json()) as IUserWithProfile;
+      const data = (await res.json()) as UserResponse;
       expect(data.id).toBe(validUuid);
       expect(data.profile.name).toBe('Other User');
     });

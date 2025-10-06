@@ -1,6 +1,23 @@
 # 4. Data Models
 
-Based on the PRD requirements and database schema design, the following TypeScript interfaces define the core data models/entities that will be shared between frontend and backend. These interfaces will live in `packages/shared` for type safety across the stack.
+---
+> **⚠️ Type System Migration (Story 0.7.1)**
+> This document has been updated to reflect the new automated type generation system.
+> Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
+> - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
+> - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
+>
+> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+---
+
+Based on the PRD requirements and database schema design, the following data models define the core entities for the CF Office Hours platform.
+
+**Important**: The TypeScript interfaces shown below are **conceptual documentation only**.
+
+**In actual implementation**:
+- **Backend developers**: Use `z.infer<typeof Schema>` from Zod schemas in `packages/shared/src/schemas/`
+- **Frontend developers**: Use types from `packages/shared/src/types/api.generated.ts` (auto-generated from OpenAPI)
+- **Never create manual type files** like `packages/shared/src/types/user.ts`
 
 ## 4.1 User & Profile Models
 
@@ -16,42 +33,62 @@ Based on the PRD requirements and database schema design, the following TypeScri
 - `is_active`: boolean - Soft delete flag synced from Airtable
 - `last_activity_at`: timestamp - Tracks dormancy (90+ days = dormant per FR57)
 
-**TypeScript Interface:**
+**Implementation (Zod Schema):**
 
 ```typescript
-// packages/shared/src/types/user.ts
+// packages/shared/src/schemas/user.ts
 
-export enum UserRole {
-  Mentee = 'mentee',
-  Mentor = 'mentor',
-  Coordinator = 'coordinator',
-}
+import { z } from 'zod';
 
-export enum ReputationTier {
-  Bronze = 'bronze',   // 0-3.0: 2 bookings/week max
-  Silver = 'silver',   // 3.0-4.0: 5 bookings/week max
-  Gold = 'gold',       // 4.0-4.5: 10 bookings/week max
-  Platinum = 'platinum' // 4.5+: Unlimited bookings
-}
+export const UserRoleEnum = z.enum(['mentee', 'mentor', 'coordinator']);
 
-export interface User {
-  id: string;
-  airtable_record_id: string;
-  email: string;
-  role: UserRole;
-  reputation_score: number;
-  reputation_tier: ReputationTier;
-  is_active: boolean;
-  last_activity_at: Date;
-  created_at: Date;
-  created_by: string | null;
-  updated_at: Date;
-  updated_by: string | null;
-  deleted_at: Date | null;
-  deleted_by: string | null;
-}
+export const ReputationTierEnum = z.enum([
+  'bronze',   // 0-3.0: 2 bookings/week max
+  'silver',   // 3.0-4.0: 5 bookings/week max
+  'gold',     // 4.0-4.5: 10 bookings/week max
+  'platinum'  // 4.5+: Unlimited bookings
+]);
 
-export interface UserProfile {
+export const UserSchema = z.object({
+  id: z.string().uuid(),
+  airtable_record_id: z.string(),
+  email: z.string().email(),
+  role: UserRoleEnum,
+  reputation_score: z.number().default(3.5),
+  reputation_tier: ReputationTierEnum,
+  is_active: z.boolean().default(true),
+  last_activity_at: z.coerce.date(),
+  created_at: z.coerce.date(),
+  created_by: z.string().uuid().nullable(),
+  updated_at: z.coerce.date(),
+  updated_by: z.string().uuid().nullable(),
+  deleted_at: z.coerce.date().nullable(),
+  deleted_by: z.string().uuid().nullable(),
+});
+
+// Backend: Infer type from schema
+export type User = z.infer<typeof UserSchema>;
+export type UserRole = z.infer<typeof UserRoleEnum>;
+export type ReputationTier = z.infer<typeof ReputationTierEnum>;
+```
+
+**Frontend Usage:**
+
+```typescript
+// Import from generated API types
+import type { paths } from '@shared/types/api.generated';
+
+type UserResponse = paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
+```
+
+---
+
+**User Profile Schema:**
+
+```typescript
+// packages/shared/src/schemas/user-profile.ts
+
+export const UserProfileSchema = z.object({
   id: string;
   user_id: string;
   name: string;

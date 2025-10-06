@@ -13,7 +13,7 @@ import { UserRepository } from '../repositories/user.repository';
 import { AppError } from '../lib/errors';
 
 // Types
-import type { IUserWithProfile } from '@cf-office-hours/shared';
+import type { UserResponse } from '@cf-office-hours/shared';
 import type { Env } from '../types/bindings';
 
 // Mock UserRepository
@@ -24,7 +24,7 @@ describe('UserService', () => {
   let mockUserRepo: ReturnType<typeof vi.mocked<UserRepository>>;
   const mockEnv = {} as Env;
 
-  const mockUser: IUserWithProfile = {
+  const mockUser: UserResponse = {
     id: 'user-123',
     airtable_record_id: null,
     email: 'test@example.com',

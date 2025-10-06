@@ -1,5 +1,15 @@
 # 8. Backend Architecture
 
+---
+> **⚠️ Type System Migration (Story 0.7.1)**
+> This document has been updated to reflect the new automated type generation system.
+> Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
+> - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
+> - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
+>
+> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+---
+
 This section defines the backend architecture for the Cloudflare Workers API, including application structure, Hono framework patterns, service layer design, repository pattern for data access, middleware implementation, and backend-specific concerns. The backend is built with **Hono 4.x**, **TypeScript 5.7.x**, and runs on **Cloudflare Workers** with edge deployment.
 
 ## 8.1 Backend Application Structure
@@ -423,7 +433,8 @@ export const authMiddleware = createMiddleware<{ Bindings: Env }>(async (c, next
 
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
-import { UserRole } from '@shared/types/user';
+import { UserSchema } from '@shared/schemas/user';
+type UserRole = z.infer<typeof UserSchema>['role'];
 import type { Env } from '../types/bindings';
 
 export function rbacMiddleware(allowedRoles: UserRole[]) {
@@ -683,7 +694,9 @@ import { CalendarService } from './calendar.service';
 import { NotificationService } from './notification.service';
 import { ReputationService } from './reputation.service';
 import { ApiError } from '../lib/errors';
-import type { CreateBookingRequest, Booking } from '@shared/types/booking';
+import { CreateBookingSchema, BookingResponseSchema } from '@shared/schemas/booking';
+type CreateBookingRequest = z.infer<typeof CreateBookingSchema>;
+type Booking = z.infer<typeof BookingResponseSchema>;
 
 export class BookingService extends BaseService {
   private bookingRepo: BookingRepository;
@@ -993,7 +1006,9 @@ export abstract class BaseRepository {
 
 import { BaseRepository } from './base.repository';
 import { ApiError } from '../lib/errors';
-import type { Booking, CreateBookingData } from '@shared/types/booking';
+import { BookingResponseSchema, CreateBookingSchema } from '@shared/schemas/booking';
+type Booking = z.infer<typeof BookingResponseSchema>;
+type CreateBookingData = z.infer<typeof CreateBookingSchema>;
 
 export class BookingRepository extends BaseRepository {
   async createBooking(data: CreateBookingData): Promise<Booking> {
@@ -1328,7 +1343,9 @@ import {
   canBookMentorByTier,
 } from '../utils/reputation';
 import type { Env } from '../types/bindings';
-import type { ReputationScore, ReputationTier } from '@shared/types/reputation';
+import { ReputationScoreSchema } from '@shared/schemas/reputation';
+type ReputationScore = z.infer<typeof ReputationScoreSchema>;
+type ReputationTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
 export class ReputationService extends BaseService {
   private userRepo: UserRepository;

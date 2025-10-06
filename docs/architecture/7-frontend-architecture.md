@@ -1,5 +1,15 @@
 # 7. Frontend Architecture
 
+---
+> **⚠️ Type System Migration (Story 0.7.1)**
+> This document has been updated to reflect the new automated type generation system.
+> Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
+> - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
+> - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
+>
+> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+---
+
 This section defines the React frontend architecture, including application structure, routing strategy, state management, data fetching patterns, authentication flows, and real-time communication. The frontend is built with **React 18.3.x**, **Vite 5.x**, **TypeScript 5.7.x**, and follows modern React best practices.
 
 ## 7.1 Frontend Application Structure
@@ -234,7 +244,8 @@ export function ProtectedRoute() {
 
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { UserRole } from '@shared/types/user';
+import type { paths } from '@shared/types/api.generated';
+type UserRole = paths['/v1/users/me']['get']['responses']['200']['content']['application/json']['role'];
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];
@@ -403,7 +414,9 @@ export function DashboardPage() {
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { UserWithProfile } from '@shared/types/user';
+import type { paths } from '@shared/types/api.generated';
+
+type UserWithProfile = paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
 
 interface AuthState {
   user: UserWithProfile | null;
@@ -437,7 +450,8 @@ export const useAuthStore = create<AuthState>()(
 // apps/web/src/stores/bookingStore.ts
 
 import { create } from 'zustand';
-import { TimeSlot } from '@shared/types/availability';
+import type { paths } from '@shared/types/api.generated';
+type TimeSlot = paths['/v1/slots/available']['get']['responses']['200']['content']['application/json']['slots'][number];
 
 interface BookingState {
   selectedMentorId: string | null;
@@ -536,7 +550,9 @@ export const queryClient = new QueryClient({
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUsers, getUserById, updateUserProfile } from '@/services/api/users';
-import { UserWithProfile } from '@shared/types/user';
+import type { paths } from '@shared/types/api.generated';
+
+type UserWithProfile = paths['/v1/users/{id}']['get']['responses']['200']['content']['application/json'];
 
 // Query keys for cache management
 export const userKeys = {
@@ -780,7 +796,9 @@ export async function cancelBooking(
 import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/services/supabase';
-import { UserWithProfile } from '@shared/types/user';
+import type { paths } from '@shared/types/api.generated';
+
+type UserWithProfile = paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
 
 export function useAuth() {
   const { user, session, setUser, setSession, clearAuth } = useAuthStore();
@@ -1203,7 +1221,7 @@ export function ProfileForm() {
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/services/supabase';
-import { CalendarProvider } from '@shared/types/calendar';
+type CalendarProvider = 'google' | 'microsoft';
 
 export function useCalendarConnection() {
   return useQuery({

@@ -1,5 +1,15 @@
 # 5. API Specification
 
+---
+> **⚠️ Type System Migration (Story 0.7.1)**
+> This document has been updated to reflect the new automated type generation system.
+> Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
+> - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
+> - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
+>
+> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+---
+
 Based on the chosen API style (REST with OpenAPI 3.1), the API contract is defined using **Hono + Zod + @hono/zod-openapi**. This approach generates TypeScript types and OpenAPI documentation from a single source of truth.
 
 ## 5.1 API Design Philosophy
@@ -504,6 +514,9 @@ interface ApiError {
 
 ## 5.6 OpenAPI Type Generation
 
+**IMPORTANT (Story 0.7.1)**: This is the **mandatory pattern** for all frontend API type usage.
+Do NOT create manual interfaces - always use types generated from OpenAPI spec.
+
 **Frontend Type Generation:**
 
 ```bash
@@ -534,6 +547,26 @@ export async function createBooking(data: CreateBookingRequest): Promise<CreateB
 
   return response.json();
 }
+```
+
+**Backend Type Usage:**
+
+```typescript
+// apps/api/src/routes/bookings.ts
+import { CreateBookingSchema, BookingResponseSchema } from '@shared/schemas/booking';
+
+// Infer types from Zod schemas
+type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
+type BookingResponse = z.infer<typeof BookingResponseSchema>;
+
+export const createBookingHandler = async (c: Context) => {
+  const input = c.req.valid('json') as CreateBookingInput;
+
+  // Business logic...
+  const booking: BookingResponse = await bookingService.create(input);
+
+  return c.json(booking, 201);
+};
 ```
 
 ## 5.7 API Sample Payloads

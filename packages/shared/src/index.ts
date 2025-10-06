@@ -5,10 +5,10 @@
  * used across both frontend and backend applications.
  */
 
-// Export types
-export * from './types/user';
+// Export generated API types (auto-generated from OpenAPI spec, DO NOT EDIT MANUALLY)
+export * from './types/api.generated';
 
-// Export schemas
+// Export schemas (single source of truth for types via z.infer)
 export * from './schemas/user';
 
 // Export constants when they are created

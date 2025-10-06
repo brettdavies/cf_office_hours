@@ -1,5 +1,15 @@
 # 10. Development Workflow
 
+---
+> **⚠️ Type System Migration (Story 0.7.1)**
+> This document has been updated to reflect the new automated type generation system.
+> Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
+> - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
+> - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
+>
+> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+---
+
 This section covers the complete development workflow, from initial setup through code review and collaboration practices. It provides practical guidance for developers working on the CF Office Hours platform.
 
 ## 10.1 Initial Development Setup
@@ -345,6 +355,43 @@ npx supabase start
 # Stop Supabase
 npx supabase stop
 ```
+
+**Type Generation Workflow (Story 0.7.1):**
+
+After modifying any Zod schema in `packages/shared/src/schemas/`:
+
+1. **Backend types**: Automatically available via `z.infer<typeof Schema>`
+   - No build step required
+   - TypeScript compiler handles type inference
+
+2. **Frontend types**: Run type generation script
+   ```bash
+   npm run generate:api-types
+   ```
+   - Fetches OpenAPI spec from running API server
+   - Generates `packages/shared/src/types/api.generated.ts`
+   - **DO NOT** edit generated file manually
+
+3. **Import patterns**:
+   ```typescript
+   // ❌ WRONG: Manual type imports (deprecated)
+   import { IUser } from '@shared/types/user';
+
+   // ✅ CORRECT: Backend pattern
+   import { UserSchema } from '@shared/schemas/user';
+   type User = z.infer<typeof UserSchema>;
+
+   // ✅ CORRECT: Frontend pattern
+   import type { paths } from '@shared/types/api.generated';
+   type UserResponse = paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
+   ```
+
+4. **CI/CD Integration**:
+   - Type generation runs automatically in CI pipeline
+   - Build fails if generated types are out of sync with schemas
+   - Always regenerate types before committing schema changes
+
+---
 
 ## 10.3 Testing Practices
 
