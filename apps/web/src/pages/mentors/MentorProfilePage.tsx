@@ -31,6 +31,15 @@ export default function MentorProfilePage() {
 
   // Handle slot selection
   const handleSlotSelect = (slot: TimeSlot) => {
+    if (import.meta.env.DEV) {
+      console.log('[BOOKING] Slot selected', {
+        slotId: slot.id,
+        mentorId: slot.mentor_id,
+        available: !slot.is_booked,
+        startTime: slot.start_time,
+        timestamp: new Date().toISOString(),
+      });
+    }
     setSelectedSlot(slot);
     setIsModalOpen(true);
   };

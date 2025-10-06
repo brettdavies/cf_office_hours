@@ -95,6 +95,13 @@ export function BookingFormModal({
   const handleConfirm = async () => {
     // Validate meeting goal
     if (meetingGoal.trim().length < 10) {
+      if (import.meta.env.DEV) {
+        console.log('[BOOKING] Validation failed - meeting goal too short', {
+          length: meetingGoal.trim().length,
+          slotId: slot.id,
+          timestamp: new Date().toISOString(),
+        });
+      }
       toast({
         title: 'Validation Error',
         description: 'Please enter a longer meeting goal (at least 10 characters)',
@@ -103,13 +110,33 @@ export function BookingFormModal({
       return;
     }
 
+    if (import.meta.env.DEV) {
+      console.log('[BOOKING] Booking form submission initiated', {
+        slotId: slot.id,
+        mentorId: slot.mentor_id,
+        meetingGoalLength: meetingGoal.trim().length,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     setIsSubmitting(true);
 
     try {
-      await apiClient.createBooking({
+      const result = await apiClient.createBooking({
         time_slot_id: slot.id,
         meeting_goal: meetingGoal.trim(),
       });
+
+      if (import.meta.env.DEV) {
+        console.log('[BOOKING] Booking created successfully', {
+          bookingId: result.id,
+          slotId: slot.id,
+          mentorId: result.mentor_id,
+          menteeId: result.mentee_id,
+          status: result.status,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       toast({
         title: 'Booking Created',
@@ -120,7 +147,14 @@ export function BookingFormModal({
       handleClose();
       onBookingCreated?.();
     } catch (error) {
-      console.error('Failed to create booking:', error);
+      if (import.meta.env.DEV) {
+        console.error('[ERROR] Booking creation failed', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          slotId: slot.id,
+          statusCode: error instanceof ApiError ? error.statusCode : undefined,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       if (error instanceof ApiError) {
         if (error.statusCode === 409) {

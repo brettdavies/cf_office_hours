@@ -154,10 +154,27 @@ bookingRoutes.openapi(createBookingRoute, async c => {
   // Validate request body against schema
   const body = c.req.valid('json');
 
+  console.log('[BOOKING] Creating booking', {
+    userId: user.id,
+    slotId: body.time_slot_id,
+    meetingGoalLength: body.meeting_goal.length,
+    timestamp: new Date().toISOString(),
+  });
+
   const bookingService = new BookingService(c.env);
 
   try {
     const booking = await bookingService.createBooking(user.id, body);
+
+    console.log('[BOOKING] Booking created successfully', {
+      bookingId: booking.id,
+      userId: user.id,
+      slotId: booking.time_slot_id,
+      mentorId: booking.mentor_id,
+      menteeId: booking.mentee_id,
+      status: booking.status,
+      timestamp: new Date().toISOString(),
+    });
 
     return c.json(booking, 201);
   } catch (error) {
@@ -169,6 +186,15 @@ bookingRoutes.openapi(createBookingRoute, async c => {
         message: string;
         details?: Record<string, unknown>;
       };
+
+      console.error('[ERROR] Booking creation failed', {
+        userId: user.id,
+        error: appError.message,
+        code: appError.code,
+        statusCode: appError.statusCode,
+        details: appError.details,
+        timestamp: new Date().toISOString(),
+      });
 
       return c.json(
         {
@@ -184,7 +210,11 @@ bookingRoutes.openapi(createBookingRoute, async c => {
     }
 
     // Unknown error
-    console.error('Unexpected error creating booking:', error);
+    console.error('[ERROR] Unexpected error creating booking', {
+      userId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    });
     return c.json(
       {
         error: {

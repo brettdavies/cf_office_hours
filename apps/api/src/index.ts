@@ -8,6 +8,7 @@ import { prettyJSON } from 'hono/pretty-json';
 // Internal modules
 import { errorHandler } from './middleware/error-handler';
 import { requireAuth } from './middleware/auth';
+import { loggingMiddleware } from './middleware/logging';
 import { routes } from './routes';
 
 // Types
@@ -19,6 +20,7 @@ const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
 app.use('*', logger());
+app.use('*', loggingMiddleware); // Custom logging middleware (Story 0.16.1)
 app.use(
   '*',
   cors({

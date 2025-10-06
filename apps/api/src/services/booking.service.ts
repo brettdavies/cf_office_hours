@@ -45,16 +45,33 @@ export class BookingService {
    * @throws {AppError} 500 if database operation fails
    */
   async createBooking(userId: string, data: CreateBookingRequest): Promise<BookingResponse> {
+    console.log('[BOOKING] Service layer - creating booking', {
+      userId,
+      slotId: data.time_slot_id,
+      timestamp: new Date().toISOString(),
+    });
+
     // Fetch time slot details to validate and extract metadata
     const slot = await this.bookingRepo.getTimeSlot(data.time_slot_id);
 
     if (!slot) {
+      console.log('[BOOKING] Slot not found', {
+        userId,
+        slotId: data.time_slot_id,
+        timestamp: new Date().toISOString(),
+      });
       throw new AppError(404, 'Time slot not found', 'SLOT_NOT_FOUND', {
         time_slot_id: data.time_slot_id,
       });
     }
 
     if (slot.is_booked) {
+      console.log('[BOOKING] Slot already booked', {
+        userId,
+        slotId: data.time_slot_id,
+        mentorId: slot.mentor_id,
+        timestamp: new Date().toISOString(),
+      });
       throw new AppError(409, 'This slot is already booked', 'SLOT_UNAVAILABLE', {
         time_slot_id: data.time_slot_id,
       });

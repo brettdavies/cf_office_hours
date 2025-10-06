@@ -9,7 +9,7 @@ export default function CallbackPage() {
 
   useEffect(() => {
     if (import.meta.env.DEV) {
-      console.log('[CallbackPage] Component rendered/updated:', {
+      console.log('[AUTH] CallbackPage rendered/updated:', {
         pathname: location.pathname,
         search: location.search,
         hash: location.hash,
@@ -26,11 +26,12 @@ export default function CallbackPage() {
       location.search.includes('token'); // Magic link token parameter
 
     if (import.meta.env.DEV) {
-      console.log('[CallbackPage] Auth params check:', {
+      console.log('[AUTH] Callback auth params check:', {
         hasAuthParams,
         hasAccessToken: location.hash.includes('access_token'),
         hasCode: location.search.includes('code'),
         hasToken: location.search.includes('token'),
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -41,22 +42,35 @@ export default function CallbackPage() {
         const state = location.state as { from?: { pathname: string } } | null;
         const from = state?.from?.pathname || '/dashboard';
         if (import.meta.env.DEV) {
-          console.log('[CallbackPage] User authenticated, redirecting to:', from);
+          console.log('[AUTH] User authenticated, redirecting to:', {
+            destination: from,
+            timestamp: new Date().toISOString(),
+          });
         }
         navigate(from, { replace: true });
       } else if (!hasAuthParams) {
         // No auth and no auth params in URL, redirect to login
         if (import.meta.env.DEV) {
-          console.log('[CallbackPage] No auth params found, redirecting to login');
+          console.log('[AUTH] No auth params found, redirecting to login', {
+            timestamp: new Date().toISOString(),
+          });
         }
         navigate('/auth/login', { replace: true });
       } else if (import.meta.env.DEV) {
-        console.log('[CallbackPage] Waiting for auth... (hasAuthParams but not authenticated yet)');
+        console.warn('[AUTH] Premature redirect prevented - auth params present but session not yet established', {
+          hasAuthParams,
+          isLoading,
+          isAuthenticated,
+          timestamp: new Date().toISOString(),
+        });
       }
       // If !isAuthenticated but hasAuthParams, stay on callback page
       // The auth state change listener will trigger soon and update isAuthenticated
     } else if (import.meta.env.DEV) {
-      console.log('[CallbackPage] Auth is still loading...');
+      console.log('[AUTH] Auth is still loading...', {
+        isLoading,
+        timestamp: new Date().toISOString(),
+      });
     }
   }, [isLoading, isAuthenticated, navigate, location]);
 

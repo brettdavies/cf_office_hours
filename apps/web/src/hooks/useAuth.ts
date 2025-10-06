@@ -1,29 +1,37 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import type { UserWithProfile } from '@/types/user';
 
 export function useAuth() {
   const { user, session, setUser, setSession, clearAuth } = useAuthStore();
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
-      console.log('[useAuth] Initializing auth hook');
+      console.log('[AUTH] Initializing auth hook', { timestamp: new Date().toISOString() });
     }
 
     // Get initial session from Supabase
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (import.meta.env.DEV) {
-        console.log('[useAuth] getSession result:', {
+        console.log('[AUTH] getSession result:', {
           hasSession: !!session,
           error,
           userId: session?.user?.id,
+          timestamp: new Date().toISOString(),
         });
       }
 
+      // Mark initialization complete
+      setIsInitializing(false);
+
       if (session) {
         if (import.meta.env.DEV) {
-          console.log('[useAuth] Setting session from getSession');
+          console.log('[AUTH] Setting session from getSession', {
+            userId: session.user.id,
+            timestamp: new Date().toISOString(),
+          });
         }
         setSession({
           access_token: session.access_token,
@@ -34,7 +42,7 @@ export function useAuth() {
         // Fetch user profile from API
         fetchUserProfile(session.access_token);
       } else if (import.meta.env.DEV) {
-        console.log('[useAuth] No session found in getSession');
+        console.log('[AUTH] No session found in getSession', { timestamp: new Date().toISOString() });
       }
     });
 
@@ -43,7 +51,7 @@ export function useAuth() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (import.meta.env.DEV) {
-        console.log('[useAuth] onAuthStateChange:', {
+        console.log('[AUTH] onAuthStateChange:', {
           event,
           hasSession: !!session,
           userId: session?.user?.id,
@@ -53,7 +61,11 @@ export function useAuth() {
 
       if (session) {
         if (import.meta.env.DEV) {
-          console.log('[useAuth] Setting session from auth state change');
+          console.log('[AUTH] Setting session from auth state change', {
+            userId: session.user.id,
+            event,
+            timestamp: new Date().toISOString(),
+          });
         }
         setSession({
           access_token: session.access_token,
@@ -64,7 +76,7 @@ export function useAuth() {
         fetchUserProfile(session.access_token);
       } else {
         if (import.meta.env.DEV) {
-          console.log('[useAuth] Clearing auth (no session)');
+          console.log('[AUTH] Clearing auth (no session)', { event, timestamp: new Date().toISOString() });
         }
         // Clear token from localStorage
         localStorage.removeItem('auth_token');
@@ -74,7 +86,7 @@ export function useAuth() {
 
     return () => {
       if (import.meta.env.DEV) {
-        console.log('[useAuth] Unsubscribing from auth state changes');
+        console.log('[AUTH] Unsubscribing from auth state changes');
       }
       subscription.unsubscribe();
     };
@@ -82,10 +94,10 @@ export function useAuth() {
 
   const fetchUserProfile = async (accessToken: string) => {
     if (import.meta.env.DEV) {
-      console.log(
-        '[useAuth] Fetching user profile with token:',
-        accessToken.substring(0, 20) + '...'
-      );
+      console.log('[PROFILE] Fetching user profile', {
+        tokenPreview: accessToken.substring(0, 20) + '...',
+        timestamp: new Date().toISOString(),
+      });
     }
 
     try {
@@ -96,10 +108,12 @@ export function useAuth() {
       } = await supabase.auth.getUser(accessToken);
 
       if (import.meta.env.DEV) {
-        console.log('[useAuth] getUser result:', {
+        console.log('[PROFILE] Supabase getUser result:', {
           hasUser: !!authUser,
           error,
           email: authUser?.email,
+          userId: authUser?.id,
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -114,6 +128,15 @@ export function useAuth() {
               Authorization: `Bearer ${accessToken}`,
             },
           });
+
+          if (import.meta.env.DEV) {
+            console.log('[PROFILE] API /users/me response:', {
+              status: response.status,
+              ok: response.ok,
+              userId: authUser.id,
+              timestamp: new Date().toISOString(),
+            });
+          }
 
           if (response.ok) {
             const userData = await response.json();
@@ -136,7 +159,12 @@ export function useAuth() {
               },
             };
             if (import.meta.env.DEV) {
-              console.log('[useAuth] Setting user profile with role:', userProfile);
+              console.log('[PROFILE] User profile loaded successfully', {
+                userId: userProfile.id,
+                role: userProfile.role,
+                email: userProfile.email,
+                timestamp: new Date().toISOString(),
+              });
             }
             setUser(userProfile);
           } else {
@@ -160,12 +188,20 @@ export function useAuth() {
               },
             };
             if (import.meta.env.DEV) {
-              console.log('[useAuth] API call failed, using default role:', userProfile);
+              console.log('[PROFILE] API call failed, using default role', {
+                status: response.status,
+                userId: authUser.id,
+                timestamp: new Date().toISOString(),
+              });
             }
             setUser(userProfile);
           }
         } catch (apiError) {
-          console.error('[useAuth] Failed to fetch from API:', apiError);
+          console.error('[ERROR] Failed to fetch user profile from API', {
+            error: apiError instanceof Error ? apiError.message : 'Unknown error',
+            userId: authUser.id,
+            timestamp: new Date().toISOString(),
+          });
           // Fallback to basic user data
           const userProfile: UserWithProfile = {
             id: authUser.id,
@@ -189,14 +225,20 @@ export function useAuth() {
         }
       }
     } catch (error) {
-      console.error('[useAuth] Failed to fetch user profile:', error);
+      console.error('[ERROR] Failed to fetch user profile', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      });
       clearAuth();
     }
   };
 
   const signOut = async () => {
     if (import.meta.env.DEV) {
-      console.log('[useAuth] Signing out');
+      console.log('[AUTH] Signing out', {
+        userId: user?.id,
+        timestamp: new Date().toISOString(),
+      });
     }
     await supabase.auth.signOut();
     localStorage.removeItem('auth_token');
@@ -206,7 +248,7 @@ export function useAuth() {
   return {
     user,
     session,
-    isLoading: session !== null && user === null,
+    isLoading: isInitializing || (session !== null && user === null),
     isAuthenticated: !!user,
     signOut,
   };

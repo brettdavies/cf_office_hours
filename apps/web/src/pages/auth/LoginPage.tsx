@@ -24,10 +24,10 @@ export default function LoginPage() {
       const redirectUrl = `${window.location.origin}/auth/callback`;
 
       if (import.meta.env.DEV) {
-        console.log('[LoginPage] Sending magic link:', {
+        console.log('[AUTH] Magic link send initiated', {
           email,
           redirectUrl,
-          origin: window.location.origin,
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -39,7 +39,13 @@ export default function LoginPage() {
       });
 
       if (import.meta.env.DEV) {
-        console.log('[LoginPage] signInWithOtp result:', { error });
+        console.log('[AUTH] Magic link sent', {
+          email,
+          redirectUrl,
+          success: !error,
+          error: error?.message,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       if (error) throw error;
@@ -52,7 +58,11 @@ export default function LoginPage() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send magic link';
       if (import.meta.env.DEV) {
-        console.error('[LoginPage] Error sending magic link:', error);
+        console.error('[ERROR] Magic link send failed', {
+          email,
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        });
       }
       addToast({
         title: 'Error',

@@ -71,6 +71,12 @@ export class AvailabilityService {
 
     // Create availability block via repository
     try {
+      console.log('[AVAILABILITY] Service layer - creating availability block', {
+        userId,
+        slotDuration: data.slot_duration_minutes,
+        timestamp: new Date().toISOString(),
+      });
+
       const block = await this.availabilityRepo.create(userId, {
         start_time: data.start_time,
         end_time: data.end_time,
@@ -80,9 +86,19 @@ export class AvailabilityService {
         description: data.description,
       });
 
+      console.log('[AVAILABILITY] Slot generation completed', {
+        blockId: block.id,
+        userId,
+        timestamp: new Date().toISOString(),
+      });
+
       return block;
     } catch (error) {
-      console.error('Failed to create availability block:', { userId, error });
+      console.error('[ERROR] Failed to create availability block', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      });
       throw new AppError(500, 'Failed to create availability block', 'CREATION_FAILED', {
         originalError: error instanceof Error ? error.message : 'Unknown error',
       });

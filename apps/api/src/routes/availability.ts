@@ -180,9 +180,27 @@ const createAvailabilityBlockRoute = createRoute({
 availabilityRoutes.openapi(createAvailabilityBlockRoute, async c => {
   const user = c.get('user');
   const body = c.req.valid('json');
+
+  console.log('[AVAILABILITY] Creating availability block', {
+    userId: user.id,
+    userRole: user.role,
+    startTime: body.start_time,
+    endTime: body.end_time,
+    slotDuration: body.slot_duration_minutes,
+    timestamp: new Date().toISOString(),
+  });
+
   const availabilityService = new AvailabilityService(c.env);
 
   const block = await availabilityService.createAvailabilityBlock(user.id, user.role, body);
+
+  console.log('[AVAILABILITY] Availability block created successfully', {
+    blockId: block.id,
+    userId: user.id,
+    startTime: block.start_time,
+    endTime: block.end_time,
+    timestamp: new Date().toISOString(),
+  });
 
   return c.json(block, 201);
 });

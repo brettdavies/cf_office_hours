@@ -121,7 +121,27 @@ export function CreateAvailabilityDialog({ onSuccess }: CreateAvailabilityDialog
         description: '',
       };
 
-      await apiClient.createAvailability(requestData);
+      if (import.meta.env.DEV) {
+        console.log('[AVAILABILITY] Creating availability block', {
+          date: format(date, 'yyyy-MM-dd'),
+          startTime,
+          endTime,
+          slotDuration: parseInt(slotDuration, 10),
+          location: 'online',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await apiClient.createAvailability(requestData);
+
+      if (import.meta.env.DEV) {
+        console.log('[AVAILABILITY] Availability block created successfully', {
+          blockId: result.id,
+          startTime: result.start_time,
+          endTime: result.end_time,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       toast({
         title: 'Success',
@@ -132,7 +152,12 @@ export function CreateAvailabilityDialog({ onSuccess }: CreateAvailabilityDialog
       setOpen(false);
       onSuccess?.();
     } catch (error) {
-      console.error('Failed to create availability:', error);
+      if (import.meta.env.DEV) {
+        console.error('[ERROR] Availability block creation failed', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       const errorMessage =
         error instanceof ApiError
