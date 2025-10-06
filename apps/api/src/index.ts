@@ -20,7 +20,7 @@ const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 // Global middleware
 app.use('*', logger());
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'https://officehours.youcanjustdothings.io'],
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'https://officehours.youcanjustdothings.io'],
   credentials: true,
 }));
 app.use('*', prettyJSON());
