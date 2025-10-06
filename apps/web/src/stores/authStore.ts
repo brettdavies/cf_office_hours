@@ -1,17 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-interface UserWithProfile {
-  id: string;
-  email: string;
-  name?: string;
-  avatar_url?: string;
-}
-
-interface AuthSession {
-  access_token: string;
-  refresh_token: string;
-}
+import type { UserWithProfile, AuthSession } from '@/types/user';
 
 interface AuthState {
   user: UserWithProfile | null;

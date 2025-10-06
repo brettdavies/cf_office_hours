@@ -1,13 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
-
-interface UserWithProfile {
-  id: string;
-  email: string;
-  name?: string;
-  avatar_url?: string;
-}
+import type { UserWithProfile } from '@/types/user';
 
 export function useAuth() {
   const { user, session, setUser, setSession, clearAuth } = useAuthStore();
@@ -112,18 +106,87 @@ export function useAuth() {
       if (error) throw error;
 
       if (authUser) {
-        // For Epic 0, we use Supabase auth user data directly
-        // In Epic 1+, we'll fetch from /users/me API endpoint
-        const userProfile: UserWithProfile = {
-          id: authUser.id,
-          email: authUser.email || '',
-          name: authUser.user_metadata?.name,
-          avatar_url: authUser.user_metadata?.avatar_url,
-        };
-        if (import.meta.env.DEV) {
-          console.log('[useAuth] Setting user profile:', userProfile);
+        // Fetch user role from API
+        try {
+          const apiUrl = import.meta.env.VITE_API_BASE_URL;
+          const response = await fetch(`${apiUrl}/users/me`, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          if (response.ok) {
+            const userData = await response.json();
+            const userProfile: UserWithProfile = {
+              id: authUser.id,
+              airtable_record_id: userData.airtable_record_id || null,
+              email: authUser.email || '',
+              role: userData.role,
+              created_at: userData.created_at || new Date().toISOString(),
+              updated_at: userData.updated_at || new Date().toISOString(),
+              profile: userData.profile || {
+                id: userData.profile?.id || '',
+                user_id: authUser.id,
+                name: authUser.user_metadata?.name || null,
+                title: null,
+                company: null,
+                bio: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            };
+            if (import.meta.env.DEV) {
+              console.log('[useAuth] Setting user profile with role:', userProfile);
+            }
+            setUser(userProfile);
+          } else {
+            // Fallback if API call fails
+            const userProfile: UserWithProfile = {
+              id: authUser.id,
+              airtable_record_id: null,
+              email: authUser.email || '',
+              role: 'mentee', // Default role
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              profile: {
+                id: '',
+                user_id: authUser.id,
+                name: authUser.user_metadata?.name || null,
+                title: null,
+                company: null,
+                bio: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            };
+            if (import.meta.env.DEV) {
+              console.log('[useAuth] API call failed, using default role:', userProfile);
+            }
+            setUser(userProfile);
+          }
+        } catch (apiError) {
+          console.error('[useAuth] Failed to fetch from API:', apiError);
+          // Fallback to basic user data
+          const userProfile: UserWithProfile = {
+            id: authUser.id,
+            airtable_record_id: null,
+            email: authUser.email || '',
+            role: 'mentee', // Default role
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            profile: {
+              id: '',
+              user_id: authUser.id,
+              name: authUser.user_metadata?.name || null,
+              title: null,
+              company: null,
+              bio: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          };
+          setUser(userProfile);
         }
-        setUser(userProfile);
       }
     } catch (error) {
       console.error('[useAuth] Failed to fetch user profile:', error);

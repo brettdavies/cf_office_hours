@@ -86,12 +86,19 @@ describe('useAuth', () => {
       expect(result.current.isAuthenticated).toBe(true);
     });
 
-    expect(result.current.user).toEqual({
+    // User should have full UserWithProfile structure with fallback values
+    // Since API call is not mocked to succeed, it falls back to default profile
+    expect(result.current.user).toMatchObject({
       id: 'user-123',
       email: 'test@example.com',
-      name: undefined,
-      avatar_url: undefined,
+      role: 'mentee', // Default role when API fails
+      airtable_record_id: null,
+      profile: {
+        user_id: 'user-123',
+      },
     });
+    // Profile structure should exist
+    expect(result.current.user?.profile).toBeDefined();
     expect(result.current.session).toEqual({
       access_token: 'mock-access-token',
       refresh_token: 'mock-refresh-token',

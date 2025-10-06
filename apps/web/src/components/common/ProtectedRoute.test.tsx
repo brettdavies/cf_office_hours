@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
+import { createMockUser } from '@/test/test-utils';
 
 // Mock useAuth hook
 vi.mock('@/hooks/useAuth');
@@ -64,7 +65,7 @@ describe('ProtectedRoute', () => {
 
   it('should render children when authenticated', () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: '123', email: 'test@example.com' },
+      user: createMockUser({ id: '123', email: 'test@example.com' }),
       session: { access_token: 'token', refresh_token: 'refresh' },
       isLoading: false,
       isAuthenticated: true,
@@ -132,7 +133,7 @@ describe('ProtectedRoute', () => {
 
     // Then authenticated
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: '123', email: 'test@example.com' },
+      user: createMockUser({ id: '123', email: 'test@example.com' }),
       session: { access_token: 'token', refresh_token: 'refresh' },
       isLoading: false,
       isAuthenticated: true,
