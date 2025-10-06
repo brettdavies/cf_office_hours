@@ -844,6 +844,168 @@ npm test
 
 **Full Documentation:** See [supabase/tests/README.md](../../supabase/tests/README.md) for complete testing strategy, examples, and update procedures.
 
+### 14.11.2 Centralized Mock Factories (REQUIRED)
+
+**CRITICAL RULE:** All test mock data MUST use centralized factory functions. Do NOT create inline mock objects in test files.
+
+**Factory Location Pattern:**
+- **Frontend:** `apps/web/src/test/fixtures/{domain}.ts`
+- **Backend:** `apps/api/src/test/fixtures/{domain}.ts`
+- **Domain examples:** `user.ts`, `booking.ts`, `availability.ts`, `profile.ts`
+
+**Why This Matters:**
+- ✅ **Single source of truth** - Schema changes update in one place
+- ✅ **Consistency** - All tests use identical mock structures
+- ✅ **Maintainability** - Reduces duplicated 20+ field mock objects across files
+- ✅ **Type safety** - Uses OpenAPI-generated types
+- ✅ **DRY principle** - Don't Repeat Yourself
+
+**Factory Pattern Requirements:**
+
+```typescript
+// apps/web/src/test/fixtures/user.ts
+import type { paths } from '@shared/types/api.generated';
+
+type UserResponse = paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
+
+/**
+ * Creates a mock user response with sensible defaults.
+ *
+ * @param overrides - Partial object to override default values
+ * @returns Complete UserResponse object
+ *
+ * @example
+ * // Default mentee user
+ * const user = createMockUser();
+ *
+ * @example
+ * // Mentor with specific email
+ * const mentor = createMockUser({ role: 'mentor', email: 'mentor@example.com' });
+ */
+export const createMockUser = (overrides?: Partial<UserResponse>): UserResponse => ({
+  id: 'user-123',
+  airtable_record_id: null,
+  email: 'test@example.com',
+  role: 'mentee',
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+  profile: {
+    id: 'profile-123',
+    user_id: 'user-123',
+    name: 'Test User',
+    title: null,
+    company: null,
+    bio: null,
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
+  },
+  ...overrides,
+});
+
+/**
+ * Pre-configured mock users for common test scenarios
+ */
+export const mockUsers = {
+  mentee: createMockUser(),
+  mentor: createMockUser({ role: 'mentor' }),
+  coordinator: createMockUser({ role: 'coordinator' }),
+  withProfile: createMockUser({
+    profile: {
+      id: 'profile-123',
+      user_id: 'user-123',
+      name: 'John Doe',
+      title: 'Senior Engineer',
+      company: 'Tech Corp',
+      bio: 'Experienced engineer',
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    },
+  }),
+};
+```
+
+**Usage in Tests:**
+
+```typescript
+// ❌ WRONG: Inline mock objects
+describe('ProfilePage', () => {
+  const mockUser = {
+    id: 'user-123',
+    airtable_record_id: null,
+    email: 'test@example.com',
+    role: 'mentee',
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
+    profile: {
+      id: 'profile-123',
+      user_id: 'user-123',
+      name: 'Test User',
+      // ... 20+ fields duplicated across multiple test files
+    },
+  };
+
+  it('should render profile', () => {
+    // test using mockUser
+  });
+});
+
+// ✅ CORRECT: Centralized factory
+import { createMockUser, mockUsers } from '@/test/fixtures/user';
+
+describe('ProfilePage', () => {
+  it('should render profile for mentee', () => {
+    const user = createMockUser(); // Use default
+    // test using user
+  });
+
+  it('should render profile for mentor', () => {
+    const user = mockUsers.mentor; // Use pre-configured
+    // test using user
+  });
+
+  it('should render profile with custom email', () => {
+    const user = createMockUser({ email: 'custom@example.com' }); // Override specific field
+    // test using user
+  });
+});
+```
+
+**Best Practices:**
+
+1. **One factory file per domain:**
+   - `user.ts` - User and profile mocks
+   - `booking.ts` - Booking-related mocks
+   - `availability.ts` - Availability block mocks
+   - `time-slot.ts` - Time slot mocks
+
+2. **Use OpenAPI types:**
+   ```typescript
+   import type { paths } from '@shared/types/api.generated';
+   type AvailabilityResponse = paths['/v1/availability']['get']['responses']['200']['content']['application/json'][number];
+   ```
+
+3. **Provide sensible defaults:**
+   - Valid UUIDs
+   - Realistic timestamps
+   - Logical relationships (e.g., `user_id` matches `profile.user_id`)
+
+4. **Support partial overrides:**
+   - Always use spread operator: `...overrides` at end
+   - Allow deep overrides for nested objects
+
+5. **Include pre-configured scenarios:**
+   - Export `mockUsers`, `mockBookings`, etc. for common cases
+   - Reduces boilerplate in simple tests
+
+**Reference Implementation:**
+- See Story 0.9: `apps/web/src/test/fixtures/availability.ts` for complete example
+- Demonstrates factory pattern, overrides, pre-configured scenarios, JSDoc
+
+**Enforcement:**
+- Code reviewers MUST reject inline mock objects
+- All new tests MUST use centralized factories
+- Existing tests should be refactored to use factories when touched
+
 ---
 
 ## 14.12 Performance Best Practices

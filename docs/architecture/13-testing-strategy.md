@@ -1190,11 +1190,34 @@ test('POST /api/bookings conforms to OpenAPI spec', async () => {
 
 ## 13.7 Test Utilities
 
-**Test Data Factories:**
+**Test Data Factories (REQUIRED):**
+
+**CRITICAL RULE:** All test mock data MUST be created using centralized factory functions. Do NOT create inline mock objects in test files.
+
+**Why This Matters:**
+- ✅ **Single source of truth** - Mock data structure changes update in one place
+- ✅ **Consistency** - All tests use identical mock structures across the codebase
+- ✅ **Easy schema updates** - When API changes, update factory once, all tests fixed
+- ✅ **Override pattern** - Easily customize specific fields for test-specific variations
+- ✅ **Type safety** - Uses OpenAPI-generated types for API contracts
+
+**Factory Location:**
+- **Frontend:** `apps/web/src/test/fixtures/{domain}.ts`
+- **Backend:** `apps/api/src/test/fixtures/{domain}.ts`
+
+**Implementation Requirements:**
+- Create factory file per domain (user, booking, availability, etc.)
+- Use TypeScript types from OpenAPI generated types (`@shared/types/api.generated`)
+- Support partial overrides pattern (`...overrides` at end)
+- Include JSDoc with examples
+- Provide pre-configured scenarios for common cases
+
+**Backend Factory Example:**
 
 ```typescript
-// apps/api/src/test-utils/factories.ts
+// apps/api/src/test/fixtures/user.ts
 import { faker } from '@faker-js/faker';
+import type { User } from '@cf-office-hours/shared';
 
 export function createTestUser(overrides?: Partial<User>): User {
   return {
@@ -1232,7 +1255,7 @@ export function createTestBooking(overrides?: Partial<Booking>): Booking {
 export function createTestSlot(overrides?: Partial<TimeSlot>): TimeSlot {
   const start = faker.date.future();
   const end = new Date(start.getTime() + 30 * 60 * 1000);
-  
+
   return {
     id: faker.string.uuid(),
     availability_block_id: faker.string.uuid(),
@@ -1247,6 +1270,10 @@ export function createTestSlot(overrides?: Partial<TimeSlot>): TimeSlot {
   };
 }
 ```
+
+**Frontend Factory Example:**
+
+See **Section 14.11.2 (Centralized Mock Factories)** for complete frontend factory pattern and usage examples. Story 0.9 provides reference implementation in `apps/web/src/test/fixtures/availability.ts`.
 
 **Mock Data:**
 

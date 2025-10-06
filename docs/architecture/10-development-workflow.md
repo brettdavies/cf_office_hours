@@ -373,7 +373,7 @@ npx supabase stop
 
 **Type Generation Workflow (Story 0.6.1):**
 
-After modifying any Zod schema in `packages/shared/src/schemas/`:
+After modifying any Zod schema in `packages/shared/src/schemas/` or API routes:
 
 1. **Backend types**: Automatically available via `z.infer<typeof Schema>`
    - No build step required
@@ -401,10 +401,17 @@ After modifying any Zod schema in `packages/shared/src/schemas/`:
    type UserResponse = paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
    ```
 
-4. **CI/CD Integration**:
+4. **DEVELOPER RESPONSIBILITY (CRITICAL):**
+   - **ALWAYS** regenerate types when modifying API schemas or routes
+   - **ALWAYS** regenerate types before marking story complete for QA
+   - **VERIFY** TypeScript compilation succeeds: `npx tsc --noEmit -p apps/web/tsconfig.json`
+   - **COMMIT** generated types to repository (they are NOT gitignored)
+   - Stories with API changes are **NOT COMPLETE** until types are regenerated
+
+5. **CI/CD Integration**:
    - Type generation runs automatically in CI pipeline
    - Build fails if generated types are out of sync with schemas
-   - Always regenerate types before committing schema changes
+   - This serves as a safety net, but developers must regenerate locally first
 
 ---
 
@@ -754,6 +761,43 @@ Closes #123
 - Focus on logic, architecture, and maintainability
 - Be constructive and specific in feedback
 - Approve when ready, request changes if needed
+
+## 10.7.1 Definition of Done (Story Completion Checklist)
+
+Before marking a story as complete and handing off to QA, developers MUST verify all items in this checklist:
+
+**Code Quality:**
+- [ ] All acceptance criteria implemented
+- [ ] Code follows coding standards (Section 14)
+- [ ] Self-review completed
+- [ ] No TypeScript errors: `npx tsc --noEmit`
+- [ ] No lint errors: `npm run lint`
+
+**Testing:**
+- [ ] Unit tests written and passing
+- [ ] Manual testing completed per story requirements
+- [ ] Edge cases tested
+
+**Type Generation (CRITICAL):**
+- [ ] **If API schemas modified:** API types regenerated
+  - Start API: `npm run dev:api` (in separate terminal)
+  - Generate: `npm run generate:api-types`
+  - Verify: `npx tsc --noEmit -p apps/web/tsconfig.json` (0 errors)
+  - **MUST** commit generated types to repository
+- [ ] **If frontend uses new API endpoints:** Verify types exist in `packages/shared/src/types/api.generated.ts`
+
+**Documentation:**
+- [ ] Code comments added for complex logic (JSDoc for public functions)
+- [ ] README/architecture docs updated if applicable
+- [ ] Story file updated with implementation notes
+- [ ] **If tests added:** Mock data uses centralized factories from `test/fixtures/` (not inline objects)
+
+**Git:**
+- [ ] All changes committed (including generated types)
+- [ ] Commit messages follow standards (Section 14.15)
+- [ ] Branch up to date with main/develop
+
+**CRITICAL RULE:** Stories involving API changes are NOT complete until types are regenerated and committed. This is a **developer responsibility**, not a QA responsibility.
 
 ## 10.8 Troubleshooting Common Issues
 
