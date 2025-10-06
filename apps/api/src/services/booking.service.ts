@@ -14,6 +14,7 @@ import { AppError } from '../lib/errors';
 
 // Types
 import type { CreateBookingRequest, BookingResponse } from '@cf-office-hours/shared';
+import type { MyBookingData } from '../repositories/booking.repository';
 import type { Env } from '../types/bindings';
 
 export class BookingService {
@@ -87,6 +88,26 @@ export class BookingService {
       // Generic database error
       console.error('Failed to create booking:', { userId, data, error });
       throw new AppError(500, 'Failed to create booking', 'DATABASE_ERROR');
+    }
+  }
+
+  /**
+   * Fetches all bookings for the authenticated user.
+   *
+   * Returns bookings where the user is either the mentor or mentee,
+   * with expanded relations for display in the dashboard.
+   *
+   * @param userId - UUID of the authenticated user
+   * @returns Array of bookings with expanded mentor, mentee, and time_slot data
+   * @throws {AppError} 500 if database operation fails
+   */
+  async getMyBookings(userId: string): Promise<MyBookingData[]> {
+    try {
+      const bookings = await this.bookingRepo.getMyBookings(userId);
+      return bookings;
+    } catch (error) {
+      console.error('Failed to fetch user bookings:', { userId, error });
+      throw new AppError(500, 'Failed to fetch bookings', 'DATABASE_ERROR');
     }
   }
 }

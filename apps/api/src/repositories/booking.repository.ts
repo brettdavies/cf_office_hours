@@ -43,6 +43,41 @@ export interface TimeSlotData {
   is_booked: boolean;
 }
 
+/**
+ * Expanded booking with mentor, mentee, and time_slot relations.
+ * Used for GET /v1/bookings/my-bookings response.
+ */
+export interface MyBookingData {
+  id: string;
+  mentor_id: string;
+  mentee_id: string;
+  time_slot_id: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'canceled' | 'expired';
+  meeting_goal: string;
+  materials_urls: string[];
+  created_at: string;
+  updated_at: string;
+  time_slot: {
+    start_time: string;
+    end_time: string;
+    mentor_id: string;
+  };
+  mentor: {
+    id: string;
+    profile: {
+      name: string;
+      avatar_url: string | null;
+    };
+  };
+  mentee: {
+    id: string;
+    profile: {
+      name: string;
+      avatar_url: string | null;
+    };
+  };
+}
+
 export class BookingRepository {
   private supabase: SupabaseClient;
 
@@ -114,5 +149,101 @@ export class BookingRepository {
     }
 
     return result as BookingResponse;
+  }
+
+  /**
+   * Fetches all bookings for a user (as mentor or mentee) with expanded relations.
+   *
+   * Returns bookings with mentor, mentee, and time_slot data expanded.
+   * Used by GET /v1/bookings/my-bookings endpoint.
+   *
+   * @param userId - UUID of the authenticated user
+   * @returns Array of bookings with expanded relations
+   * @throws Error if database operation fails
+   */
+  async getMyBookings(userId: string): Promise<MyBookingData[]> {
+    const { data, error } = await this.supabase
+      .from('bookings')
+      .select(
+        `
+        id,
+        mentor_id,
+        mentee_id,
+        time_slot_id,
+        status,
+        meeting_goal,
+        materials_urls,
+        created_at,
+        updated_at,
+        time_slot:time_slots!inner (
+          start_time,
+          end_time,
+          mentor_id
+        ),
+        mentor:users!bookings_mentor_id_fkey (
+          id,
+          profile:profiles!inner (
+            name,
+            avatar_url
+          )
+        ),
+        mentee:users!bookings_mentee_id_fkey (
+          id,
+          profile:profiles!inner (
+            name,
+            avatar_url
+          )
+        )
+      `
+      )
+      .or(`mentor_id.eq.${userId},mentee_id.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch user bookings:', { userId, error });
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    // Type assertion and data transformation
+    return data.map(booking => ({
+      id: booking.id,
+      mentor_id: booking.mentor_id,
+      mentee_id: booking.mentee_id,
+      time_slot_id: booking.time_slot_id,
+      status: booking.status as MyBookingData['status'],
+      meeting_goal: booking.meeting_goal,
+      materials_urls: booking.materials_urls || [],
+      created_at: booking.created_at,
+      updated_at: booking.updated_at,
+      time_slot: Array.isArray(booking.time_slot)
+        ? booking.time_slot[0]
+        : booking.time_slot,
+      mentor: {
+        id: (booking.mentor as any).id,
+        profile: {
+          name: Array.isArray((booking.mentor as any).profile)
+            ? (booking.mentor as any).profile[0].name
+            : (booking.mentor as any).profile.name,
+          avatar_url: Array.isArray((booking.mentor as any).profile)
+            ? (booking.mentor as any).profile[0].avatar_url
+            : (booking.mentor as any).profile.avatar_url,
+        },
+      },
+      mentee: {
+        id: (booking.mentee as any).id,
+        profile: {
+          name: Array.isArray((booking.mentee as any).profile)
+            ? (booking.mentee as any).profile[0].name
+            : (booking.mentee as any).profile.name,
+          avatar_url: Array.isArray((booking.mentee as any).profile)
+            ? (booking.mentee as any).profile[0].avatar_url
+            : (booking.mentee as any).profile.avatar_url,
+        },
+      },
+    })) as MyBookingData[];
   }
 }

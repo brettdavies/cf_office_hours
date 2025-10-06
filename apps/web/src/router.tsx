@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 
@@ -12,9 +12,10 @@ const AvailabilityPage = lazy(() => import('@/pages/availability/AvailabilityPag
 const MentorProfilePage = lazy(() => import('@/pages/mentors/MentorProfilePage'));
 
 export const router = createBrowserRouter([
+  // Root redirects to dashboard
   {
     path: '/',
-    element: <CallbackPage />,
+    element: <Navigate to="/dashboard" replace />,
   },
   // Auth routes (public)
   {

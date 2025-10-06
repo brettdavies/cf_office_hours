@@ -36,6 +36,47 @@ const ErrorResponseSchema = z.object({
 });
 
 /**
+ * Schema for expanded booking with relations (my-bookings response).
+ */
+const MyBookingSchema = z.object({
+  id: z.string().uuid(),
+  mentor_id: z.string().uuid(),
+  mentee_id: z.string().uuid(),
+  time_slot_id: z.string().uuid(),
+  status: z.enum(['pending', 'confirmed', 'completed', 'canceled', 'expired']),
+  meeting_goal: z.string(),
+  materials_urls: z.array(z.string()),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+  time_slot: z.object({
+    start_time: z.string().datetime(),
+    end_time: z.string().datetime(),
+    mentor_id: z.string().uuid(),
+  }),
+  mentor: z.object({
+    id: z.string().uuid(),
+    profile: z.object({
+      name: z.string(),
+      avatar_url: z.string().nullable(),
+    }),
+  }),
+  mentee: z.object({
+    id: z.string().uuid(),
+    profile: z.object({
+      name: z.string(),
+      avatar_url: z.string().nullable(),
+    }),
+  }),
+});
+
+/**
+ * Schema for my-bookings list response.
+ */
+const MyBookingsResponseSchema = z.object({
+  bookings: z.array(MyBookingSchema),
+});
+
+/**
  * POST / - Create a booking
  */
 const createBookingRoute = createRoute({
@@ -144,6 +185,92 @@ bookingRoutes.openapi(createBookingRoute, async c => {
 
     // Unknown error
     console.error('Unexpected error creating booking:', error);
+    return c.json(
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          timestamp: new Date().toISOString(),
+        },
+      },
+      500
+    );
+  }
+});
+
+/**
+ * GET /my-bookings - Get all bookings for current user
+ */
+const getMyBookingsRoute = createRoute({
+  method: 'get',
+  path: '/my-bookings',
+  tags: ['Bookings'],
+  summary: 'Get all bookings for current user',
+  description:
+    'Returns all bookings where the authenticated user is either the mentor or mentee, with expanded relations for mentor, mentee, and time_slot data',
+  security: [{ Bearer: [] }],
+  responses: {
+    200: {
+      description: 'List of user bookings with expanded relations',
+      content: {
+        'application/json': {
+          schema: MyBookingsResponseSchema,
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized - Missing or invalid JWT token',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: 'Internal Server Error - Failed to fetch bookings',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+bookingRoutes.openapi(getMyBookingsRoute, async c => {
+  const user = c.get('user');
+
+  const bookingService = new BookingService(c.env);
+
+  try {
+    const bookings = await bookingService.getMyBookings(user.id);
+
+    return c.json({ bookings }, 200);
+  } catch (error) {
+    // Handle AppError instances
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      const appError = error as {
+        statusCode: number;
+        code: string;
+        message: string;
+        details?: Record<string, unknown>;
+      };
+
+      return c.json(
+        {
+          error: {
+            code: appError.code,
+            message: appError.message,
+            timestamp: new Date().toISOString(),
+            details: appError.details,
+          },
+        },
+        appError.statusCode as 401 | 500
+      );
+    }
+
+    // Unknown error
+    console.error('Unexpected error fetching bookings:', error);
     return c.json(
       {
         error: {
