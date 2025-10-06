@@ -21,12 +21,26 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+
+      if (import.meta.env.DEV) {
+        console.log('[LoginPage] Sending magic link:', {
+          email,
+          redirectUrl,
+          origin: window.location.origin
+        });
+      }
+
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: redirectUrl,
         },
       });
+
+      if (import.meta.env.DEV) {
+        console.log('[LoginPage] signInWithOtp result:', { error });
+      }
 
       if (error) throw error;
 
@@ -37,6 +51,9 @@ export default function LoginPage() {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send magic link';
+      if (import.meta.env.DEV) {
+        console.error('[LoginPage] Error sending magic link:', error);
+      }
       addToast({
         title: 'Error',
         description: errorMessage,
