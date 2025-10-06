@@ -21,10 +21,20 @@ import type { CreateBookingRequest } from '@cf-office-hours/shared';
 const mockRepository = {
   getTimeSlot: vi.fn(),
   createBooking: vi.fn(),
+  getUserForEmail: vi.fn(),
 };
 
 vi.mock('../repositories/booking.repository', () => ({
   BookingRepository: vi.fn().mockImplementation(() => mockRepository),
+}));
+
+// Mock notification service
+const mockNotificationService = {
+  sendBookingConfirmationEmail: vi.fn(),
+};
+
+vi.mock('./notification.service', () => ({
+  NotificationService: vi.fn().mockImplementation(() => mockNotificationService),
 }));
 
 describe('BookingService', () => {
@@ -63,6 +73,7 @@ describe('BookingService', () => {
 
       mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
       mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail.mockResolvedValue(null); // Skip email for basic test
 
       const result = await service.createBooking('mentee-123', validRequest);
 
@@ -84,6 +95,7 @@ describe('BookingService', () => {
 
       mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
       mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail.mockResolvedValue(null);
 
       const result = await service.createBooking('mentee-123', validRequest);
 
@@ -154,6 +166,7 @@ describe('BookingService', () => {
       const mockBooking = createMockBooking();
       mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
       mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail.mockResolvedValue(null);
 
       await service.createBooking('mentee-123', validRequest);
 
@@ -167,6 +180,7 @@ describe('BookingService', () => {
 
       mockRepository.getTimeSlot.mockResolvedValue(slotWithMentor);
       mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail.mockResolvedValue(null);
 
       const result = await service.createBooking('mentee-123', validRequest);
 
@@ -187,12 +201,114 @@ describe('BookingService', () => {
 
       mockRepository.getTimeSlot.mockResolvedValue(customTimeSlot);
       mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail.mockResolvedValue(null); // Skip email
 
       await service.createBooking('mentee-123', validRequest);
 
       const createBookingCall = mockRepository.createBooking.mock.calls[0][0];
       expect(createBookingCall.meeting_start_time).toBe('2025-10-20T15:00:00Z');
       expect(createBookingCall.meeting_end_time).toBe('2025-10-20T16:00:00Z');
+    });
+
+    it('should send confirmation email to both mentor and mentee after booking', async () => {
+      const mockBooking = createMockBooking({
+        id: 'booking-123',
+        mentor_id: 'mentor-123',
+        mentee_id: 'mentee-123',
+      });
+
+      const mentorDetails = { email: 'mentor@example.com', name: 'Jane Mentor' };
+      const menteeDetails = { email: 'mentee@example.com', name: 'John Mentee' };
+
+      mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
+      mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail
+        .mockResolvedValueOnce(mentorDetails) // First call for mentor
+        .mockResolvedValueOnce(menteeDetails); // Second call for mentee
+
+      await service.createBooking('mentee-123', validRequest);
+
+      expect(mockRepository.getUserForEmail).toHaveBeenCalledWith('mentor-123');
+      expect(mockRepository.getUserForEmail).toHaveBeenCalledWith('mentee-123');
+      expect(mockNotificationService.sendBookingConfirmationEmail).toHaveBeenCalledWith(
+        mockBooking,
+        mentorDetails,
+        menteeDetails
+      );
+    });
+
+    it('should not block booking if email sending fails', async () => {
+      const mockBooking = createMockBooking();
+      const mentorDetails = { email: 'mentor@example.com', name: 'Jane Mentor' };
+      const menteeDetails = { email: 'mentee@example.com', name: 'John Mentee' };
+
+      mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
+      mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail
+        .mockResolvedValueOnce(mentorDetails)
+        .mockResolvedValueOnce(menteeDetails);
+      mockNotificationService.sendBookingConfirmationEmail.mockRejectedValue(
+        new Error('Email service unavailable')
+      );
+
+      // Should still return booking successfully
+      const result = await service.createBooking('mentee-123', validRequest);
+
+      expect(result).toEqual(mockBooking);
+      expect(mockNotificationService.sendBookingConfirmationEmail).toHaveBeenCalled();
+    });
+
+    it('should not block booking if user details not found for email', async () => {
+      const mockBooking = createMockBooking();
+
+      mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
+      mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail.mockResolvedValue(null); // User not found
+
+      // Should still return booking successfully
+      const result = await service.createBooking('mentee-123', validRequest);
+
+      expect(result).toEqual(mockBooking);
+      expect(mockNotificationService.sendBookingConfirmationEmail).not.toHaveBeenCalled();
+    });
+
+    it('should not block booking if only mentor details missing', async () => {
+      const mockBooking = createMockBooking();
+      const menteeDetails = { email: 'mentee@example.com', name: 'John Mentee' };
+
+      mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
+      mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail
+        .mockResolvedValueOnce(null) // Mentor not found
+        .mockResolvedValueOnce(menteeDetails); // Mentee found
+
+      // Should still return booking successfully
+      const result = await service.createBooking('mentee-123', validRequest);
+
+      expect(result).toEqual(mockBooking);
+      expect(mockNotificationService.sendBookingConfirmationEmail).not.toHaveBeenCalled();
+    });
+
+    it('should fetch both mentor and mentee details in parallel', async () => {
+      const mockBooking = createMockBooking({
+        mentor_id: 'mentor-123',
+        mentee_id: 'mentee-123',
+      });
+      const mentorDetails = { email: 'mentor@example.com', name: 'Jane Mentor' };
+      const menteeDetails = { email: 'mentee@example.com', name: 'John Mentee' };
+
+      mockRepository.getTimeSlot.mockResolvedValue(mockSlot);
+      mockRepository.createBooking.mockResolvedValue(mockBooking);
+      mockRepository.getUserForEmail
+        .mockResolvedValueOnce(mentorDetails)
+        .mockResolvedValueOnce(menteeDetails);
+
+      await service.createBooking('mentee-123', validRequest);
+
+      // Verify both calls happened (would be called in parallel via Promise.all)
+      expect(mockRepository.getUserForEmail).toHaveBeenCalledTimes(2);
+      expect(mockRepository.getUserForEmail).toHaveBeenNthCalledWith(1, 'mentor-123');
+      expect(mockRepository.getUserForEmail).toHaveBeenNthCalledWith(2, 'mentee-123');
     });
   });
 });

@@ -152,6 +152,42 @@ export class BookingRepository {
   }
 
   /**
+   * Fetches user details for email notifications.
+   *
+   * Returns user email and profile name needed for sending notifications.
+   *
+   * @param userId - UUID of the user
+   * @returns User with email and profile name or null if not found
+   */
+  async getUserForEmail(userId: string): Promise<{ email: string; name: string } | null> {
+    const { data, error } = await this.supabase
+      .from('users')
+      .select(
+        `
+        email,
+        profile:profiles!inner (
+          name
+        )
+      `
+      )
+      .eq('id', userId)
+      .single();
+
+    if (error || !data) {
+      console.error('Failed to fetch user for email:', { userId, error });
+      return null;
+    }
+
+    // Extract profile name (Supabase may return as array or object)
+    const profile = Array.isArray(data.profile) ? data.profile[0] : data.profile;
+
+    return {
+      email: data.email,
+      name: profile.name,
+    };
+  }
+
+  /**
    * Fetches all bookings for a user (as mentor or mentee) with expanded relations.
    *
    * Returns bookings with mentor, mentee, and time_slot data expanded.

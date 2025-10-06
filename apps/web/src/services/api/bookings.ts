@@ -38,5 +38,5 @@ export type MyBookingsResponse =
  * console.log(`You have ${bookings.length} bookings`);
  */
 export async function getMyBookings(): Promise<MyBookingsResponse> {
-  return apiClient.get('/v1/bookings/my-bookings' as any);
+  return apiClient.get('/v1/bookings/my-bookings' as const);
 }

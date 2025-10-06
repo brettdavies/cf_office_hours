@@ -10,6 +10,7 @@
 
 // Internal modules
 import { BookingRepository } from '../repositories/booking.repository';
+import { NotificationService } from './notification.service';
 import { AppError } from '../lib/errors';
 
 // Types
@@ -19,9 +20,11 @@ import type { Env } from '../types/bindings';
 
 export class BookingService {
   private bookingRepo: BookingRepository;
+  private notificationService: NotificationService;
 
   constructor(env: Env) {
     this.bookingRepo = new BookingRepository(env);
+    this.notificationService = new NotificationService(env.DASHBOARD_URL);
   }
 
   /**
@@ -58,8 +61,9 @@ export class BookingService {
     }
 
     // Create booking via repository (atomic transaction)
+    let booking: BookingResponse;
     try {
-      const booking = await this.bookingRepo.createBooking({
+      booking = await this.bookingRepo.createBooking({
         time_slot_id: data.time_slot_id,
         mentor_id: slot.mentor_id,
         mentee_id: userId,
@@ -68,8 +72,6 @@ export class BookingService {
         meeting_end_time: slot.end_time,
         location: 'online', // Epic 0: Default to online, calendar integration in Epic 3
       });
-
-      return booking;
     } catch (error) {
       // Handle database function errors
       if (error instanceof Error) {
@@ -89,6 +91,37 @@ export class BookingService {
       console.error('Failed to create booking:', { userId, data, error });
       throw new AppError(500, 'Failed to create booking', 'DATABASE_ERROR');
     }
+
+    // Send confirmation emails (don't block on email failure)
+    try {
+      // Fetch mentor and mentee details for email
+      const [mentorDetails, menteeDetails] = await Promise.all([
+        this.bookingRepo.getUserForEmail(slot.mentor_id),
+        this.bookingRepo.getUserForEmail(userId),
+      ]);
+
+      if (mentorDetails && menteeDetails) {
+        await this.notificationService.sendBookingConfirmationEmail(
+          booking,
+          mentorDetails,
+          menteeDetails
+        );
+      } else {
+        console.error('Failed to send booking confirmation: Missing user details', {
+          booking_id: booking.id,
+          hasMentor: !!mentorDetails,
+          hasMentee: !!menteeDetails,
+        });
+      }
+    } catch (error) {
+      // Log error but don't throw - email failures shouldn't block booking creation
+      console.error('Failed to send booking confirmation emails:', {
+        booking_id: booking.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return booking;
   }
 
   /**
