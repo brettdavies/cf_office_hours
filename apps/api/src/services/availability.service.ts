@@ -18,6 +18,8 @@ import type {
   CreateAvailabilityBlockRequest,
   AvailabilityBlockResponse,
   UserRole,
+  GetAvailableSlotsQuery,
+  GetAvailableSlotsResponse,
 } from '@cf-office-hours/shared';
 import type { Env } from '../types/bindings';
 
@@ -51,12 +53,10 @@ export class AvailabilityService {
   ): Promise<AvailabilityBlockResponse> {
     // Validate user is a mentor
     if (userRole !== 'mentor') {
-      throw new AppError(
-        403,
-        'Only mentors can create availability blocks',
-        'FORBIDDEN',
-        { requiredRole: 'mentor', actualRole: userRole }
-      );
+      throw new AppError(403, 'Only mentors can create availability blocks', 'FORBIDDEN', {
+        requiredRole: 'mentor',
+        actualRole: userRole,
+      });
     }
 
     // Validate meeting type is "online" (in-person deferred to later stories)
@@ -83,12 +83,9 @@ export class AvailabilityService {
       return block;
     } catch (error) {
       console.error('Failed to create availability block:', { userId, error });
-      throw new AppError(
-        500,
-        'Failed to create availability block',
-        'CREATION_FAILED',
-        { originalError: error instanceof Error ? error.message : 'Unknown error' }
-      );
+      throw new AppError(500, 'Failed to create availability block', 'CREATION_FAILED', {
+        originalError: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 
@@ -117,5 +114,36 @@ export class AvailabilityService {
     }
 
     return block;
+  }
+
+  /**
+   * Retrieves available time slots with optional filtering.
+   *
+   * Returns non-booked time slots with mentor information.
+   * Supports filtering by mentor, date range, and meeting type.
+   *
+   * @param query - Query parameters for filtering slots
+   * @returns Paginated list of available time slots
+   * @throws {AppError} 500 if database operation fails
+   */
+  async getAvailableSlots(query: GetAvailableSlotsQuery): Promise<GetAvailableSlotsResponse> {
+    try {
+      const slots = await this.availabilityRepo.findAvailableSlots(query);
+      const limit = query.limit ?? 50;
+
+      return {
+        slots,
+        pagination: {
+          total: slots.length,
+          limit,
+          has_more: false, // For Epic 0, no actual pagination implementation
+        },
+      };
+    } catch (error) {
+      console.error('Failed to fetch available slots:', { query, error });
+      throw new AppError(500, 'Failed to fetch available slots', 'FETCH_FAILED', {
+        originalError: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 }

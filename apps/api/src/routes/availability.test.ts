@@ -10,10 +10,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Internal modules
 import app from '../index';
 import { AvailabilityService } from '../services/availability.service';
-import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '../test/fixtures/availability';
+import {
+  createMockAvailabilityBlock,
+  createMockAvailabilityRequest,
+} from '../test/fixtures/availability';
+import { createMockSlotsResponse, mockTimeSlots } from '../test/fixtures/slots';
 
 // Types
-import type { AvailabilityBlockResponse } from '@cf-office-hours/shared';
+import type { AvailabilityBlockResponse, GetAvailableSlotsResponse } from '@cf-office-hours/shared';
 
 // Mock AvailabilityService
 vi.mock('../services/availability.service');
@@ -40,7 +44,11 @@ describe('Availability API Routes', () => {
     const validRequest = createMockAvailabilityRequest();
 
     it('should create availability block with valid JWT (mentor role)', async () => {
-      const mockBlock = createMockAvailabilityBlock({ mentor_id: 'test-mentor-123', created_by: 'test-mentor-123', updated_by: 'test-mentor-123' });
+      const mockBlock = createMockAvailabilityBlock({
+        mentor_id: 'test-mentor-123',
+        created_by: 'test-mentor-123',
+        updated_by: 'test-mentor-123',
+      });
       vi.spyOn(AvailabilityService.prototype, 'createAvailabilityBlock').mockResolvedValue(
         mockBlock
       );
@@ -220,6 +228,142 @@ describe('Availability API Routes', () => {
       });
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /v1/availability/slots', () => {
+    it('should return available slots with valid JWT', async () => {
+      const mockResponse = createMockSlotsResponse([
+        mockTimeSlots.morning,
+        mockTimeSlots.afternoon,
+      ]);
+
+      vi.spyOn(AvailabilityService.prototype, 'getAvailableSlots').mockResolvedValue(mockResponse);
+
+      const res = await app.request('/v1/availability/slots', {
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer mock-token',
+        },
+      });
+
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as GetAvailableSlotsResponse;
+      expect(data.slots).toHaveLength(2);
+      expect(data.slots[0].id).toBe('slot-morning');
+      expect(data.slots[1].id).toBe('slot-afternoon');
+      expect(data.pagination.total).toBe(2);
+    });
+
+    it('should filter slots by mentor_id', async () => {
+      const mockResponse = createMockSlotsResponse([mockTimeSlots.available]);
+
+      vi.spyOn(AvailabilityService.prototype, 'getAvailableSlots').mockResolvedValue(mockResponse);
+
+      const validUUID = '550e8400-e29b-41d4-a716-446655440000';
+      const res = await app.request(`/v1/availability/slots?mentor_id=${validUUID}`, {
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer mock-token',
+        },
+      });
+
+      expect(res.status).toBe(200);
+      expect(AvailabilityService.prototype.getAvailableSlots).toHaveBeenCalledWith(
+        expect.objectContaining({ mentor_id: validUUID })
+      );
+    });
+
+    it('should filter slots by date range', async () => {
+      const mockResponse = createMockSlotsResponse([mockTimeSlots.available]);
+
+      vi.spyOn(AvailabilityService.prototype, 'getAvailableSlots').mockResolvedValue(mockResponse);
+
+      const res = await app.request(
+        '/v1/availability/slots?start_date=2025-10-15&end_date=2025-10-31',
+        {
+          method: 'GET',
+          headers: {
+            Authorization: 'Bearer mock-token',
+          },
+        }
+      );
+
+      expect(res.status).toBe(200);
+      expect(AvailabilityService.prototype.getAvailableSlots).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start_date: '2025-10-15',
+          end_date: '2025-10-31',
+        })
+      );
+    });
+
+    it('should apply limit parameter', async () => {
+      const mockResponse = createMockSlotsResponse([mockTimeSlots.available]);
+
+      vi.spyOn(AvailabilityService.prototype, 'getAvailableSlots').mockResolvedValue(mockResponse);
+
+      const res = await app.request('/v1/availability/slots?limit=25', {
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer mock-token',
+        },
+      });
+
+      expect(res.status).toBe(200);
+      expect(AvailabilityService.prototype.getAvailableSlots).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 25 })
+      );
+    });
+
+    it('should return empty slots array when no slots available', async () => {
+      const mockResponse = createMockSlotsResponse([]);
+
+      vi.spyOn(AvailabilityService.prototype, 'getAvailableSlots').mockResolvedValue(mockResponse);
+
+      const res = await app.request('/v1/availability/slots', {
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer mock-token',
+        },
+      });
+
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as GetAvailableSlotsResponse;
+      expect(data.slots).toHaveLength(0);
+      expect(data.pagination.total).toBe(0);
+    });
+
+    it('should return 200 with auth (mocked middleware always sets user)', async () => {
+      const mockResponse = createMockSlotsResponse([]);
+
+      vi.spyOn(AvailabilityService.prototype, 'getAvailableSlots').mockResolvedValue(mockResponse);
+
+      const res = await app.request('/v1/availability/slots', {
+        method: 'GET',
+      });
+
+      // Note: Mock auth middleware always sets user, so this returns 200
+      // In production, 401 would be returned for missing JWT
+      expect(res.status).toBe(200);
+    });
+
+    it('should return 500 when service throws error', async () => {
+      const AppError = (await import('../lib/errors')).AppError;
+      vi.spyOn(AvailabilityService.prototype, 'getAvailableSlots').mockRejectedValue(
+        new AppError(500, 'Failed to fetch available slots', 'FETCH_FAILED')
+      );
+
+      const res = await app.request('/v1/availability/slots', {
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer mock-token',
+        },
+      });
+
+      expect(res.status).toBe(500);
+      const data = (await res.json()) as { error: { code: string } };
+      expect(data.error.code).toBe('FETCH_FAILED');
     });
   });
 });

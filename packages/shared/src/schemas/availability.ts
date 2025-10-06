@@ -30,10 +30,15 @@ export const CreateAvailabilityBlockSchema = z
     end_time: z.string().datetime({ message: 'end_time must be a valid ISO 8601 datetime' }),
     slot_duration_minutes: z
       .enum(['15', '20', '30', '60'])
-      .or(z.number().int().refine((val) => [15, 20, 30, 60].includes(val), {
-        message: 'slot_duration_minutes must be 15, 20, 30, or 60',
-      }))
-      .transform((val) => (typeof val === 'string' ? parseInt(val, 10) : val)),
+      .or(
+        z
+          .number()
+          .int()
+          .refine(val => [15, 20, 30, 60].includes(val), {
+            message: 'slot_duration_minutes must be 15, 20, 30, or 60',
+          })
+      )
+      .transform(val => (typeof val === 'string' ? parseInt(val, 10) : val)),
     buffer_minutes: z
       .number()
       .int()
@@ -48,7 +53,7 @@ export const CreateAvailabilityBlockSchema = z
     }),
     description: z.string().max(1000, 'description cannot exceed 1000 characters').optional(),
   })
-  .refine((data) => new Date(data.end_time) > new Date(data.start_time), {
+  .refine(data => new Date(data.end_time) > new Date(data.start_time), {
     message: 'end_time must be after start_time',
     path: ['end_time'],
   });
@@ -82,6 +87,56 @@ export const AvailabilityBlockResponseSchema = z.object({
 });
 
 /**
+ * Schema for mentor information nested in time slot response.
+ */
+export const TimeSlotMentorSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  avatar_url: z.string().url().nullable(),
+});
+
+/**
+ * Schema for time slot response.
+ *
+ * Time slots are generated from availability blocks and represent
+ * individual bookable time intervals.
+ */
+export const TimeSlotResponseSchema = z.object({
+  id: z.string().uuid(),
+  availability_id: z.string().uuid(),
+  mentor_id: z.string().uuid(),
+  start_time: z.string().datetime(),
+  end_time: z.string().datetime(),
+  slot_duration_minutes: z.number().int(),
+  is_booked: z.boolean(),
+  mentor: TimeSlotMentorSchema,
+  created_at: z.string().datetime(),
+});
+
+/**
+ * Schema for GET /v1/availability/slots query parameters.
+ */
+export const GetAvailableSlotsQuerySchema = z.object({
+  mentor_id: z.string().uuid().optional(),
+  start_date: z.string().date().optional(),
+  end_date: z.string().date().optional(),
+  meeting_type: z.enum(['online', 'in_person']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50).optional(),
+});
+
+/**
+ * Schema for GET /v1/availability/slots response.
+ */
+export const GetAvailableSlotsResponseSchema = z.object({
+  slots: z.array(TimeSlotResponseSchema),
+  pagination: z.object({
+    total: z.number().int(),
+    limit: z.number().int(),
+    has_more: z.boolean(),
+  }),
+});
+
+/**
  * TypeScript types inferred from Zod schemas.
  *
  * These provide compile-time type safety while the schemas
@@ -89,3 +144,7 @@ export const AvailabilityBlockResponseSchema = z.object({
  */
 export type CreateAvailabilityBlockRequest = z.infer<typeof CreateAvailabilityBlockSchema>;
 export type AvailabilityBlockResponse = z.infer<typeof AvailabilityBlockResponseSchema>;
+export type TimeSlotMentor = z.infer<typeof TimeSlotMentorSchema>;
+export type TimeSlotResponse = z.infer<typeof TimeSlotResponseSchema>;
+export type GetAvailableSlotsQuery = z.infer<typeof GetAvailableSlotsQuerySchema>;
+export type GetAvailableSlotsResponse = z.infer<typeof GetAvailableSlotsResponseSchema>;

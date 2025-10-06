@@ -15,6 +15,8 @@ import { AvailabilityService } from '../services/availability.service';
 import {
   CreateAvailabilityBlockSchema,
   AvailabilityBlockResponseSchema,
+  GetAvailableSlotsQuerySchema,
+  GetAvailableSlotsResponseSchema,
 } from '@cf-office-hours/shared';
 
 // Types
@@ -47,7 +49,8 @@ const getAvailabilityBlocksRoute = createRoute({
   path: '/',
   tags: ['Availability'],
   summary: 'Get availability blocks for authenticated mentor',
-  description: 'Returns all availability blocks for the authenticated mentor. Only mentors can access this endpoint.',
+  description:
+    'Returns all availability blocks for the authenticated mentor. Only mentors can access this endpoint.',
   security: [{ Bearer: [] }],
   responses: {
     200: {
@@ -85,7 +88,7 @@ const getAvailabilityBlocksRoute = createRoute({
   },
 });
 
-availabilityRoutes.openapi(getAvailabilityBlocksRoute, async (c) => {
+availabilityRoutes.openapi(getAvailabilityBlocksRoute, async c => {
   const user = c.get('user');
   const availabilityService = new AvailabilityService(c.env);
 
@@ -174,7 +177,7 @@ const createAvailabilityBlockRoute = createRoute({
   },
 });
 
-availabilityRoutes.openapi(createAvailabilityBlockRoute, async (c) => {
+availabilityRoutes.openapi(createAvailabilityBlockRoute, async c => {
   const user = c.get('user');
   const body = c.req.valid('json');
   const availabilityService = new AvailabilityService(c.env);
@@ -182,4 +185,55 @@ availabilityRoutes.openapi(createAvailabilityBlockRoute, async (c) => {
   const block = await availabilityService.createAvailabilityBlock(user.id, user.role, body);
 
   return c.json(block, 201);
+});
+
+/**
+ * GET /slots - Get available time slots
+ */
+const getAvailableSlotsRoute = createRoute({
+  method: 'get',
+  path: '/slots',
+  tags: ['Availability'],
+  summary: 'Get available time slots',
+  description:
+    'Returns available (non-booked) time slots with mentor information. Supports filtering by mentor, date range, and meeting type.',
+  security: [{ Bearer: [] }],
+  request: {
+    query: GetAvailableSlotsQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'List of available time slots',
+      content: {
+        'application/json': {
+          schema: GetAvailableSlotsResponseSchema,
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized - Missing or invalid token',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: 'Internal Server Error - Failed to fetch available slots',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+availabilityRoutes.openapi(getAvailableSlotsRoute, async c => {
+  const query = c.req.valid('query');
+  const availabilityService = new AvailabilityService(c.env);
+
+  const response = await availabilityService.getAvailableSlots(query);
+
+  return c.json(response, 200);
 });

@@ -9,6 +9,7 @@ const CallbackPage = lazy(() => import('@/pages/auth/CallbackPage'));
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
 const AvailabilityPage = lazy(() => import('@/pages/availability/AvailabilityPage'));
+const MentorProfilePage = lazy(() => import('@/pages/mentors/MentorProfilePage'));
 
 export const router = createBrowserRouter([
   {
@@ -45,6 +46,10 @@ export const router = createBrowserRouter([
       {
         path: 'availability',
         element: <AvailabilityPage />,
+      },
+      {
+        path: 'mentors/:mentorId',
+        element: <MentorProfilePage />,
       },
     ],
   },

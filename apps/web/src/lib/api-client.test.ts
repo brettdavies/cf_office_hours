@@ -13,7 +13,11 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Internal modules
 import { apiClient, ApiError } from './api-client';
-import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '@/test/fixtures/availability';
+import {
+  createMockAvailabilityBlock,
+  createMockAvailabilityRequest,
+} from '@/test/fixtures/availability';
+import { createMockTimeSlot, createMockSlotsResponse } from '@/test/fixtures/slots';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -480,9 +484,7 @@ describe('apiClient', () => {
 
   describe('error handling', () => {
     it('should handle network errors gracefully', async () => {
-      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('Network error')
-      );
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
 
       await expect(apiClient.getCurrentUser()).rejects.toThrow('Network error');
     });
@@ -525,6 +527,184 @@ describe('apiClient', () => {
         expect((error as ApiError).statusCode).toBe(500);
         expect((error as ApiError).code).toBe('INTERNAL_SERVER_ERROR');
       }
+    });
+  });
+
+  describe('getAvailableSlots', () => {
+    it('should fetch slots with mentor_id parameter', async () => {
+      const mockResponse = createMockSlotsResponse([
+        createMockTimeSlot({ id: 'slot-1', start_time: '2025-10-15T09:00:00Z' }),
+        createMockTimeSlot({ id: 'slot-2', start_time: '2025-10-15T10:00:00Z' }),
+      ]);
+
+      localStorageMock.setItem('auth_token', 'test-token-123');
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await apiClient.getAvailableSlots({ mentor_id: 'mentor-123' });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/v1/availability/slots?mentor_id=mentor-123'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-token-123',
+          }),
+        })
+      );
+      expect(result).toEqual(mockResponse);
+      expect(result.slots).toHaveLength(2);
+      expect(result.pagination.total).toBe(2);
+    });
+
+    it('should fetch slots without parameters', async () => {
+      const mockResponse = createMockSlotsResponse([createMockTimeSlot()]);
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      await apiClient.getAvailableSlots();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/v1/availability/slots'),
+        expect.any(Object)
+      );
+    });
+
+    it('should handle multiple query parameters', async () => {
+      const mockResponse = createMockSlotsResponse([]);
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      await apiClient.getAvailableSlots({
+        mentor_id: 'mentor-123',
+        start_date: '2025-10-15',
+        end_date: '2025-10-31',
+        meeting_type: 'online',
+        limit: 25,
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /mentor_id=mentor-123.*start_date=2025-10-15.*end_date=2025-10-31.*meeting_type=online.*limit=25/
+        ),
+        expect.any(Object)
+      );
+    });
+
+    it('should handle 401 unauthorized error', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Missing or invalid token',
+            timestamp: '2025-10-06T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.getAvailableSlots({ mentor_id: 'mentor-123' });
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(401);
+        expect((error as ApiError).code).toBe('UNAUTHORIZED');
+      }
+    });
+
+    it('should handle 403 forbidden error', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to view these slots',
+            timestamp: '2025-10-06T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.getAvailableSlots({ mentor_id: 'mentor-123' });
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(403);
+        expect((error as ApiError).code).toBe('FORBIDDEN');
+      }
+    });
+
+    it('should handle 404 no slots found', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'No slots found for the given parameters',
+            timestamp: '2025-10-06T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.getAvailableSlots({ mentor_id: 'mentor-123' });
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(404);
+        expect((error as ApiError).code).toBe('NOT_FOUND');
+      }
+    });
+
+    it('should return correctly formatted slots data', async () => {
+      const mockSlots = [
+        createMockTimeSlot({
+          id: 'slot-morning',
+          start_time: '2025-10-15T09:00:00Z',
+          end_time: '2025-10-15T09:30:00Z',
+          is_booked: false,
+        }),
+        createMockTimeSlot({
+          id: 'slot-afternoon',
+          start_time: '2025-10-15T14:00:00Z',
+          end_time: '2025-10-15T14:30:00Z',
+          is_booked: true,
+        }),
+      ];
+
+      const mockResponse = createMockSlotsResponse(mockSlots);
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await apiClient.getAvailableSlots({ mentor_id: 'mentor-123' });
+
+      expect(result.slots).toHaveLength(2);
+      expect(result.slots[0]).toHaveProperty('id', 'slot-morning');
+      expect(result.slots[0]).toHaveProperty('is_booked', false);
+      expect(result.slots[0]).toHaveProperty('mentor');
+      expect(result.slots[0].mentor).toHaveProperty('name');
+      expect(result.slots[1]).toHaveProperty('is_booked', true);
+      expect(result.pagination).toEqual({
+        total: 2,
+        limit: 50,
+        has_more: false,
+      });
     });
   });
 });

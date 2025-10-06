@@ -17,6 +17,9 @@
 // Note: Direct import path needed for build-time resolution
 import type { paths } from '../../../../packages/shared/src/types/api.generated';
 
+// Internal modules
+import type { GetSlotsResponse } from '@/test/fixtures/slots';
+
 /**
  * Type alias for API paths from OpenAPI spec.
  */
@@ -27,15 +30,17 @@ type ApiPaths = paths;
  */
 type GetUserMeResponse =
   ApiPaths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
-type UpdateUserMeRequest =
-  NonNullable<ApiPaths['/v1/users/me']['put']['requestBody']>['content']['application/json'];
+type UpdateUserMeRequest = NonNullable<
+  ApiPaths['/v1/users/me']['put']['requestBody']
+>['content']['application/json'];
 type UpdateUserMeResponse =
   ApiPaths['/v1/users/me']['put']['responses']['200']['content']['application/json'];
 
 type GetAvailabilityResponse =
   ApiPaths['/v1/availability']['get']['responses']['200']['content']['application/json'];
-type CreateAvailabilityRequest =
-  NonNullable<ApiPaths['/v1/availability']['post']['requestBody']>['content']['application/json'];
+type CreateAvailabilityRequest = NonNullable<
+  ApiPaths['/v1/availability']['post']['requestBody']
+>['content']['application/json'];
 type CreateAvailabilityResponse =
   ApiPaths['/v1/availability']['post']['responses']['201']['content']['application/json'];
 
@@ -154,6 +159,57 @@ export const apiClient = {
   },
 
   /**
+   * Get available time slots for booking.
+   *
+   * Returns time slots generated from mentor availability blocks. Slots can be
+   * filtered by mentor, date range, and meeting type.
+   *
+   * @param params - Query parameters for filtering slots
+   * @param params.mentor_id - Filter slots by specific mentor UUID (optional)
+   * @param params.start_date - Start date for slot search (ISO 8601 date, optional)
+   * @param params.end_date - End date for slot search (ISO 8601 date, optional)
+   * @param params.meeting_type - Filter by 'online' or 'in_person' (optional)
+   * @param params.limit - Number of results (default: 50, max: 100, optional)
+   * @returns Array of time slots with pagination metadata
+   * @throws {ApiError} 401 if not authenticated, 403 if forbidden, 404 if no slots found
+   *
+   * @example
+   * // Get all slots for a specific mentor
+   * const response = await apiClient.getAvailableSlots({ mentor_id: 'mentor-123' });
+   *
+   * @example
+   * // Get online slots within date range
+   * const response = await apiClient.getAvailableSlots({
+   *   mentor_id: 'mentor-123',
+   *   start_date: '2025-10-15',
+   *   end_date: '2025-10-31',
+   *   meeting_type: 'online'
+   * });
+   */
+  getAvailableSlots: (params?: {
+    mentor_id?: string;
+    start_date?: string;
+    end_date?: string;
+    meeting_type?: 'online' | 'in_person';
+    limit?: number;
+  }): Promise<GetSlotsResponse> => {
+    const queryString = new URLSearchParams();
+
+    if (params?.mentor_id) queryString.append('mentor_id', params.mentor_id);
+    if (params?.start_date) queryString.append('start_date', params.start_date);
+    if (params?.end_date) queryString.append('end_date', params.end_date);
+    if (params?.meeting_type) queryString.append('meeting_type', params.meeting_type);
+    if (params?.limit) queryString.append('limit', params.limit.toString());
+
+    const endpoint =
+      queryString.toString().length > 0
+        ? `/v1/availability/slots?${queryString.toString()}`
+        : '/v1/availability/slots';
+
+    return fetchApi<GetSlotsResponse>(endpoint);
+  },
+
+  /**
    * Generic GET method with type extraction.
    *
    * @param path - API path from the paths type
@@ -162,7 +218,9 @@ export const apiClient = {
   get: <Path extends keyof ApiPaths & string>(
     path: Path
   ): Promise<
-    ApiPaths[Path] extends { get: { responses: { 200: { content: { 'application/json': infer T } } } } }
+    ApiPaths[Path] extends {
+      get: { responses: { 200: { content: { 'application/json': infer T } } } };
+    }
       ? T
       : never
   > => {

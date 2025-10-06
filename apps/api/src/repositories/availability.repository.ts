@@ -13,7 +13,11 @@ import { createSupabaseClient } from '../lib/db';
 
 // Types
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AvailabilityBlockResponse } from '@cf-office-hours/shared';
+import type {
+  AvailabilityBlockResponse,
+  GetAvailableSlotsQuery,
+  TimeSlotResponse,
+} from '@cf-office-hours/shared';
 import type { Env } from '../types/bindings';
 
 /**
@@ -129,5 +133,86 @@ export class AvailabilityRepository {
     }
 
     return data as AvailabilityBlockResponse;
+  }
+
+  /**
+   * Fetches available time slots with optional filtering.
+   *
+   * Joins time_slots with users and profiles tables to include mentor information.
+   * Filters out booked slots and applies optional query parameters.
+   *
+   * @param query - Query parameters for filtering slots
+   * @returns Array of time slots with nested mentor information
+   */
+  async findAvailableSlots(query: GetAvailableSlotsQuery): Promise<TimeSlotResponse[]> {
+    let queryBuilder = this.supabase
+      .from('time_slots')
+      .select(
+        `
+        id,
+        availability_id,
+        mentor_id,
+        start_time,
+        end_time,
+        created_at,
+        availability:availability_blocks!inner(slot_duration_minutes, meeting_type),
+        mentor:users!inner(
+          id,
+          profiles!inner(name, avatar_url)
+        )
+      `
+      )
+      .eq('is_booked', false)
+      .is('deleted_at', null)
+      .order('start_time', { ascending: true });
+
+    // Apply filters
+    if (query.mentor_id) {
+      queryBuilder = queryBuilder.eq('mentor_id', query.mentor_id);
+    }
+
+    if (query.start_date) {
+      queryBuilder = queryBuilder.gte('start_time', `${query.start_date}T00:00:00Z`);
+    }
+
+    if (query.end_date) {
+      queryBuilder = queryBuilder.lte('start_time', `${query.end_date}T23:59:59Z`);
+    }
+
+    if (query.meeting_type) {
+      queryBuilder = queryBuilder.eq('availability.meeting_type', query.meeting_type);
+    }
+
+    // Apply limit
+    const limit = query.limit ?? 50;
+    queryBuilder = queryBuilder.limit(limit);
+
+    const { data, error } = await queryBuilder;
+
+    if (error) {
+      console.error('Failed to fetch available slots:', { query, error });
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    // Transform nested data into flat TimeSlotResponse structure
+    return data.map((row: any) => ({
+      id: row.id,
+      availability_id: row.availability_id,
+      mentor_id: row.mentor_id,
+      start_time: row.start_time,
+      end_time: row.end_time,
+      slot_duration_minutes: row.availability.slot_duration_minutes,
+      is_booked: false, // Already filtered by is_booked = false
+      mentor: {
+        id: row.mentor.id,
+        name: row.mentor.profiles.name,
+        avatar_url: row.mentor.profiles.avatar_url,
+      },
+      created_at: row.created_at,
+    }));
   }
 }
