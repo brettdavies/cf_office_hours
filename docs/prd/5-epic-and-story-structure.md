@@ -2,7 +2,7 @@
 
 ## 5.1 Epic Overview
 
-The CF Office Hours platform uses a **Walking Skeleton approach** organized into **9 epics** with **85 total stories**. Epic 0 delivers a minimal end-to-end working product by Sprint 2, then subsequent epics iteratively add depth and sophistication.
+The CF Office Hours platform uses a **Walking Skeleton approach** organized into **9 epics** with **89 total stories**. Epic 0 delivers a minimal end-to-end working product by Sprint 2, then subsequent epics iteratively add depth and sophistication.
 
 **Key Strategy:**
 - ✅ **End-to-End by Week 4**: Epic 0 delivers complete booking flow (login → profile → availability → booking)
@@ -47,7 +47,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 16 (Stories SKEL-DEPLOY-001 and SKEL-DEPLOY-002 moved post-Epic-0)
+**Estimated Stories:** 19 (Stories 0-16 = local development, Stories 17-18 = deployment)
 **Dependencies:** None (foundation)
 **Timeline:** Sprint 1-2 (Weeks 1-4)
 **Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
@@ -73,7 +73,7 @@ Epic 8: Admin & Coordinator Tools
 - ❌ No deployment required
 - ✅ Complete development and testing locally
 
-**Deployment:** Handled in post-Epic-0 deployment stories
+**Deployment:** Stories 17-18 deploy to Cloudflare Workers/Pages after local development complete
 
 **User Stories:**
 
@@ -135,27 +135,7 @@ Epic 8: Admin & Coordinator Tools
    - **Related:** FR100, NFR11
    - **Note:** LOCAL AUTH MIDDLEWARE working with local Supabase Auth
 
-5. **SKEL-DEPLOY-001: Cloudflare Workers Deployment** → **MOVED POST-EPIC-0**
-   - As a **developer**, I want the API deployed to Cloudflare Workers
-   - **Acceptance Criteria:**
-     - `wrangler.toml` configured with deployment settings
-     - Environment secrets configured: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
-     - Production deployment accessible
-     - Health check endpoint returns 200 OK
-   - **Related:** Section 4.6, NFR44
-   - **Note:** Deployment deferred to post-Epic-0 to allow local-first development
-
-6. **SKEL-DEPLOY-002: Cloudflare Pages Deployment** → **MOVED POST-EPIC-0**
-   - As a **developer**, I want the frontend deployed to Cloudflare Pages
-   - **Acceptance Criteria:**
-     - Vite build configuration working
-     - Environment variables configured: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`
-     - Auto-deployment on main branch push
-     - Production URL accessible
-   - **Related:** Section 4.6
-   - **Note:** Deployment deferred to post-Epic-0 to allow local-first development
-
-7. **SKEL-AUTH-001: Magic Link Authentication**
+5. **SKEL-AUTH-001: Magic Link Authentication**
    - As a **user**, I want to log in via passwordless magic link
    - **Acceptance Criteria:**
      - Login page with email input field
@@ -166,7 +146,7 @@ Epic 8: Admin & Coordinator Tools
    - **Related:** FR1, Section 3.3
    - **Note:** LOCAL SUPABASE AUTH. Email whitelist validation added in Epic 2
 
-8. **SKEL-USER-001: User Profile API (Minimal)**
+6. **SKEL-USER-001: User Profile API (Minimal)**
    - As a **developer**, I want minimal API endpoints for user profiles
    - **Acceptance Criteria:**
      - `GET /api/users/me` returns current user + profile
@@ -175,7 +155,7 @@ Epic 8: Admin & Coordinator Tools
      - No search, no filtering yet
    - **Related:** FR7
 
-9. **SKEL-USER-002: Profile View/Edit Screen (Minimal)**
+7. **SKEL-USER-002: Profile View/Edit Screen (Minimal)**
    - As a **user**, I want to view and edit my basic profile
    - **Acceptance Criteria:**
      - Profile page shows: name, email, role, bio
@@ -185,7 +165,7 @@ Epic 8: Admin & Coordinator Tools
    - **Related:** FR7, Section 3.3
    - **Note:** Rich profile features added in Epic 2
 
-10. **SKEL-AVAIL-001: Create Availability API (Simple)**
+8. **SKEL-AVAIL-001: Create Availability API (Simple)**
     - As a **developer**, I want a simple API to create one-time availability slots
     - **Acceptance Criteria:**
       - `POST /api/availability` accepts: date, start time, end time, slot duration, location (text field)
@@ -196,7 +176,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR22, FR23, FR25
     - **Note:** Recurrence patterns added in Epic 4
 
-11. **SKEL-AVAIL-002: Availability Management Screen (Simple)**
+9. **SKEL-AVAIL-002: Availability Management Screen (Simple)**
     - As a **mentor**, I want to create and view my availability
     - **Acceptance Criteria:**
       - "My Availability" page shows list of availability blocks
@@ -207,7 +187,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR22, Section 3.3
     - **Note:** Advanced availability features added in Epic 4
 
-12. **SKEL-AVAIL-003: Slot Picker UI (Simple)**
+10. **SKEL-AVAIL-003: Slot Picker UI (Simple)**
     - As a **mentee**, I want to view available mentor slots in a simple list
     - **Acceptance Criteria:**
       - Mentor profile page shows "Available Slots" section
@@ -217,7 +197,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR15, FR38
     - **Note:** Advanced slot picker (calendar grid, filters) added in Epic 4
 
-13. **SKEL-BOOK-001: Booking Creation API (Simple)**
+11. **SKEL-BOOK-001: Booking Creation API (Simple)**
     - As a **developer**, I want a simple API endpoint to create bookings
     - **Acceptance Criteria:**
       - `POST /api/bookings` accepts: slot_id, meeting_goal
@@ -228,7 +208,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR29, FR30
     - **Note:** Calendar conflict checking added in Epic 3, booking confirmation flow added in Epic 4
 
-14. **SKEL-BOOK-002: Booking Form (Simple)**
+12. **SKEL-BOOK-002: Booking Form (Simple)**
     - As a **mentee**, I want to provide meeting context when booking
     - **Acceptance Criteria:**
       - Modal opens after slot selection
@@ -239,7 +219,7 @@ Epic 8: Admin & Coordinator Tools
       - No materials URLs yet
     - **Related:** FR30, Section 3.3
 
-15. **SKEL-BOOK-003: My Bookings Dashboard (Simple)**
+13. **SKEL-BOOK-003: My Bookings Dashboard (Simple)**
     - As a **user**, I want to view my upcoming and past meetings
     - **Acceptance Criteria:**
       - "My Bookings" page with simple list of bookings
@@ -248,7 +228,7 @@ Epic 8: Admin & Coordinator Tools
       - No cancellation feature yet (added in Epic 4)
     - **Related:** Section 3.3
 
-16. **SKEL-NOTIF-001: Basic Email Notifications**
+14. **SKEL-NOTIF-001: Basic Email Notifications**
     - As a **user**, I want to receive email confirmation when a booking is created
     - **Acceptance Criteria:**
       - On booking creation: Send email to both mentor and mentee
@@ -257,7 +237,7 @@ Epic 8: Admin & Coordinator Tools
       - No reminders yet (added in Epic 4)
     - **Related:** FR32
 
-17. **SKEL-NAV-001: Basic Navigation & Layout**
+15. **SKEL-NAV-001: Basic Navigation & Layout**
     - As a **user**, I want to navigate between key pages
     - **Acceptance Criteria:**
       - Top navigation bar with links: My Profile, My Bookings, Browse Mentors (or My Availability for mentors)
@@ -266,7 +246,7 @@ Epic 8: Admin & Coordinator Tools
       - No advanced features like notifications dropdown, search bar yet
     - **Related:** Section 3.3
 
-18. **SKEL-MENTOR-001: Browse Mentors (Simple List)**
+16. **SKEL-MENTOR-001: Browse Mentors (Simple List)**
     - As a **mentee**, I want to browse available mentors
     - **Acceptance Criteria:**
       - "Browse Mentors" page shows list of users with role='mentor'
@@ -276,12 +256,32 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR15
     - **Note:** Advanced search, filters, recommendations added in Epic 6
 
+17. **SKEL-DEPLOY-001: Cloudflare Workers Deployment**
+    - As a **developer**, I want the API deployed to Cloudflare Workers
+    - **Acceptance Criteria:**
+      - `wrangler.toml` configured with deployment settings
+      - Environment secrets configured: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+      - Production deployment accessible
+      - Health check endpoint returns 200 OK
+    - **Related:** Section 4.6, NFR44
+    - **Note:** Deployment moved to end of Epic 0 to allow local-first development
+
+18. **SKEL-DEPLOY-002: Cloudflare Pages Deployment**
+    - As a **developer**, I want the frontend deployed to Cloudflare Pages
+    - **Acceptance Criteria:**
+      - Vite build configuration working
+      - Environment variables configured: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`
+      - Auto-deployment on main branch push
+      - Production URL accessible
+    - **Related:** Section 4.6
+    - **Note:** Deployment moved to end of Epic 0 to allow local-first development
+
 ---
 
 ### **Epic 1: Infrastructure Depth**
 **Goal:** Add production-grade infrastructure features to the working skeleton
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 9
+**Estimated Stories:** 9 (Stories 19-27)
 **Dependencies:** Epic 0
 **Timeline:** Sprint 3 (Weeks 5-6)
 
@@ -1142,15 +1142,14 @@ Epic 8: Admin & Coordinator Tools
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 87 (SKEL-DEPLOY-001 and SKEL-DEPLOY-002 moved to post-Epic-0 deployment phase)
-**Critical Path (P0):** Epics 0-4 (58 stories local dev + 2 deployment stories)
-**High Priority (P1):** Epics 5-7 (23 stories)
+**Total Stories:** 89 (Epic 0 includes deployment stories 17-18)
+**Critical Path (P0):** Epics 0-4 (19 + 9 + 11 + 10 + 11 = 60 stories)
+**High Priority (P1):** Epics 5-7 (7 + 7 + 10 = 24 stories)
 **Medium Priority (P2):** Epic 8 (6 stories)
 
 **Recommended Sprint Breakdown (2-week sprints):**
 
-- **Sprint 1-2:** Epic 0 (Local Walking Skeleton) - 16 stories → **LOCAL END-TO-END WORKING PRODUCT**
-- **Post-Epic-0:** Deployment Phase - 2 stories (SKEL-DEPLOY-001, SKEL-DEPLOY-002)
+- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 19 stories (Stories 0-16 local dev, 17-18 deployment) → **DEPLOYED END-TO-END WORKING PRODUCT**
 - **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories
 - **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories
 - **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories
