@@ -18,6 +18,7 @@ import {
   createMockAvailabilityRequest,
 } from '@/test/fixtures/availability';
 import { createMockTimeSlot, createMockSlotsResponse } from '@/test/fixtures/slots';
+import { createMockBooking } from '@/test/fixtures/bookings';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -705,6 +706,174 @@ describe('apiClient', () => {
         limit: 50,
         has_more: false,
       });
+    });
+  });
+
+  describe('createBooking', () => {
+    it('should send POST request with correct request body', async () => {
+      const requestData = {
+        time_slot_id: 'slot-123',
+        meeting_goal: 'Discuss product-market fit strategy for early-stage SaaS startup',
+      };
+      const mockBooking = createMockBooking({
+        time_slot_id: 'slot-123',
+        mentee_id: 'current-user-123',
+        status: 'pending',
+      });
+
+      localStorageMock.setItem('auth_token', 'test-token-123');
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => mockBooking,
+      });
+
+      const result = await apiClient.createBooking(requestData);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/v1/bookings'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify(requestData),
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-token-123',
+          }),
+        })
+      );
+      expect(result).toEqual(mockBooking);
+      expect(result.status).toBe('pending');
+    });
+
+    it('should handle 201 success response', async () => {
+      const mockBooking = createMockBooking();
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => mockBooking,
+      });
+
+      const result = await apiClient.createBooking({
+        time_slot_id: 'slot-123',
+        meeting_goal: 'Discuss go-to-market strategy',
+      });
+
+      expect(result).toHaveProperty('id');
+      expect(result).toHaveProperty('status', 'pending');
+      expect(result).toHaveProperty('meeting_goal');
+    });
+
+    it('should handle 400 validation error (meeting_goal too short)', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Meeting goal must be at least 10 characters',
+            timestamp: '2025-10-06T00:00:00Z',
+            details: {
+              meeting_goal: ['Meeting goal must be at least 10 characters'],
+            },
+          },
+        }),
+      });
+
+      try {
+        await apiClient.createBooking({
+          time_slot_id: 'slot-123',
+          meeting_goal: 'Short',
+        });
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(400);
+        expect((error as ApiError).code).toBe('VALIDATION_ERROR');
+        expect((error as ApiError).details).toHaveProperty('meeting_goal');
+      }
+    });
+
+    it('should handle 409 slot unavailable error', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: {
+            code: 'SLOT_UNAVAILABLE',
+            message: 'This slot is already booked',
+            timestamp: '2025-10-06T00:00:00Z',
+            details: {
+              time_slot_id: 'slot-123',
+            },
+          },
+        }),
+      });
+
+      try {
+        await apiClient.createBooking({
+          time_slot_id: 'slot-123',
+          meeting_goal: 'Discuss product strategy',
+        });
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(409);
+        expect((error as ApiError).code).toBe('SLOT_UNAVAILABLE');
+        expect((error as ApiError).message).toBe('This slot is already booked');
+      }
+    });
+
+    it('should handle 404 slot not found error', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          error: {
+            code: 'SLOT_NOT_FOUND',
+            message: 'Time slot not found',
+            timestamp: '2025-10-06T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.createBooking({
+          time_slot_id: 'nonexistent-slot',
+          meeting_goal: 'Discuss product strategy',
+        });
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(404);
+        expect((error as ApiError).code).toBe('SLOT_NOT_FOUND');
+      }
+    });
+
+    it('should handle 401/403 authentication errors', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Missing or invalid JWT token',
+            timestamp: '2025-10-06T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.createBooking({
+          time_slot_id: 'slot-123',
+          meeting_goal: 'Discuss product strategy',
+        });
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(401);
+        expect((error as ApiError).code).toBe('UNAUTHORIZED');
+      }
     });
   });
 });

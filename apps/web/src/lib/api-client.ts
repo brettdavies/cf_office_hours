@@ -44,6 +44,12 @@ type CreateAvailabilityRequest = NonNullable<
 type CreateAvailabilityResponse =
   ApiPaths['/v1/availability']['post']['responses']['201']['content']['application/json'];
 
+type CreateBookingRequest = NonNullable<
+  ApiPaths['/v1/bookings']['post']['requestBody']
+>['content']['application/json'];
+type CreateBookingResponse =
+  ApiPaths['/v1/bookings']['post']['responses']['201']['content']['application/json'];
+
 /**
  * Custom error class for API errors.
  *
@@ -207,6 +213,29 @@ export const apiClient = {
         : '/v1/availability/slots';
 
     return fetchApi<GetSlotsResponse>(endpoint);
+  },
+
+  /**
+   * Create a new booking for a time slot.
+   *
+   * Epic 0: Simple booking - no calendar integration, no confirmation flow.
+   * Status always 'pending'.
+   *
+   * @param data - Booking creation data (time_slot_id, meeting_goal)
+   * @returns Created booking with all fields
+   * @throws {ApiError} 400 if validation fails (meeting_goal too short), 401 if not authenticated, 404 if slot not found, 409 if slot already booked
+   *
+   * @example
+   * const booking = await apiClient.createBooking({
+   *   time_slot_id: 'slot-uuid',
+   *   meeting_goal: 'I want to discuss go-to-market strategy for my SaaS startup'
+   * });
+   */
+  createBooking: (data: CreateBookingRequest): Promise<CreateBookingResponse> => {
+    return fetchApi<CreateBookingResponse>('/v1/bookings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   /**

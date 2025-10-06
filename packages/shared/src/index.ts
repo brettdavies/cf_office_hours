@@ -12,6 +12,7 @@
 // Export schemas (single source of truth for types via z.infer)
 export * from './schemas/user';
 export * from './schemas/availability';
+export * from './schemas/booking';
 
 // Export constants when they are created
 // export * from './constants';

@@ -10,6 +10,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 // Internal modules
 import { userRoutes } from './users';
 import { availabilityRoutes } from './availability';
+import { bookingRoutes } from './bookings';
 
 // Types
 import type { Env } from '../types/bindings';
@@ -21,3 +22,4 @@ export const routes = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>()
 // Mount route modules
 routes.route('/users', userRoutes);
 routes.route('/availability', availabilityRoutes);
+routes.route('/bookings', bookingRoutes);

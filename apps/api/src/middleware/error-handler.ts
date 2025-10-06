@@ -1,5 +1,6 @@
 // External dependencies
 import type { ErrorHandler } from 'hono';
+import { ZodError } from 'zod';
 
 // Internal modules
 import { AppError } from '../lib/errors';
@@ -19,6 +20,23 @@ export const errorHandler: ErrorHandler = (err, c) => {
         },
       },
       err.statusCode as 400 | 401 | 403 | 404 | 500
+    );
+  }
+
+  // Handle Zod validation errors
+  if (err instanceof ZodError) {
+    return c.json(
+      {
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: {
+            issues: err.errors,
+          },
+          timestamp: new Date().toISOString(),
+        },
+      },
+      400
     );
   }
 
