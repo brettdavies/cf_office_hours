@@ -6,10 +6,12 @@
  */
 
 // Export generated API types (auto-generated from OpenAPI spec, DO NOT EDIT MANUALLY)
-export * from './types/api.generated';
+// Note: api.generated.ts is excluded from TS compilation but can be imported directly
+// export * from './types/api.generated';
 
 // Export schemas (single source of truth for types via z.infer)
 export * from './schemas/user';
+export * from './schemas/availability';
 
 // Export constants when they are created
 // export * from './constants';

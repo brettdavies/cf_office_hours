@@ -11,6 +11,12 @@
 import { z } from 'zod';
 
 /**
+ * User role enum - Single source of truth for user roles.
+ * Matches database enum: user_role ('mentee', 'mentor', 'coordinator')
+ */
+export const UserRoleSchema = z.enum(['mentee', 'mentor', 'coordinator']);
+
+/**
  * Schema for updating user profile via PUT /v1/users/me.
  *
  * All fields are optional to support partial updates.
@@ -53,7 +59,7 @@ export const UserResponseSchema = z.object({
   id: z.string().uuid(),
   airtable_record_id: z.string().nullable(),
   email: z.string().email(),
-  role: z.enum(['mentee', 'mentor', 'coordinator']),
+  role: UserRoleSchema,
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
   profile: UserProfileSchema,
@@ -65,6 +71,7 @@ export const UserResponseSchema = z.object({
  * These provide compile-time type safety while the schemas
  * provide runtime validation.
  */
+export type UserRole = z.infer<typeof UserRoleSchema>;
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileSchema>;
 export type UserProfileResponse = z.infer<typeof UserProfileSchema>;
 export type UserResponse = z.infer<typeof UserResponseSchema>;

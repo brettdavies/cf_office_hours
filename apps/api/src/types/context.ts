@@ -3,6 +3,10 @@
  *
  * Variables are set by middleware and accessed in route handlers.
  */
+
+// Internal modules
+import type { UserRole } from '@cf-office-hours/shared';
+
 export interface Variables {
   /**
    * Authenticated user information injected by requireAuth middleware.
@@ -10,6 +14,6 @@ export interface Variables {
   user: {
     id: string;
     email: string;
-    role: string;
+    role: UserRole;
   };
 }

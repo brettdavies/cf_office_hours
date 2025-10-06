@@ -1,0 +1,249 @@
+/**
+ * Availability API Routes Integration Tests
+ *
+ * Tests HTTP endpoints with mocked service layer.
+ */
+
+// External dependencies
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Internal modules
+import app from '../index';
+import { AvailabilityService } from '../services/availability.service';
+
+// Types
+import type { AvailabilityBlockResponse } from '@cf-office-hours/shared';
+
+// Mock AvailabilityService
+vi.mock('../services/availability.service');
+
+// Mock requireAuth middleware to inject a test user
+vi.mock('../middleware/auth', () => ({
+  requireAuth: vi.fn(async (c, next) => {
+    const testUser = c.get('testUser') || {
+      id: 'test-mentor-123',
+      email: 'mentor@example.com',
+      role: 'mentor',
+    };
+    c.set('user', testUser);
+    return await next();
+  }),
+}));
+
+describe('Availability API Routes', () => {
+  const mockBlock: AvailabilityBlockResponse = {
+    id: 'block-uuid-456',
+    mentor_id: 'test-mentor-123',
+    recurrence_pattern: 'one_time',
+    start_date: null,
+    end_date: null,
+    start_time: '2025-10-10T14:00:00Z',
+    end_time: '2025-10-10T16:00:00Z',
+    slot_duration_minutes: 30,
+    buffer_minutes: 0,
+    meeting_type: 'online',
+    location_preset_id: null,
+    location_custom: null,
+    description: 'Test block',
+    created_at: '2025-10-05T12:00:00Z',
+    updated_at: '2025-10-05T12:00:00Z',
+    created_by: 'test-mentor-123',
+    updated_by: 'test-mentor-123',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('POST /v1/availability', () => {
+    const validRequest = {
+      start_time: '2025-10-10T14:00:00Z',
+      end_time: '2025-10-10T16:00:00Z',
+      slot_duration_minutes: 30,
+      buffer_minutes: 0,
+      meeting_type: 'online',
+      description: 'Test block',
+    };
+
+    it('should create availability block with valid JWT (mentor role)', async () => {
+      vi.spyOn(AvailabilityService.prototype, 'createAvailabilityBlock').mockResolvedValue(
+        mockBlock
+      );
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(validRequest),
+      });
+
+      expect(res.status).toBe(201);
+      const data = (await res.json()) as AvailabilityBlockResponse;
+      expect(data.id).toBe('block-uuid-456');
+      expect(data.mentor_id).toBe('test-mentor-123');
+      expect(data.meeting_type).toBe('online');
+    });
+
+    it('should return 403 when user is not a mentor', async () => {
+      const AppError = (await import('../lib/errors')).AppError;
+      vi.spyOn(AvailabilityService.prototype, 'createAvailabilityBlock').mockRejectedValue(
+        new AppError(403, 'Only mentors can create availability blocks', 'FORBIDDEN')
+      );
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(validRequest),
+      });
+
+      expect(res.status).toBe(403);
+      const data = (await res.json()) as { error: { code: string } };
+      expect(data.error.code).toBe('FORBIDDEN');
+    });
+
+    it('should return 400 with invalid data', async () => {
+      const invalidRequest = {
+        start_time: '2025-10-10T14:00:00Z',
+        end_time: '2025-10-10T13:00:00Z', // end_time before start_time
+        slot_duration_minutes: 30,
+        meeting_type: 'online',
+      };
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invalidRequest),
+      });
+
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: unknown };
+      expect(data.error).toBeDefined();
+    });
+
+    it('should return 400 with in-person meeting type', async () => {
+      // Zod schema validation catches this before reaching service layer
+      const invalidRequest = {
+        ...validRequest,
+        meeting_type: 'in_person_preset',
+      };
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invalidRequest),
+      });
+
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error?: unknown };
+      // Zod validation error, not service-level error
+      expect(data.error).toBeDefined();
+    });
+
+    it('should return 400 with missing required fields', async () => {
+      const invalidRequest = {
+        start_time: '2025-10-10T14:00:00Z',
+        // Missing end_time, slot_duration_minutes, meeting_type
+      };
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invalidRequest),
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should return 400 with invalid slot_duration_minutes', async () => {
+      const invalidRequest = {
+        ...validRequest,
+        slot_duration_minutes: 45, // Not in allowed values: 15, 20, 30, 60
+      };
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invalidRequest),
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should handle service errors gracefully', async () => {
+      const AppError = (await import('../lib/errors')).AppError;
+      vi.spyOn(AvailabilityService.prototype, 'createAvailabilityBlock').mockRejectedValue(
+        new AppError(500, 'Failed to create availability block', 'CREATION_FAILED')
+      );
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(validRequest),
+      });
+
+      expect(res.status).toBe(500);
+      const data = (await res.json()) as { error: { code: string } };
+      expect(data.error.code).toBe('CREATION_FAILED');
+    });
+
+    it('should accept buffer_minutes within valid range', async () => {
+      vi.spyOn(AvailabilityService.prototype, 'createAvailabilityBlock').mockResolvedValue(
+        mockBlock
+      );
+
+      const requestWithBuffer = {
+        ...validRequest,
+        buffer_minutes: 15,
+      };
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestWithBuffer),
+      });
+
+      expect(res.status).toBe(201);
+    });
+
+    it('should reject buffer_minutes outside valid range', async () => {
+      const invalidRequest = {
+        ...validRequest,
+        buffer_minutes: 75, // Exceeds max of 60
+      };
+
+      const res = await app.request('/v1/availability', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invalidRequest),
+      });
+
+      expect(res.status).toBe(400);
+    });
+  });
+});
