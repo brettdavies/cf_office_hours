@@ -106,15 +106,30 @@ EOF
 
 # 6. Create .env.example files
 cat > apps/web/.env.example << 'EOF'
-VITE_API_BASE_URL=http://localhost:8787/v1
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_API_BASE_URL=http://127.0.0.1:8787
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
 EOF
 
 cat > apps/api/.env.example << 'EOF'
-SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
+SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
+EOF
+
+# 6a. Create wrangler.toml with fixed port for API
+cat > apps/api/wrangler.toml << 'EOF'
+name = "cf-office-hours-api"
+main = "src/index.ts"
+compatibility_date = "2025-03-11"
+compatibility_flags = ["nodejs_compat"]
+
+[dev]
+port = 8787
+
+[vars]
+ENVIRONMENT = "development"
+SUPABASE_URL = "http://127.0.0.1:54321"
 EOF
 
 # 7. Initial commit
@@ -742,58 +757,34 @@ Closes #123
 
 ## 10.8 Troubleshooting Common Issues
 
-**Issue: Port Already in Use**
+For detailed troubleshooting steps and solutions, see **[TROUBLESHOOTING.md](../TROUBLESHOOTING.md)**.
+
+Common issues covered:
+- Port conflicts (3000, 8787)
+- CORS errors / API not accessible
+- Profile page stuck loading
+- User not found after login (UUID mismatch)
+- Database migration failures
+- Module not found errors
+- TypeScript errors
+
+Quick diagnostic commands:
 
 ```bash
-# Find and kill process on port 3000
-lsof -ti:3000 | xargs kill -9
+# Check running services
+lsof -ti:3000  # Web app
+lsof -ti:8787  # API
 
-# Or use different port
-PORT=3001 npm run dev:web
-```
+# Verify database connection
+supabase status
 
-**Issue: Module Not Found**
+# Check environment config
+cat apps/web/.env | grep VITE_API_BASE_URL
+cat apps/api/wrangler.toml | grep -A2 "\[dev\]"
 
-```bash
-# Clear node_modules and reinstall
-npm run clean
-npm install
-
-# Clear build cache
-rm -rf apps/web/node_modules/.vite
-rm -rf apps/api/.wrangler
-```
-
-**Issue: TypeScript Errors After Update**
-
-```bash
-# Regenerate TypeScript build info
-npm run type-check
-
-# Clear TypeScript cache
-rm -rf apps/*/tsconfig.tsbuildinfo
-```
-
-**Issue: Supabase Connection Fails**
-
-```bash
-# Check environment variables
-cat apps/web/.env | grep SUPABASE
-cat apps/api/.env | grep SUPABASE
-
-# Test Supabase connection
-curl https://your-project.supabase.co/rest/v1/ \
-  -H "apikey: your-anon-key"
-```
-
-**Issue: Wrangler Authentication**
-
-```bash
-# Login to Cloudflare
-npx wrangler login
-
-# Verify authentication
-npx wrangler whoami
+# Reset everything if needed
+supabase db reset
+npm run clean && npm install
 ```
 
 ## 10.9 Performance Profiling

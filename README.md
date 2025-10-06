@@ -13,6 +13,8 @@ See [Development Workflow](docs/architecture/10-development-workflow.md) for com
 
 ## Documentation
 
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) ⭐ **Start here for common setup issues**
+
 - [Product Requirements](docs/prd.md)
 - [Architecture Document](docs/architecture.md)
 - [User Guide](docs/user-guide/index.md) _(coming soon)_
