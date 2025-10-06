@@ -83,7 +83,7 @@ COMMENT ON COLUMN users.deleted_by IS 'User who soft-deleted this record (NULL i
 
 CREATE TABLE portfolio_companies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
+  name text NOT NULL UNIQUE,
   description text,
   website text,
   pitch_vc_url text,
@@ -98,9 +98,6 @@ CREATE TABLE portfolio_companies (
   created_by uuid,
   updated_by uuid
 );
-
--- Indexes for portfolio_companies table
-CREATE INDEX idx_portfolio_companies_name ON portfolio_companies(name);
 
 -- Trigger for auto-updating updated_at on portfolio_companies
 CREATE TRIGGER set_timestamp_portfolio_companies
@@ -177,6 +174,7 @@ CREATE TABLE user_urls (
 
 -- Indexes for user_urls table
 CREATE INDEX idx_user_urls_user_id ON user_urls(user_id);
+CREATE UNIQUE INDEX uq_user_urls_user_type ON user_urls(user_id, url_type);
 
 -- Trigger for auto-updating updated_at on user_urls
 CREATE TRIGGER set_timestamp_user_urls

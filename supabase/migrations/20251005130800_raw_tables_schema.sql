@@ -78,9 +78,6 @@ CREATE TABLE IF NOT EXISTS raw_mentees (
     company TEXT,
     phone TEXT,
     linkedin_url TEXT,
-    tags_industries TEXT,
-    tags_technologies TEXT,
-    tags_stage TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -90,6 +87,7 @@ CREATE TABLE IF NOT EXISTS raw_mentees (
 
 CREATE TABLE IF NOT EXISTS raw_mentors (
     id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
     full_name TEXT NOT NULL,
     bio TEXT,
     industry_expertise TEXT,
@@ -120,9 +118,9 @@ CREATE TABLE IF NOT EXISTS raw_users (
 COMMENT ON TABLE raw_industries IS 'Raw industry taxonomy data from CSV - used for ETL processing into normalized industry tables';
 COMMENT ON TABLE raw_technologies IS 'Raw technology taxonomy data from CSV - used for ETL processing into normalized technology tables';
 COMMENT ON TABLE raw_portfolio_companies IS 'Raw portfolio company data from CSV - used for ETL processing into normalized company tables';
-COMMENT ON TABLE raw_mentees IS 'Raw mentee data from CSV - used for ETL processing into users/user_profiles tables';
-COMMENT ON TABLE raw_mentors IS 'Raw mentor data from CSV - used for ETL processing into users/user_profiles tables';
-COMMENT ON TABLE raw_users IS 'Raw coordinator/admin user data from CSV - used for ETL processing into users/user_profiles tables';
+COMMENT ON TABLE raw_mentees IS 'Raw mentee data - users created only on auth login, profiles hydrated from this table by email';
+COMMENT ON TABLE raw_mentors IS 'Raw mentor data - users created only on auth login, profiles hydrated from this table by email';
+COMMENT ON TABLE raw_users IS 'Raw coordinator data - users created only on auth login, profiles hydrated from this table by email';
 
 -- ============================================================================
 -- Migration Complete
