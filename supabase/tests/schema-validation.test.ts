@@ -27,7 +27,9 @@ describe('Database Schema v2.4 - Table Structure', () => {
   it('should have users table with audit columns', async () => {
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, role, airtable_record_id, created_at, updated_at, created_by, updated_by, deleted_by')
+      .select(
+        'id, email, role, airtable_record_id, created_at, updated_at, created_by, updated_by, deleted_by'
+      )
       .limit(0);
 
     expect(error).toBeNull();

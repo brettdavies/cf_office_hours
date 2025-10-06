@@ -4,7 +4,7 @@ import app from './index';
 describe('GET /health', () => {
   it('should return 200 OK with status and timestamp', async () => {
     const res = await app.request('/health');
-    const data = await res.json() as { status: string; timestamp: string };
+    const data = (await res.json()) as { status: string; timestamp: string };
 
     expect(res.status).toBe(200);
     expect(data).toHaveProperty('status', 'ok');
@@ -14,7 +14,7 @@ describe('GET /health', () => {
 
   it('should return valid ISO timestamp', async () => {
     const res = await app.request('/health');
-    const data = await res.json() as { status: string; timestamp: string };
+    const data = (await res.json()) as { status: string; timestamp: string };
 
     const timestamp = new Date(data.timestamp);
     expect(timestamp.toISOString()).toBe(data.timestamp);
@@ -24,7 +24,7 @@ describe('GET /health', () => {
 describe('CORS Middleware', () => {
   it('should include CORS headers for allowed origin', async () => {
     const res = await app.request('/health', {
-      headers: { 'Origin': 'http://localhost:3000' },
+      headers: { Origin: 'http://localhost:3000' },
     });
 
     expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
@@ -33,17 +33,21 @@ describe('CORS Middleware', () => {
 
   it('should handle production origin', async () => {
     const res = await app.request('/health', {
-      headers: { 'Origin': 'https://officehours.youcanjustdothings.io' },
+      headers: { Origin: 'https://officehours.youcanjustdothings.io' },
     });
 
-    expect(res.headers.get('access-control-allow-origin')).toBe('https://officehours.youcanjustdothings.io');
+    expect(res.headers.get('access-control-allow-origin')).toBe(
+      'https://officehours.youcanjustdothings.io'
+    );
   });
 });
 
 describe('Error Handling', () => {
   it('should return 404 for non-existent routes', async () => {
     const res = await app.request('/nonexistent');
-    const data = await res.json() as { error: { code: string; message: string; timestamp: string } };
+    const data = (await res.json()) as {
+      error: { code: string; message: string; timestamp: string };
+    };
 
     expect(res.status).toBe(404);
     expect(data.error).toHaveProperty('code', 'NOT_FOUND');
@@ -53,7 +57,9 @@ describe('Error Handling', () => {
 
   it('should return JSON error format', async () => {
     const res = await app.request('/nonexistent');
-    const data = await res.json() as { error: { code: string; message: string; timestamp: string } };
+    const data = (await res.json()) as {
+      error: { code: string; message: string; timestamp: string };
+    };
 
     expect(data).toHaveProperty('error');
     expect(data.error).toHaveProperty('code');

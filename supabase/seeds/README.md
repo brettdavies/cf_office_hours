@@ -16,13 +16,17 @@ This directory contains SQL files for seeding the database with sample data for 
 ## Usage
 
 ### Automatic Seeding (Recommended)
+
 All seed files are executed automatically when you run:
+
 ```bash
 supabase db reset
 ```
 
 ### Manual Seeding
+
 Run individual seed files as needed:
+
 ```sql
 \i supabase/seeds/01_seed_industries.sql
 \i supabase/seeds/02_seed_technologies.sql
@@ -35,12 +39,14 @@ Run individual seed files as needed:
 ## Data Sources
 
 All data is hard-coded directly in the SQL seed files as INSERT statements. This approach:
+
 - Ensures version control of all test data
 - Eliminates external file dependencies
 - Provides immediate visibility into data structure and content
 - Simplifies database reset operations
 
 **Data includes:**
+
 - Industry taxonomy with hierarchical structure (55 records)
 - Technology taxonomy with hierarchical structure (45 records)
 - Portfolio company data with anonymized information (830 records)
@@ -51,12 +57,15 @@ All data is hard-coded directly in the SQL seed files as INSERT statements. This
 ## Schema Separation
 
 **Migrations handle schema creation:**
+
 - `supabase/migrations/20251005130800_raw_tables_schema.sql` - Creates raw tables
 
 **Seeds handle data loading:**
+
 - `supabase/seed.sql` - Loads data into existing tables
 
 This separation ensures:
+
 - **Proper dependency management** - schemas created before data loading
 - **Clean separation of concerns** - migrations for structure, seeds for data
 - **Version control friendly** - schema changes tracked separately from data
@@ -76,6 +85,7 @@ The raw tables store seed data for ETL processing:
 ## ETL Process
 
 The raw data is meant to be processed by ETL functions that will:
+
 1. Transform and normalize the data
 2. Load it into the public schema tables
 3. Create proper relationships and indexes
@@ -89,4 +99,3 @@ The raw data is meant to be processed by ETL functions that will:
 - All seed files use TRUNCATE pattern for idempotent execution
 - Raw tables preserve data for ETL processing into public schema
 - Production systems should use Airtable sync instead of these seeds
-

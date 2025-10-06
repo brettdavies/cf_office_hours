@@ -44,8 +44,7 @@ export default function AvailabilityPage() {
       setAvailability(data);
     } catch (err) {
       console.error('Failed to fetch availability:', err);
-      const errorMessage =
-        err instanceof ApiError ? err.message : 'Failed to load availability';
+      const errorMessage = err instanceof ApiError ? err.message : 'Failed to load availability';
       setError(errorMessage);
 
       toast({
@@ -124,13 +123,11 @@ export default function AvailabilityPage() {
 
       {!isLoading && !error && availability.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {availability.map((block) => (
+          {availability.map(block => (
             <Card key={block.id} className="p-4">
               <div className="space-y-2">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-semibold text-lg">
-                    {formatDisplayDate(block.start_time)}
-                  </h3>
+                  <h3 className="font-semibold text-lg">{formatDisplayDate(block.start_time)}</h3>
                   <span className="text-sm text-muted-foreground capitalize">
                     {block.meeting_type}
                   </span>

@@ -47,14 +47,14 @@ export const createMockAvailabilityBlock = (
   mentor_id: 'mentor-123',
   recurrence_pattern: 'one_time',
   start_date: null, // Only used for recurring patterns (weekly/monthly)
-  end_date: null,   // Only used for recurring patterns (weekly/monthly)
+  end_date: null, // Only used for recurring patterns (weekly/monthly)
   start_time: '2025-10-15T09:00:00Z',
   end_time: '2025-10-15T17:00:00Z',
   slot_duration_minutes: 30,
   buffer_minutes: 0,
   meeting_type: 'online',
   location_preset_id: null, // Used when meeting_type is 'in_person_preset'
-  location_custom: null,    // Used when meeting_type is 'in_person_custom'
+  location_custom: null, // Used when meeting_type is 'in_person_custom'
   description: null,
   created_at: '2025-10-05T10:00:00Z',
   updated_at: '2025-10-05T10:00:00Z',

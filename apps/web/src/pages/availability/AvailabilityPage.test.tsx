@@ -164,18 +164,14 @@ describe('AvailabilityPage', () => {
       expect(
         screen.getByText("You haven't created any availability blocks yet.")
       ).toBeInTheDocument();
-      expect(
-        screen.getByText('Click "Create Availability" to get started.')
-      ).toBeInTheDocument();
+      expect(screen.getByText('Click "Create Availability" to get started.')).toBeInTheDocument();
     });
   });
 
   describe('loading state', () => {
     it('should show loading indicator while fetching data', () => {
       // Don't resolve the promise immediately
-      vi.mocked(apiClient.getMyAvailability).mockReturnValueOnce(
-        new Promise(() => {})
-      );
+      vi.mocked(apiClient.getMyAvailability).mockReturnValueOnce(new Promise(() => {}));
 
       render(<AvailabilityPage />);
 

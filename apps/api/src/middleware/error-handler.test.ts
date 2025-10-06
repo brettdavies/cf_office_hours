@@ -13,7 +13,9 @@ describe('Error Handler Middleware', () => {
     app.onError(errorHandler);
 
     const res = await app.request('/error');
-    const data = await res.json() as { error: { code: string; message: string; timestamp: string } };
+    const data = (await res.json()) as {
+      error: { code: string; message: string; timestamp: string };
+    };
 
     expect(res.status).toBe(500);
     expect(data.error).toHaveProperty('code', 'INTERNAL_ERROR');
@@ -34,7 +36,9 @@ describe('Error Handler Middleware', () => {
     app.onError(errorHandler);
 
     const res = await app.request('/custom-error');
-    const data = await res.json() as { error: { code: string; message: string; timestamp: string } };
+    const data = (await res.json()) as {
+      error: { code: string; message: string; timestamp: string };
+    };
 
     expect(res.status).toBe(400);
     expect(data.error).toHaveProperty('code', 'CUSTOM_ERROR');
@@ -69,7 +73,9 @@ describe('Error Handler Middleware', () => {
     app.onError(errorHandler);
 
     const res = await app.request('/timestamp-test');
-    const data = await res.json() as { error: { code: string; message: string; timestamp: string } };
+    const data = (await res.json()) as {
+      error: { code: string; message: string; timestamp: string };
+    };
 
     const timestamp = new Date(data.error.timestamp);
     expect(timestamp.toISOString()).toBe(data.error.timestamp);

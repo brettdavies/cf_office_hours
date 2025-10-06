@@ -19,19 +19,28 @@ const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
 app.use('*', logger());
-app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'https://officehours.youcanjustdothings.io'],
-  credentials: true,
-}));
+app.use(
+  '*',
+  cors({
+    origin: [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://officehours.youcanjustdothings.io',
+    ],
+    credentials: true,
+  })
+);
 app.use('*', prettyJSON());
 
 // Health check (no auth required)
-app.get('/health', (c) => {
+app.get('/health', c => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Protected test route (requires auth)
-app.get('/protected', requireAuth, (c) => {
+app.get('/protected', requireAuth, c => {
   const user = c.get('user');
   return c.json({ message: 'Authenticated', user });
 });
@@ -66,14 +75,17 @@ app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
 app.onError(errorHandler);
 
 // 404 handler
-app.notFound((c) => {
-  return c.json({
-    error: {
-      code: 'NOT_FOUND',
-      message: 'The requested resource was not found',
-      timestamp: new Date().toISOString(),
+app.notFound(c => {
+  return c.json(
+    {
+      error: {
+        code: 'NOT_FOUND',
+        message: 'The requested resource was not found',
+        timestamp: new Date().toISOString(),
+      },
     },
-  }, 404);
+    404
+  );
 });
 
 export default app;

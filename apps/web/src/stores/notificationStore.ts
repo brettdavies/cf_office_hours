@@ -13,10 +13,10 @@ interface NotificationState {
   removeToast: (id: string) => void;
 }
 
-export const useNotificationStore = create<NotificationState>((set) => ({
+export const useNotificationStore = create<NotificationState>(set => ({
   toasts: [],
-  addToast: (toast) =>
-    set((state) => ({
+  addToast: toast =>
+    set(state => ({
       toasts: [
         ...state.toasts,
         {
@@ -25,8 +25,8 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         },
       ],
     })),
-  removeToast: (id) =>
-    set((state) => ({
-      toasts: state.toasts.filter((toast) => toast.id !== id),
+  removeToast: id =>
+    set(state => ({
+      toasts: state.toasts.filter(toast => toast.id !== id),
     })),
 }));

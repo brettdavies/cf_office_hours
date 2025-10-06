@@ -39,6 +39,7 @@ npx supabase start
 ```
 
 This will output important information including:
+
 - API URL: http://localhost:54321
 - Studio URL: http://localhost:54323 (database admin UI)
 - Inbucket URL: http://localhost:54324 (email inbox for testing)
@@ -102,6 +103,7 @@ This application uses passwordless authentication via magic links:
 ### Viewing Test Emails
 
 All emails sent during local development are captured by **Inbucket**:
+
 - URL: http://localhost:54324
 - No real emails are sent
 - Magic links work exactly as they would in production
@@ -109,6 +111,7 @@ All emails sent during local development are captured by **Inbucket**:
 ### Sign Out
 
 Click the "Sign Out" button in the navigation bar to:
+
 - Clear the session from localStorage
 - Sign out from Supabase Auth
 - Redirect to the login page
@@ -169,6 +172,7 @@ npm run format           # Format with Prettier (from root)
 ## Key Features Implemented
 
 ### Epic 0 (Current)
+
 - ✅ Magic link authentication via Supabase Auth
 - ✅ Session management with localStorage persistence
 - ✅ Protected route enforcement
@@ -177,6 +181,7 @@ npm run format           # Format with Prettier (from root)
 - ✅ Toast notifications (success/error)
 
 ### Future Epics
+
 - ❌ Email whitelist validation - Epic 2
 - ❌ Google OAuth - Epic 2
 - ❌ Microsoft OAuth - Epic 2
@@ -189,6 +194,7 @@ npm run format           # Format with Prettier (from root)
 **Cause**: `.env` file is missing or incomplete
 
 **Solution**:
+
 1. Ensure `.env` file exists in `apps/web/`
 2. Run `npx supabase start` and copy the `anon key`
 3. Update `VITE_SUPABASE_ANON_KEY` in `.env`
@@ -198,6 +204,7 @@ npm run format           # Format with Prettier (from root)
 **Cause**: Local Supabase not running
 
 **Solution**:
+
 1. Run `npx supabase start`
 2. Check http://localhost:54324 (Inbucket) for emails
 
@@ -206,6 +213,7 @@ npm run format           # Format with Prettier (from root)
 **Cause**: localStorage cleared or session expired
 
 **Solution**:
+
 1. Check browser console for errors
 2. Clear localStorage and re-authenticate
 3. Ensure Supabase Auth is running
@@ -213,6 +221,7 @@ npm run format           # Format with Prettier (from root)
 ### Port 3000 Already in Use
 
 **Solution**:
+
 ```bash
 # Kill process on port 3000
 npx kill-port 3000

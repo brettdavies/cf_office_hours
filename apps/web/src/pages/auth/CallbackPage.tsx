@@ -15,7 +15,7 @@ export default function CallbackPage() {
         hash: location.hash,
         isLoading,
         isAuthenticated,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -30,7 +30,7 @@ export default function CallbackPage() {
         hasAuthParams,
         hasAccessToken: location.hash.includes('access_token'),
         hasCode: location.search.includes('code'),
-        hasToken: location.search.includes('token')
+        hasToken: location.search.includes('token'),
       });
     }
 

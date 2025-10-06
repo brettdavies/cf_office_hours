@@ -35,6 +35,7 @@ The local server automatically reloads when you make changes to the code. No res
 Returns the API health status. No authentication required.
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -43,6 +44,7 @@ Returns the API health status. No authentication required.
 ```
 
 **Example:**
+
 ```bash
 curl http://localhost:8787/health
 ```
@@ -54,9 +56,11 @@ curl http://localhost:8787/health
 Test endpoint that requires authentication. Returns authenticated user information.
 
 **Headers:**
+
 - `Authorization: Bearer <jwt_token>` (required)
 
 **Response (200 OK):**
+
 ```json
 {
   "message": "Authenticated",
@@ -69,6 +73,7 @@ Test endpoint that requires authentication. Returns authenticated user informati
 ```
 
 **Response (401 Unauthorized):**
+
 ```json
 {
   "error": {
@@ -80,6 +85,7 @@ Test endpoint that requires authentication. Returns authenticated user informati
 ```
 
 **Example:**
+
 ```bash
 # Without token (will fail)
 curl http://localhost:8787/protected
@@ -93,6 +99,7 @@ curl -H "Authorization: Bearer <your-jwt-token>" http://localhost:8787/protected
 Any non-existent route returns a structured error response.
 
 **Response (404):**
+
 ```json
 {
   "error": {
@@ -104,6 +111,7 @@ Any non-existent route returns a structured error response.
 ```
 
 **Example:**
+
 ```bash
 curl http://localhost:8787/nonexistent
 ```
@@ -143,6 +151,7 @@ npx supabase start
 ```
 
 This will output the credentials you need, including:
+
 - API URL (typically `http://localhost:54321`)
 - Service role key
 - JWT secret
@@ -150,12 +159,14 @@ This will output the credentials you need, including:
 **2. Configure Environment Variables:**
 
 Copy the example file:
+
 ```bash
 cd apps/api
 cp .dev.vars.example .dev.vars
 ```
 
 Edit `.dev.vars` and add your local Supabase credentials:
+
 ```bash
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-from-supabase-start
 SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-start
@@ -164,10 +175,12 @@ SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-start
 **3. Obtain a JWT Token for Testing:**
 
 Option 1: Use Supabase Studio (http://localhost:54323)
+
 - Create a test user via Authentication UI
 - Sign in to get a JWT token
 
 Option 2: Use the Supabase CLI:
+
 ```bash
 # Create a user
 npx supabase db seed
@@ -177,11 +190,11 @@ npx supabase db seed
 
 **Environment Variables Reference:**
 
-| Variable | Location | Description |
-|----------|----------|-------------|
-| `SUPABASE_URL` | `wrangler.toml` | Local Supabase API URL (committed) |
-| `SUPABASE_SERVICE_ROLE_KEY` | `.dev.vars` | Service role key (NOT committed) |
-| `SUPABASE_JWT_SECRET` | `.dev.vars` | JWT secret for validation (NOT committed) |
+| Variable                    | Location        | Description                               |
+| --------------------------- | --------------- | ----------------------------------------- |
+| `SUPABASE_URL`              | `wrangler.toml` | Local Supabase API URL (committed)        |
+| `SUPABASE_SERVICE_ROLE_KEY` | `.dev.vars`     | Service role key (NOT committed)          |
+| `SUPABASE_JWT_SECRET`       | `.dev.vars`     | JWT secret for validation (NOT committed) |
 
 **Note:** The `.dev.vars` file is gitignored and should never be committed.
 
@@ -226,11 +239,12 @@ The API includes the following middleware:
   - Applied to protected routes only
 
 **Usage Example:**
+
 ```typescript
 import { requireAuth } from './middleware/auth';
 
 // Apply to specific route
-app.get('/protected', requireAuth, (c) => {
+app.get('/protected', requireAuth, c => {
   const user = c.get('user');
   return c.json({ user });
 });
@@ -254,6 +268,7 @@ All errors return JSON responses with the following structure:
 ```
 
 Common error codes:
+
 - `NOT_FOUND` (404) - Resource not found
 - `UNAUTHORIZED` (401) - Missing or invalid authentication
 - `INTERNAL_ERROR` (500) - Server error
@@ -267,12 +282,14 @@ The API runs locally via Wrangler dev server. No deployment or Cloudflare accoun
 ### Production Deployment (Future Story)
 
 Production deployment will be handled in a separate story and will require:
+
 - Cloudflare account setup
 - `wrangler login` authentication
 - Environment variable configuration
 - Custom domain setup (optional)
 
 **Deployment commands (future):**
+
 ```bash
 npm run deploy              # Deploy to production
 npm run deploy:staging      # Deploy to staging environment

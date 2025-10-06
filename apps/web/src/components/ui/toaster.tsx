@@ -13,14 +13,14 @@ export function Toaster() {
   const { toasts, removeToast } = useNotificationStore();
 
   useEffect(() => {
-    const timers = toasts.map((toast) =>
+    const timers = toasts.map(toast =>
       setTimeout(() => {
         removeToast(toast.id);
       }, 5000)
     );
 
     return () => {
-      timers.forEach((timer) => clearTimeout(timer));
+      timers.forEach(timer => clearTimeout(timer));
     };
   }, [toasts, removeToast]);
 

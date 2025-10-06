@@ -12,12 +12,12 @@ These tests validate the **CURRENT production schema state** by testing against 
 
 ## Test Files
 
-| File | Purpose | Test Count |
-|------|---------|------------|
-| `schema-validation.test.ts` | Table structure, columns, CHECK constraints | 14 tests |
-| `constraints.test.ts` | UNIQUE, CHECK, FK constraint enforcement | 8 tests |
-| `rls-policies.test.ts` | Row Level Security access control | 15 tests |
-| `test-client.ts` | Supabase client helper for tests | - |
+| File                        | Purpose                                     | Test Count |
+| --------------------------- | ------------------------------------------- | ---------- |
+| `schema-validation.test.ts` | Table structure, columns, CHECK constraints | 14 tests   |
+| `constraints.test.ts`       | UNIQUE, CHECK, FK constraint enforcement    | 8 tests    |
+| `rls-policies.test.ts`      | Row Level Security access control           | 15 tests   |
+| `test-client.ts`            | Supabase client helper for tests            | -          |
 
 **Total:** 37 tests
 
@@ -49,6 +49,7 @@ npm run test:ui
 ### Test Configuration
 
 Tests connect to local Supabase instance via `.env` file:
+
 - **URL:** `http://127.0.0.1:54321` (default)
 - **Port:** 54321 (API), 54322 (PostgreSQL)
 - **Anon Key:** Default local development key (from `.env.example`)
@@ -60,11 +61,13 @@ Tests connect to local Supabase instance via `.env` file:
 ### Hybrid Approach (Option 3)
 
 **✅ DO:** Update tests directly when schema changes
+
 - Add tests for new tables/columns
 - Modify tests when constraints change
 - Remove tests for dropped features (document why)
 
 **❌ DON'T:** Create version-specific test files
+
 - No `1.1-schema-validation.test.ts`, `2.1-schema-validation.test.ts`, etc.
 - No historical test preservation in separate files
 
@@ -78,6 +81,7 @@ Tests connect to local Supabase instance via `.env` file:
 ### When Updating Tests for New Migrations
 
 1. **Add new tests:**
+
    ```typescript
    // Story 2.x adds "notifications" table
    it('should have notifications table with...', async () => {
@@ -90,6 +94,7 @@ Tests connect to local Supabase instance via `.env` file:
    ```
 
 2. **Update existing tests:**
+
    ```typescript
    // Story 3.x adds "materials_urls" column to bookings
    it('should have bookings table...', async () => {
@@ -101,6 +106,7 @@ Tests connect to local Supabase instance via `.env` file:
    ```
 
 3. **Document breaking changes:**
+
    ```typescript
    // Story 4.x removes "company" column from user_profiles
    // BREAKING CHANGE (Story 4.x): Removed "company" column
@@ -108,7 +114,7 @@ Tests connect to local Supabase instance via `.env` file:
    it('should have user_profiles table...', async () => {
      const { data, error } = await supabase
        .from('user_profiles')
-       .select('...')  // "company" removed
+       .select('...') // "company" removed
        .limit(0);
    });
    ```
@@ -127,11 +133,13 @@ Tests connect to local Supabase instance via `.env` file:
 If you need to validate an old migration (rare):
 
 1. **Check git history:**
+
    ```bash
    git log -p supabase/tests/schema-validation.test.ts
    ```
 
 2. **Run migration in isolation:**
+
    ```bash
    # Reset database to before migration
    supabase db reset
@@ -178,19 +186,23 @@ To integrate tests in CI/CD:
 ## Troubleshooting
 
 **Tests fail with "relation does not exist"**
+
 - Ensure Supabase is running: `supabase status`
 - Ensure migrations applied: `supabase db reset`
 
 **Tests fail with "column does not exist"**
+
 - Tests may be out of sync with migration
 - Check migration file for actual column names
 - Update test to match current schema
 
 **Tests timeout**
+
 - Increase timeout in `vitest.config.ts`
 - Check Supabase logs: `supabase logs`
 
 **RLS tests fail unexpectedly**
+
 - Remember: Supabase RLS silently filters rows (success with 0 rows)
 - Tests should check `data.length === 0`, not `error !== null`
 

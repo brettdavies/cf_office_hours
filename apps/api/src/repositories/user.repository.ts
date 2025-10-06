@@ -34,7 +34,8 @@ export class UserRepository {
   async getUserWithProfile(userId: string): Promise<UserResponse | null> {
     const { data, error } = await this.supabase
       .from('users')
-      .select(`
+      .select(
+        `
         id,
         airtable_record_id,
         email,
@@ -51,7 +52,8 @@ export class UserRepository {
           created_at,
           updated_at
         )
-      `)
+      `
+      )
       .eq('id', userId)
       .single();
 

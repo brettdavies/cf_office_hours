@@ -61,7 +61,8 @@ const server = setupServer(
       end_time: (body?.end_time as string) || '',
       slot_duration_minutes: (body?.slot_duration_minutes as number) || 30,
       buffer_minutes: (body?.buffer_minutes as number) || 0,
-      meeting_type: (body?.meeting_type as 'online' | 'in_person_preset' | 'in_person_custom') || 'online',
+      meeting_type:
+        (body?.meeting_type as 'online' | 'in_person_preset' | 'in_person_custom') || 'online',
       description: (body?.description as string | null) || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -203,7 +204,7 @@ describe('Availability Flow Integration Tests', () => {
       server.use(
         http.get('http://:8787/v1/availability', async () => {
           // Delay response
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 100));
           return HttpResponse.json(mockAvailabilityBlocks);
         })
       );

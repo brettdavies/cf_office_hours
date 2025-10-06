@@ -23,16 +23,16 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    set => ({
       user: null,
       session: null,
-      setUser: (user) => set({ user }),
-      setSession: (session) => set({ session }),
+      setUser: user => set({ user }),
+      setSession: session => set({ session }),
       clearAuth: () => set({ user: null, session: null }),
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ session: state.session }), // Only persist session
+      partialize: state => ({ session: state.session }), // Only persist session
     }
   )
 );

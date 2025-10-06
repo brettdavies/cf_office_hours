@@ -108,9 +108,9 @@ describe('UserService', () => {
     it('should throw AppError when update fails', async () => {
       mockUserRepo.updateProfile = vi.fn().mockResolvedValue(null);
 
-      await expect(
-        userService.updateMe('user-123', { name: 'Updated Name' })
-      ).rejects.toThrow(AppError);
+      await expect(userService.updateMe('user-123', { name: 'Updated Name' })).rejects.toThrow(
+        AppError
+      );
 
       try {
         await userService.updateMe('user-123', { name: 'Updated Name' });

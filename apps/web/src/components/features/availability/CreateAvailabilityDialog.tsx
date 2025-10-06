@@ -12,18 +12,31 @@ import { format } from 'date-fns';
 // Internal modules
 import { apiClient, ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 
 // Types
 import type { paths } from '@shared/types/api.generated';
 
-type CreateAvailabilityRequest =
-  NonNullable<paths['/v1/availability']['post']['requestBody']>['content']['application/json'];
+type CreateAvailabilityRequest = NonNullable<
+  paths['/v1/availability']['post']['requestBody']
+>['content']['application/json'];
 
 interface CreateAvailabilityDialogProps {
   onSuccess?: () => void;
@@ -95,13 +108,9 @@ export function CreateAvailabilityDialog({ onSuccess }: CreateAvailabilityDialog
 
     try {
       // Combine date + time into ISO datetime strings
-      const startDateTime = new Date(
-        `${format(date, 'yyyy-MM-dd')}T${startTime}:00`
-      ).toISOString();
+      const startDateTime = new Date(`${format(date, 'yyyy-MM-dd')}T${startTime}:00`).toISOString();
 
-      const endDateTime = new Date(
-        `${format(date, 'yyyy-MM-dd')}T${endTime}:00`
-      ).toISOString();
+      const endDateTime = new Date(`${format(date, 'yyyy-MM-dd')}T${endTime}:00`).toISOString();
 
       const requestData: CreateAvailabilityRequest = {
         start_time: startDateTime,
@@ -163,7 +172,7 @@ export function CreateAvailabilityDialog({ onSuccess }: CreateAvailabilityDialog
               mode="single"
               selected={date}
               onSelect={setDate}
-              disabled={(date) => {
+              disabled={date => {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 return date < today;
@@ -180,7 +189,7 @@ export function CreateAvailabilityDialog({ onSuccess }: CreateAvailabilityDialog
               id="start-time"
               type="time"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={e => setStartTime(e.target.value)}
               aria-describedby="start-time-help"
             />
             <p id="start-time-help" className="text-sm text-muted-foreground">
@@ -196,7 +205,7 @@ export function CreateAvailabilityDialog({ onSuccess }: CreateAvailabilityDialog
               id="end-time"
               type="time"
               value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
+              onChange={e => setEndTime(e.target.value)}
               aria-describedby="end-time-help"
             />
             <p id="end-time-help" className="text-sm text-muted-foreground">
@@ -219,15 +228,18 @@ export function CreateAvailabilityDialog({ onSuccess }: CreateAvailabilityDialog
                 <SelectItem value="60">60 minutes</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-sm text-muted-foreground">
-              Length of each individual meeting slot
-            </p>
+            <p className="text-sm text-muted-foreground">Length of each individual meeting slot</p>
             {errors.slotDuration && <p className="text-sm text-red-500">{errors.slotDuration}</p>}
           </div>
 
           {/* Actions */}
           <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="secondary" onClick={handleCancel} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCancel}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>

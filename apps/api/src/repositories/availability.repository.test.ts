@@ -9,7 +9,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Internal modules
 import { AvailabilityRepository } from './availability.repository';
-import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '../test/fixtures/availability';
+import {
+  createMockAvailabilityBlock,
+  createMockAvailabilityRequest,
+} from '../test/fixtures/availability';
 
 // Types
 import type { Env } from '../types/bindings';

@@ -6,7 +6,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 if (import.meta.env.DEV) {
   console.log('[Supabase] Initializing client:', {
     url: supabaseUrl,
-    hasAnonKey: !!supabaseAnonKey
+    hasAnonKey: !!supabaseAnonKey,
   });
 }
 
@@ -28,6 +28,6 @@ if (import.meta.env.DEV) {
   console.log('[Supabase] Client created successfully with config:', {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
   });
 }

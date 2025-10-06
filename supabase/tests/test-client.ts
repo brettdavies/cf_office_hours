@@ -28,9 +28,6 @@ export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON
 export async function cleanupTestData(tables: string[]) {
   for (const table of tables.reverse()) {
     // Reverse order to handle FK dependencies
-    await supabase.from(table).delete().neq(
-      "id",
-      "00000000-0000-0000-0000-000000000000",
-    );
+    await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
   }
 }

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const addToast = useNotificationStore((state) => state.addToast);
+  const addToast = useNotificationStore(state => state.addToast);
 
   const handleMagicLink = async () => {
     if (!email) {
@@ -27,7 +27,7 @@ export default function LoginPage() {
         console.log('[LoginPage] Sending magic link:', {
           email,
           redirectUrl,
-          origin: window.location.origin
+          origin: window.location.origin,
         });
       }
 
@@ -74,16 +74,14 @@ export default function LoginPage() {
     <div className="flex flex-col gap-6 max-w-md mx-auto">
       <div className="flex flex-col gap-2 text-center">
         <h1 className="text-2xl font-bold">Sign In</h1>
-        <p className="text-sm text-muted-foreground">
-          Enter your email to receive a magic link
-        </p>
+        <p className="text-sm text-muted-foreground">Enter your email to receive a magic link</p>
       </div>
       <div className="flex flex-col gap-4">
         <Input
           type="email"
           placeholder="Enter your email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={e => setEmail(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={loading}
         />

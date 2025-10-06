@@ -10,7 +10,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Internal modules
 import { AvailabilityService } from './availability.service';
 import { AppError } from '../lib/errors';
-import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '../test/fixtures/availability';
+import {
+  createMockAvailabilityBlock,
+  createMockAvailabilityRequest,
+} from '../test/fixtures/availability';
 
 // Types
 import type { Env } from '../types/bindings';
@@ -47,11 +50,7 @@ describe('AvailabilityService', () => {
 
       mockRepository.create.mockResolvedValue(mockBlock);
 
-      const result = await service.createAvailabilityBlock(
-        'mentor-uuid-123',
-        'mentor',
-        validData
-      );
+      const result = await service.createAvailabilityBlock('mentor-uuid-123', 'mentor', validData);
 
       expect(result).toEqual(mockBlock);
       expect(mockRepository.create).toHaveBeenCalledWith('mentor-uuid-123', validData);

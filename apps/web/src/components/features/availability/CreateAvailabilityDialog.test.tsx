@@ -241,9 +241,7 @@ describe('CreateAvailabilityDialog', () => {
   describe('loading states', () => {
     it('should disable buttons while submitting', async () => {
       // Mock a slow API call
-      vi.mocked(apiClient.createAvailability).mockReturnValueOnce(
-        new Promise(() => {})
-      );
+      vi.mocked(apiClient.createAvailability).mockReturnValueOnce(new Promise(() => {}));
 
       render(<CreateAvailabilityDialog />);
 
@@ -253,9 +251,7 @@ describe('CreateAvailabilityDialog', () => {
 
     it('should show "Creating..." text while submitting', async () => {
       // Mock a slow API call
-      vi.mocked(apiClient.createAvailability).mockReturnValueOnce(
-        new Promise(() => {})
-      );
+      vi.mocked(apiClient.createAvailability).mockReturnValueOnce(new Promise(() => {}));
 
       render(<CreateAvailabilityDialog />);
 

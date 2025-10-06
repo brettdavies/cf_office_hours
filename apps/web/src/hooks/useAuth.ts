@@ -23,7 +23,7 @@ export function useAuth() {
         console.log('[useAuth] getSession result:', {
           hasSession: !!session,
           error,
-          userId: session?.user?.id
+          userId: session?.user?.id,
         });
       }
 
@@ -53,7 +53,7 @@ export function useAuth() {
           event,
           hasSession: !!session,
           userId: session?.user?.id,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -88,7 +88,10 @@ export function useAuth() {
 
   const fetchUserProfile = async (accessToken: string) => {
     if (import.meta.env.DEV) {
-      console.log('[useAuth] Fetching user profile with token:', accessToken.substring(0, 20) + '...');
+      console.log(
+        '[useAuth] Fetching user profile with token:',
+        accessToken.substring(0, 20) + '...'
+      );
     }
 
     try {
@@ -102,7 +105,7 @@ export function useAuth() {
         console.log('[useAuth] getUser result:', {
           hasUser: !!authUser,
           error,
-          email: authUser?.email
+          email: authUser?.email,
         });
       }
 

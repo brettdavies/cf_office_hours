@@ -75,7 +75,7 @@ const getMeRoute = createRoute({
   },
 });
 
-userRoutes.openapi(getMeRoute, async (c) => {
+userRoutes.openapi(getMeRoute, async c => {
   const user = c.get('user');
   const userService = new UserService(c.env);
   const profile = await userService.getMe(user.id);
@@ -90,7 +90,7 @@ const updateMeRoute = createRoute({
   path: '/me',
   tags: ['Users'],
   summary: 'Update current user profile',
-  description: 'Updates the authenticated user\'s profile information',
+  description: "Updates the authenticated user's profile information",
   security: [{ Bearer: [] }],
   request: {
     body: {
@@ -141,7 +141,7 @@ const updateMeRoute = createRoute({
   },
 });
 
-userRoutes.openapi(updateMeRoute, async (c) => {
+userRoutes.openapi(updateMeRoute, async c => {
   const user = c.get('user');
   const body = c.req.valid('json');
   const userService = new UserService(c.env);
@@ -157,7 +157,7 @@ const getPublicProfileRoute = createRoute({
   path: '/{id}',
   tags: ['Users'],
   summary: 'Get public user profile',
-  description: 'Returns a user\'s public profile information by user ID',
+  description: "Returns a user's public profile information by user ID",
   security: [{ Bearer: [] }],
   request: {
     params: z.object({
@@ -204,7 +204,7 @@ const getPublicProfileRoute = createRoute({
   },
 });
 
-userRoutes.openapi(getPublicProfileRoute, async (c) => {
+userRoutes.openapi(getPublicProfileRoute, async c => {
   const { id } = c.req.valid('param');
   const userService = new UserService(c.env);
   const profile = await userService.getPublicProfile(id);

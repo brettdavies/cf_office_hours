@@ -53,9 +53,11 @@ describe('LoginPage', () => {
   });
 
   it('should show loading state while submitting', async () => {
-    const mockSignIn = vi.fn().mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve({ error: null }), 100))
-    );
+    const mockSignIn = vi
+      .fn()
+      .mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve({ error: null }), 100))
+      );
     vi.mocked(supabase.auth.signInWithOtp).mockImplementation(mockSignIn);
 
     render(<LoginPage />);

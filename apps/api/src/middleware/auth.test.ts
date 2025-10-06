@@ -27,15 +27,11 @@ describe('requireAuth middleware', () => {
     vi.clearAllMocks();
     app = new Hono<{ Bindings: Env; Variables: Variables }>();
     app.use('/protected', requireAuth);
-    app.get('/protected', (c) => c.json({ message: 'success', user: c.get('user') }));
+    app.get('/protected', c => c.json({ message: 'success', user: c.get('user') }));
   });
 
   it('should return 401 when Authorization header is missing', async () => {
-    const res = await app.request(
-      '/protected',
-      {},
-      { SUPABASE_URL: mockEnv.SUPABASE_URL } as Env
-    );
+    const res = await app.request('/protected', {}, { SUPABASE_URL: mockEnv.SUPABASE_URL } as Env);
     const data = await res.json();
 
     expect(res.status).toBe(401);
@@ -56,7 +52,7 @@ describe('requireAuth middleware', () => {
       },
       { SUPABASE_URL: mockEnv.SUPABASE_URL } as Env
     );
-    const data = await res.json() as { error: { code: string; message: string } };
+    const data = (await res.json()) as { error: { code: string; message: string } };
 
     expect(res.status).toBe(401);
     expect(data.error.code).toBe('UNAUTHORIZED');
@@ -82,7 +78,7 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json() as { error: { code: string; message: string } };
+    const data = (await res.json()) as { error: { code: string; message: string } };
 
     expect(res.status).toBe(401);
     expect(data.error.code).toBe('UNAUTHORIZED');
@@ -114,7 +110,10 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json() as { message: string; user: { id: string; email: string; role: string } };
+    const data = (await res.json()) as {
+      message: string;
+      user: { id: string; email: string; role: string };
+    };
 
     expect(res.status).toBe(200);
     expect(data.message).toBe('success');
@@ -150,7 +149,7 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json() as { user: { id: string; email: string; role: string } };
+    const data = (await res.json()) as { user: { id: string; email: string; role: string } };
 
     expect(res.status).toBe(200);
     expect(data.user.role).toBe('mentee');
@@ -168,7 +167,7 @@ describe('requireAuth middleware', () => {
       },
       mockEnv
     );
-    const data = await res.json() as { error: { code: string; message: string } };
+    const data = (await res.json()) as { error: { code: string; message: string } };
 
     expect(res.status).toBe(500);
     expect(data.error.code).toBe('INTERNAL_ERROR');

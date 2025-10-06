@@ -151,7 +151,7 @@ describe('useAuth', () => {
       error: null,
     });
 
-    vi.mocked(supabase.auth.onAuthStateChange).mockImplementation((callback) => {
+    vi.mocked(supabase.auth.onAuthStateChange).mockImplementation(callback => {
       authCallback = callback;
       return {
         data: {
