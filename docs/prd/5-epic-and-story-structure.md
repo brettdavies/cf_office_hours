@@ -2,7 +2,7 @@
 
 ## 5.1 Epic Overview
 
-The CF Office Hours platform uses a **Walking Skeleton approach** organized into **9 epics** with **89 total stories**. Epic 0 delivers a minimal end-to-end working product by Sprint 2, then subsequent epics iteratively add depth and sophistication.
+The CF Office Hours platform uses a **Walking Skeleton approach** organized into **9 epics** with **90 total stories**. Epic 0 delivers a minimal end-to-end working product by Sprint 2, then subsequent epics iteratively add depth and sophistication.
 
 **Key Strategy:**
 - ✅ **End-to-End by Week 4**: Epic 0 delivers complete booking flow (login → profile → availability → booking)
@@ -47,9 +47,9 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 19 (Stories 0-16 = local development, Stories 17-18 = deployment)
+**Estimated Stories:** 20 (Stories 0-16 = local development, Story 0.16.1 = pre-deployment testing & logging, Stories 17-18 = deployment)
 **Dependencies:** None (foundation)
-**Timeline:** Sprint 1-2 (Weeks 1-4)
+**Timeline:** Sprint 1-2 (Weeks 1-4) + 1 day for pre-deployment testing
 **Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
 
 **Deliverable:** By end of Sprint 2, users can (IN LOCAL ENVIRONMENT):
@@ -256,6 +256,18 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR15
     - **Note:** Advanced search, filters, recommendations added in Epic 6
 
+0.16.1. **SKEL-TEST-001: Manual Pre-Deployment Testing & Logging Enhancement**
+    - As a **developer**, I want to manually test all Epic 0 functionality, add comprehensive logging, and fix the magic link redirect bug
+    - **Acceptance Criteria:**
+      - Console logging added to all critical paths (auth, profile, availability, booking, API)
+      - Logging format standardized: `[CATEGORY] Action { context }`
+      - Manual test checklist created and executed (24 test cases covering all flows)
+      - Functionality gaps documented and classified (BLOCKER/IMPORTANT/MINOR)
+      - Magic link redirect bug fixed (user redirected to dashboard, NOT login page)
+      - All BLOCKER gaps fixed before deployment
+    - **Related:** Section 13, NFR37, NFR44
+    - **Note:** E2E test automation deferred to Epic 1 Story 27 (Walking Skeleton prioritizes working software over automation)
+
 17. **SKEL-DEPLOY-001: Cloudflare Workers Deployment**
     - As a **developer**, I want the API deployed to Cloudflare Workers
     - **Acceptance Criteria:**
@@ -374,16 +386,25 @@ Epic 8: Admin & Coordinator Tools
      - Queries automatically use soft-delete views
    - **Related:** FR101
 
-27. **INFRA-TEST-001: Testing Infrastructure**
-   - As a **developer**, I want testing tools configured for unit and integration tests
+27. **INFRA-TEST-001: Testing Infrastructure (Enhanced with E2E Automation)**
+   - As a **developer**, I want comprehensive automated testing infrastructure including E2E tests
    - **Acceptance Criteria:**
-     - Vitest configured for unit tests
-     - Database schema tests in `supabase/tests/` (see [supabase/tests/README.md](../../supabase/tests/README.md))
-     - Supabase test database for integration tests
-     - Playwright configured for E2E tests
-     - CI pipeline runs tests on PR
-     - Test coverage for critical paths (booking flow, auth, database schema)
-   - **Related:** Section 4.7, NFR33, Architecture Section 13.3.5
+     - Vitest configured for unit tests ✅ (already done in Epic 0)
+     - Database schema tests in `supabase/tests/` ✅ (already done, see [supabase/tests/README.md](../../supabase/tests/README.md))
+     - Supabase test database for integration tests ✅ (already done)
+     - **NEW:** Playwright E2E test suite implementation:
+       - 10-15 E2E tests covering critical user journeys (login, profile, availability, booking, dashboard)
+       - Page Object Model pattern for maintainability
+       - Test data seeding/cleanup helpers
+       - Screenshots on failure, parallel execution configured
+     - **NEW:** Chrome DevTools MCP integration (optional, for debugging):
+       - Performance tracing for Core Web Vitals
+       - Console log verification
+       - Network request inspection
+     - CI pipeline runs all test suites on PR (unit, integration, E2E)
+     - Test coverage report published (target: 80% overall)
+   - **Related:** Section 4.7, Section 13.4, Section 13.5, NFR33, Story 0.16.1
+   - **Note:** E2E automation deferred from Epic 0 Story 0.16.1 per Walking Skeleton philosophy (prioritize working software over automation)
    - **Note:** Database schema tests use Hybrid Approach (Option 3) - update tests directly when migrations change, no version-specific test files
 
 ---

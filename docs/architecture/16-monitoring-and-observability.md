@@ -2,7 +2,249 @@
 
 This section defines the monitoring and observability strategy for the CF Office Hours platform. The MVP uses minimal built-in tools with stubbed telemetry interfaces for future expansion.
 
-## 16.1 Observability Philosophy
+## 16.1 Epic 0 Console Logging (Temporary)
+
+**Purpose:** Provide basic debugging capability before full observability stack in post-MVP.
+
+**Scope:** Epic 0 only (Story 0.16.1 - Manual Pre-Deployment Testing & Logging Enhancement)
+
+**Replacement Plan:** This pattern will be replaced by structured logging (e.g., Winston, Pino) in Epic 1's monitoring infrastructure.
+
+---
+
+### 16.1.1 Logging Pattern
+
+**Standard Format:**
+```typescript
+console.log('[CATEGORY] Action description', { contextKey: value, ... });
+```
+
+**Categories:**
+- `[AUTH]` - Authentication flow (magic link, session, logout)
+- `[PROFILE]` - User profile operations (view, edit, save)
+- `[AVAILABILITY]` - Mentor availability creation/management
+- `[BOOKING]` - Booking flow (slot selection, form submission, confirmation)
+- `[API]` - API request/response logging (all endpoints)
+- `[ERROR]` - Error conditions and exception handling
+
+**Context Fields (always include):**
+- `timestamp`: `Date.now()` or `new Date().toISOString()`
+- `userId`: User ID (if authenticated)
+- **Action-specific fields:** `slotId`, `bookingId`, `mentorId`, `menteeId`, `email`, etc.
+
+---
+
+### 16.1.2 Logging Examples
+
+**Authentication Flow:**
+```typescript
+// Magic link send
+console.log('[AUTH] Magic link sent', {
+  email: user.email,
+  redirectUrl,
+  timestamp: Date.now(),
+});
+
+// Session established
+console.log('[AUTH] Session established', {
+  userId: session.user.id,
+  timestamp: new Date().toISOString(),
+});
+
+// User profile fetch
+console.log('[AUTH] Fetching user profile', {
+  userId: session.user.id,
+  accessToken: token.substring(0, 20) + '...',
+});
+
+// Logout
+console.log('[AUTH] Signing out', {
+  userId: user.id,
+  timestamp: Date.now(),
+});
+```
+
+**Booking Flow:**
+```typescript
+// Slot selection
+console.log('[BOOKING] Slot selected', {
+  slotId,
+  menteeId,
+  mentorId,
+  available: !slot.is_booked,
+  timestamp: Date.now(),
+});
+
+// Booking form submission
+console.log('[BOOKING] Creating booking', {
+  slotId,
+  menteeId,
+  mentorId,
+  meetingGoalLength: meetingGoal.length,
+  timestamp: Date.now(),
+});
+
+// Booking created
+console.log('[BOOKING] Booking created successfully', {
+  bookingId,
+  slotId,
+  menteeId,
+  mentorId,
+  status: booking.status,
+  timestamp: Date.now(),
+});
+```
+
+**Availability Flow:**
+```typescript
+// Availability block creation
+console.log('[AVAILABILITY] Creating availability block', {
+  mentorId,
+  date,
+  startTime,
+  endTime,
+  slotDuration,
+  location,
+  timestamp: Date.now(),
+});
+
+// Slot generation
+console.log('[AVAILABILITY] Slots generated', {
+  availabilityBlockId,
+  slotCount: slots.length,
+  timestamp: Date.now(),
+});
+```
+
+**API Layer (Middleware):**
+```typescript
+// API request (middleware)
+console.log('[API] Request received', {
+  method: req.method,
+  endpoint: req.path,
+  userId: req.user?.id || 'anonymous',
+  timestamp: Date.now(),
+});
+
+// API response (middleware)
+console.log('[API] Response sent', {
+  method: req.method,
+  endpoint: req.path,
+  statusCode: res.status,
+  userId: req.user?.id || 'anonymous',
+  duration: Date.now() - startTime,
+  timestamp: Date.now(),
+});
+```
+
+**Error Logging:**
+```typescript
+// General errors
+console.error('[ERROR] Booking creation failed', {
+  error: err.message,
+  userId,
+  slotId,
+  timestamp: Date.now(),
+});
+
+// API errors
+console.error('[API] Request failed', {
+  method: req.method,
+  endpoint: req.path,
+  statusCode: 500,
+  error: err.message,
+  userId: req.user?.id,
+  timestamp: Date.now(),
+});
+```
+
+---
+
+### 16.1.3 Development Mode Only
+
+**Wrap logs in DEV mode check:**
+```typescript
+if (import.meta.env.DEV) {
+  console.log('[BOOKING] Slot selected', { slotId, menteeId });
+}
+```
+
+**Why:** Avoid production console spam. Epic 1+ adds structured logging with configurable log levels.
+
+---
+
+### 16.1.4 API Request Logging Middleware
+
+**Implementation:**
+```typescript
+// apps/api/src/middleware/logging.ts
+
+import type { Context, Next } from 'hono';
+
+export async function loggingMiddleware(c: Context, next: Next) {
+  const startTime = Date.now();
+  const method = c.req.method;
+  const path = c.req.path;
+  const userId = c.get('user')?.id || 'anonymous';
+
+  // Log request
+  console.log('[API] Request received', {
+    method,
+    endpoint: path,
+    userId,
+    timestamp: startTime,
+  });
+
+  // Execute request
+  await next();
+
+  // Log response
+  const duration = Date.now() - startTime;
+  const statusCode = c.res.status;
+
+  console.log('[API] Response sent', {
+    method,
+    endpoint: path,
+    statusCode,
+    userId,
+    duration,
+    timestamp: Date.now(),
+  });
+}
+```
+
+**Wire into app:**
+```typescript
+// apps/api/src/index.ts
+
+import { loggingMiddleware } from './middleware/logging';
+
+app.use('*', loggingMiddleware);
+app.use('*', requireAuth); // After logging, before auth
+// ... routes
+```
+
+---
+
+### 16.1.5 Limitations & Future Improvements
+
+**Current Limitations:**
+- ❌ No log aggregation (logs scattered across browser console, API console)
+- ❌ No log retention (console logs ephemeral)
+- ❌ No structured query capabilities
+- ❌ No alerting based on log patterns
+- ❌ No correlation IDs for request tracing
+
+**Epic 1+ Improvements:**
+- ✅ Structured logging library (Winston, Pino)
+- ✅ Log levels (DEBUG, INFO, WARN, ERROR)
+- ✅ Log aggregation (Cloudflare Logs, Supabase Logs)
+- ✅ Correlation IDs for distributed tracing
+- ✅ Log-based alerting (error rate spikes)
+
+---
+
+## 16.2 Observability Philosophy
 
 **Core Principles:**
 - **MVP-First** - Use free, built-in tools for initial monitoring
@@ -26,9 +268,9 @@ This section defines the monitoring and observability strategy for the CF Office
 
 ---
 
-## 16.2 Health Checks
+## 16.3 Health Checks
 
-### 16.2.1 API Health Endpoint
+### 16.3.1 API Health Endpoint
 
 ```typescript
 // src/routes/health.ts

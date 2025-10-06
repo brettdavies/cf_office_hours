@@ -767,6 +767,12 @@ When creating a new migration, update the existing test files:
 
 ## 13.4 End-to-End Testing (Playwright)
 
+**Epic 0 Note:** E2E test suite implementation is planned for Epic 1 (Story INFRA-TEST-001 - Testing Infrastructure Enhanced). Epic 0 uses manual testing with documented checklists (Story 0.16.1) per Walking Skeleton philosophy, which prioritizes working software over comprehensive automation.
+
+**Post-Epic 1:** The following Playwright configuration and test patterns apply once E2E automation is implemented.
+
+---
+
 **Playwright Configuration:**
 
 ```typescript
