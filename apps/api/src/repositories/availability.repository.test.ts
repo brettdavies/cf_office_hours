@@ -9,10 +9,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Internal modules
 import { AvailabilityRepository } from './availability.repository';
+import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '../test/fixtures/availability';
 
 // Types
 import type { Env } from '../types/bindings';
-import type { AvailabilityBlockResponse } from '@cf-office-hours/shared';
 
 // Mock Supabase client
 const mockSupabase = {
@@ -39,25 +39,7 @@ describe('AvailabilityRepository', () => {
   describe('create', () => {
     it('should create availability block with valid data', async () => {
       const mentorId = 'mentor-uuid-123';
-      const mockBlock: AvailabilityBlockResponse = {
-        id: 'block-uuid-456',
-        mentor_id: mentorId,
-        recurrence_pattern: 'one_time',
-        start_date: null,
-        end_date: null,
-        start_time: '2025-10-10T14:00:00Z',
-        end_time: '2025-10-10T16:00:00Z',
-        slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
-        location_preset_id: null,
-        location_custom: null,
-        description: 'Test block',
-        created_at: '2025-10-05T12:00:00Z',
-        updated_at: '2025-10-05T12:00:00Z',
-        created_by: mentorId,
-        updated_by: mentorId,
-      };
+      const mockBlock = createMockAvailabilityBlock();
 
       mockSupabase.from.mockReturnValue({
         insert: vi.fn().mockReturnValue({
@@ -70,14 +52,7 @@ describe('AvailabilityRepository', () => {
         }),
       });
 
-      const result = await repository.create(mentorId, {
-        start_time: '2025-10-10T14:00:00Z',
-        end_time: '2025-10-10T16:00:00Z',
-        slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
-        description: 'Test block',
-      });
+      const result = await repository.create(mentorId, createMockAvailabilityRequest());
 
       expect(result).toEqual(mockBlock);
       expect(mockSupabase.from).toHaveBeenCalledWith('availability_blocks');
@@ -96,13 +71,7 @@ describe('AvailabilityRepository', () => {
       });
 
       await expect(
-        repository.create('mentor-uuid-123', {
-          start_time: '2025-10-10T14:00:00Z',
-          end_time: '2025-10-10T16:00:00Z',
-          slot_duration_minutes: 30,
-          buffer_minutes: 0,
-          meeting_type: 'online',
-        })
+        repository.create('mentor-uuid-123', createMockAvailabilityRequest())
       ).rejects.toThrow('Database error');
     });
 
@@ -123,13 +92,7 @@ describe('AvailabilityRepository', () => {
         insert: insertMock,
       });
 
-      await repository.create('mentor-uuid-123', {
-        start_time: '2025-10-10T14:00:00Z',
-        end_time: '2025-10-10T16:00:00Z',
-        slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
-      });
+      await repository.create('mentor-uuid-123', createMockAvailabilityRequest());
 
       expect(insertMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -142,27 +105,7 @@ describe('AvailabilityRepository', () => {
   describe('findByMentor', () => {
     it('should return mentor availability blocks', async () => {
       const mentorId = 'mentor-uuid-123';
-      const mockBlocks: AvailabilityBlockResponse[] = [
-        {
-          id: 'block-1',
-          mentor_id: mentorId,
-          recurrence_pattern: 'one_time',
-          start_date: null,
-          end_date: null,
-          start_time: '2025-10-10T14:00:00Z',
-          end_time: '2025-10-10T16:00:00Z',
-          slot_duration_minutes: 30,
-          buffer_minutes: 0,
-          meeting_type: 'online',
-          location_preset_id: null,
-          location_custom: null,
-          description: null,
-          created_at: '2025-10-05T12:00:00Z',
-          updated_at: '2025-10-05T12:00:00Z',
-          created_by: mentorId,
-          updated_by: mentorId,
-        },
-      ];
+      const mockBlocks = [createMockAvailabilityBlock({ id: 'block-1', description: null })];
 
       mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
@@ -224,25 +167,7 @@ describe('AvailabilityRepository', () => {
 
   describe('findById', () => {
     it('should return availability block by ID', async () => {
-      const mockBlock: AvailabilityBlockResponse = {
-        id: 'block-uuid-456',
-        mentor_id: 'mentor-uuid-123',
-        recurrence_pattern: 'one_time',
-        start_date: null,
-        end_date: null,
-        start_time: '2025-10-10T14:00:00Z',
-        end_time: '2025-10-10T16:00:00Z',
-        slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
-        location_preset_id: null,
-        location_custom: null,
-        description: null,
-        created_at: '2025-10-05T12:00:00Z',
-        updated_at: '2025-10-05T12:00:00Z',
-        created_by: 'mentor-uuid-123',
-        updated_by: 'mentor-uuid-123',
-      };
+      const mockBlock = createMockAvailabilityBlock({ description: null });
 
       mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnValue({

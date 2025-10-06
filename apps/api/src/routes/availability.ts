@@ -2,6 +2,7 @@
  * Availability API Routes
  *
  * Endpoints:
+ * - GET / - Get availability blocks for authenticated mentor
  * - POST / - Create availability block (one-time only, mentor-only)
  */
 
@@ -36,6 +37,75 @@ const ErrorResponseSchema = z.object({
     timestamp: z.string(),
     details: z.record(z.unknown()).optional(),
   }),
+});
+
+/**
+ * GET / - Get availability blocks for authenticated mentor
+ */
+const getAvailabilityBlocksRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Availability'],
+  summary: 'Get availability blocks for authenticated mentor',
+  description: 'Returns all availability blocks for the authenticated mentor. Only mentors can access this endpoint.',
+  security: [{ Bearer: [] }],
+  responses: {
+    200: {
+      description: 'List of availability blocks',
+      content: {
+        'application/json': {
+          schema: z.array(AvailabilityBlockResponseSchema),
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized - Missing or invalid token',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: 'Forbidden - User is not a mentor',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: 'Internal Server Error - Failed to fetch availability blocks',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+availabilityRoutes.openapi(getAvailabilityBlocksRoute, async (c) => {
+  const user = c.get('user');
+  const availabilityService = new AvailabilityService(c.env);
+
+  // Verify user is a mentor
+  if (user.role !== 'mentor') {
+    return c.json(
+      {
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only mentors can access this endpoint',
+          timestamp: new Date().toISOString(),
+        },
+      },
+      403
+    );
+  }
+
+  const blocks = await availabilityService.getAvailabilityBlocksByMentor(user.id);
+
+  return c.json(blocks, 200);
 });
 
 /**

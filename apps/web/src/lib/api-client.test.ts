@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Internal modules
 import { apiClient, ApiError } from './api-client';
+import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '@/test/fixtures/availability';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -294,6 +295,186 @@ describe('apiClient', () => {
         name: 'Updated',
       });
       expect(result).toHaveProperty('id');
+    });
+  });
+
+  describe('getMyAvailability', () => {
+    it('should fetch availability with correct endpoint and headers', async () => {
+      const mockAvailability = [createMockAvailabilityBlock()];
+
+      localStorageMock.setItem('auth_token', 'test-token-123');
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAvailability,
+      });
+
+      const result = await apiClient.getMyAvailability();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/v1/availability'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-token-123',
+          }),
+        })
+      );
+      expect(result).toEqual(mockAvailability);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toHaveProperty('meeting_type', 'online');
+      expect(result[0]).toHaveProperty('recurrence_pattern', 'one_time');
+    });
+
+    it('should handle 401 unauthorized error', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Missing or invalid token',
+            timestamp: '2025-10-05T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.getMyAvailability();
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(401);
+        expect((error as ApiError).code).toBe('UNAUTHORIZED');
+      }
+    });
+
+    it('should handle 403 forbidden error for non-mentors', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only mentors can access this endpoint',
+            timestamp: '2025-10-05T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.getMyAvailability();
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(403);
+        expect((error as ApiError).code).toBe('FORBIDDEN');
+      }
+    });
+  });
+
+  describe('createAvailability', () => {
+    it('should send POST request with correctly formatted request body', async () => {
+      const requestData = createMockAvailabilityRequest();
+      const mockResponse = createMockAvailabilityBlock({ description: '' });
+
+      localStorageMock.setItem('auth_token', 'test-token-123');
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const result = await apiClient.createAvailability(requestData);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/v1/availability'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify(requestData),
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-token-123',
+          }),
+        })
+      );
+      expect(result).toEqual(mockResponse);
+      expect(result.meeting_type).toBe('online');
+    });
+
+    it('should handle 400 validation error', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid request data',
+            timestamp: '2025-10-05T00:00:00Z',
+            details: {
+              end_time: ['End time must be after start time'],
+            },
+          },
+        }),
+      });
+
+      try {
+        await apiClient.createAvailability(
+          createMockAvailabilityRequest({
+            start_time: '2025-10-15T17:00:00Z',
+            end_time: '2025-10-15T09:00:00Z',
+          })
+        );
+        expect.fail('Should have thrown ApiError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(400);
+        expect((error as ApiError).code).toBe('VALIDATION_ERROR');
+        expect((error as ApiError).details).toHaveProperty('end_time');
+      }
+    });
+
+    it('should handle 401/403 errors', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only mentors can create availability',
+            timestamp: '2025-10-05T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.createAvailability(createMockAvailabilityRequest());
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(403);
+      }
+    });
+
+    it('should handle 500 server error', async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to create availability',
+            timestamp: '2025-10-05T00:00:00Z',
+          },
+        }),
+      });
+
+      try {
+        await apiClient.createAvailability(createMockAvailabilityRequest());
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(500);
+        expect((error as ApiError).code).toBe('INTERNAL_SERVER_ERROR');
+      }
     });
   });
 

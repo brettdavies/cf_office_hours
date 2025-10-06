@@ -24,7 +24,7 @@ export interface CreateAvailabilityBlockData {
   start_time: string;
   end_time: string;
   slot_duration_minutes: number;
-  buffer_minutes: number;
+  buffer_minutes?: number; // Optional - defaults to 0 if not provided
   meeting_type: 'online';
   description?: string;
 }

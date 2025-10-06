@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Internal modules
 import app from '../index';
 import { AvailabilityService } from '../services/availability.service';
+import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '../test/fixtures/availability';
 
 // Types
 import type { AvailabilityBlockResponse } from '@cf-office-hours/shared';
@@ -31,41 +32,15 @@ vi.mock('../middleware/auth', () => ({
 }));
 
 describe('Availability API Routes', () => {
-  const mockBlock: AvailabilityBlockResponse = {
-    id: 'block-uuid-456',
-    mentor_id: 'test-mentor-123',
-    recurrence_pattern: 'one_time',
-    start_date: null,
-    end_date: null,
-    start_time: '2025-10-10T14:00:00Z',
-    end_time: '2025-10-10T16:00:00Z',
-    slot_duration_minutes: 30,
-    buffer_minutes: 0,
-    meeting_type: 'online',
-    location_preset_id: null,
-    location_custom: null,
-    description: 'Test block',
-    created_at: '2025-10-05T12:00:00Z',
-    updated_at: '2025-10-05T12:00:00Z',
-    created_by: 'test-mentor-123',
-    updated_by: 'test-mentor-123',
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('POST /v1/availability', () => {
-    const validRequest = {
-      start_time: '2025-10-10T14:00:00Z',
-      end_time: '2025-10-10T16:00:00Z',
-      slot_duration_minutes: 30,
-      buffer_minutes: 0,
-      meeting_type: 'online',
-      description: 'Test block',
-    };
+    const validRequest = createMockAvailabilityRequest();
 
     it('should create availability block with valid JWT (mentor role)', async () => {
+      const mockBlock = createMockAvailabilityBlock({ mentor_id: 'test-mentor-123', created_by: 'test-mentor-123', updated_by: 'test-mentor-123' });
       vi.spyOn(AvailabilityService.prototype, 'createAvailabilityBlock').mockResolvedValue(
         mockBlock
       );
@@ -207,6 +182,7 @@ describe('Availability API Routes', () => {
     });
 
     it('should accept buffer_minutes within valid range', async () => {
+      const mockBlock = createMockAvailabilityBlock({ mentor_id: 'test-mentor-123' });
       vi.spyOn(AvailabilityService.prototype, 'createAvailabilityBlock').mockResolvedValue(
         mockBlock
       );

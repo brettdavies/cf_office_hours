@@ -32,6 +32,13 @@ type UpdateUserMeRequest =
 type UpdateUserMeResponse =
   ApiPaths['/v1/users/me']['put']['responses']['200']['content']['application/json'];
 
+type GetAvailabilityResponse =
+  ApiPaths['/v1/availability']['get']['responses']['200']['content']['application/json'];
+type CreateAvailabilityRequest =
+  NonNullable<ApiPaths['/v1/availability']['post']['requestBody']>['content']['application/json'];
+type CreateAvailabilityResponse =
+  ApiPaths['/v1/availability']['post']['responses']['201']['content']['application/json'];
+
 /**
  * Custom error class for API errors.
  *
@@ -118,6 +125,30 @@ export const apiClient = {
   updateCurrentUser: (data: UpdateUserMeRequest): Promise<UpdateUserMeResponse> => {
     return fetchApi<UpdateUserMeResponse>('/v1/users/me', {
       method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Get availability blocks for current authenticated mentor.
+   *
+   * @returns Array of availability blocks with slot counts
+   * @throws {ApiError} 401 if not authenticated, 403 if not a mentor
+   */
+  getMyAvailability: (): Promise<GetAvailabilityResponse> => {
+    return fetchApi<GetAvailabilityResponse>('/v1/availability');
+  },
+
+  /**
+   * Create new availability block and generate time slots.
+   *
+   * @param data - Availability block data (date, times, duration, location)
+   * @returns Created availability block with total_slots count
+   * @throws {ApiError} 400 if validation fails, 401 if not authenticated, 403 if not a mentor, 500 if creation fails
+   */
+  createAvailability: (data: CreateAvailabilityRequest): Promise<CreateAvailabilityResponse> => {
+    return fetchApi<CreateAvailabilityResponse>('/v1/availability', {
+      method: 'POST',
       body: JSON.stringify(data),
     });
   },

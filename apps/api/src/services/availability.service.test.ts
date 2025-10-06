@@ -10,10 +10,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Internal modules
 import { AvailabilityService } from './availability.service';
 import { AppError } from '../lib/errors';
+import { createMockAvailabilityBlock, createMockAvailabilityRequest } from '../test/fixtures/availability';
 
 // Types
 import type { Env } from '../types/bindings';
-import type { AvailabilityBlockResponse } from '@cf-office-hours/shared';
 
 // Mock repository
 const mockRepository = {
@@ -40,35 +40,10 @@ describe('AvailabilityService', () => {
   });
 
   describe('createAvailabilityBlock', () => {
-    const validData = {
-      start_time: '2025-10-10T14:00:00Z',
-      end_time: '2025-10-10T16:00:00Z',
-      slot_duration_minutes: 30,
-      buffer_minutes: 0,
-      meeting_type: 'online' as const,
-      description: 'Test block',
-    };
+    const validData = createMockAvailabilityRequest();
 
     it('should create availability block for mentor', async () => {
-      const mockBlock: AvailabilityBlockResponse = {
-        id: 'block-uuid-456',
-        mentor_id: 'mentor-uuid-123',
-        recurrence_pattern: 'one_time',
-        start_date: null,
-        end_date: null,
-        start_time: '2025-10-10T14:00:00Z',
-        end_time: '2025-10-10T16:00:00Z',
-        slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
-        location_preset_id: null,
-        location_custom: null,
-        description: 'Test block',
-        created_at: '2025-10-05T12:00:00Z',
-        updated_at: '2025-10-05T12:00:00Z',
-        created_by: 'mentor-uuid-123',
-        updated_by: 'mentor-uuid-123',
-      };
+      const mockBlock = createMockAvailabilityBlock();
 
       mockRepository.create.mockResolvedValue(mockBlock);
 
@@ -136,25 +111,13 @@ describe('AvailabilityService', () => {
     });
 
     it('should allow coordinators to create availability blocks', async () => {
-      const mockBlock: AvailabilityBlockResponse = {
+      const mockBlock = createMockAvailabilityBlock({
         id: 'block-uuid-789',
         mentor_id: 'coordinator-uuid-456',
-        recurrence_pattern: 'one_time',
-        start_date: null,
-        end_date: null,
-        start_time: '2025-10-10T14:00:00Z',
-        end_time: '2025-10-10T16:00:00Z',
-        slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
-        location_preset_id: null,
-        location_custom: null,
         description: 'Coordinator block',
-        created_at: '2025-10-05T12:00:00Z',
-        updated_at: '2025-10-05T12:00:00Z',
         created_by: 'coordinator-uuid-456',
         updated_by: 'coordinator-uuid-456',
-      };
+      });
 
       mockRepository.create.mockResolvedValue(mockBlock);
 
@@ -167,27 +130,7 @@ describe('AvailabilityService', () => {
 
   describe('getAvailabilityBlocksByMentor', () => {
     it('should return availability blocks for mentor', async () => {
-      const mockBlocks: AvailabilityBlockResponse[] = [
-        {
-          id: 'block-1',
-          mentor_id: 'mentor-uuid-123',
-          recurrence_pattern: 'one_time',
-          start_date: null,
-          end_date: null,
-          start_time: '2025-10-10T14:00:00Z',
-          end_time: '2025-10-10T16:00:00Z',
-          slot_duration_minutes: 30,
-          buffer_minutes: 0,
-          meeting_type: 'online',
-          location_preset_id: null,
-          location_custom: null,
-          description: null,
-          created_at: '2025-10-05T12:00:00Z',
-          updated_at: '2025-10-05T12:00:00Z',
-          created_by: 'mentor-uuid-123',
-          updated_by: 'mentor-uuid-123',
-        },
-      ];
+      const mockBlocks = [createMockAvailabilityBlock({ id: 'block-1', description: null })];
 
       mockRepository.findByMentor.mockResolvedValue(mockBlocks);
 
@@ -208,25 +151,7 @@ describe('AvailabilityService', () => {
 
   describe('getAvailabilityBlockById', () => {
     it('should return availability block by ID', async () => {
-      const mockBlock: AvailabilityBlockResponse = {
-        id: 'block-uuid-456',
-        mentor_id: 'mentor-uuid-123',
-        recurrence_pattern: 'one_time',
-        start_date: null,
-        end_date: null,
-        start_time: '2025-10-10T14:00:00Z',
-        end_time: '2025-10-10T16:00:00Z',
-        slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
-        location_preset_id: null,
-        location_custom: null,
-        description: null,
-        created_at: '2025-10-05T12:00:00Z',
-        updated_at: '2025-10-05T12:00:00Z',
-        created_by: 'mentor-uuid-123',
-        updated_by: 'mentor-uuid-123',
-      };
+      const mockBlock = createMockAvailabilityBlock({ description: null });
 
       mockRepository.findById.mockResolvedValue(mockBlock);
 

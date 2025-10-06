@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ProfilePage from './ProfilePage';
 import { apiClient } from '@/lib/api-client';
+import { createMockUserProfile } from '@/test/fixtures/user';
 
 // Mock dependencies
 vi.mock('@/lib/api-client', () => ({
@@ -28,25 +29,6 @@ vi.mock('@/hooks/use-toast', () => ({
   }),
 }));
 
-const mockUserProfile = {
-  id: 'user-123',
-  airtable_record_id: 'rec123',
-  email: 'test@example.com',
-  role: 'mentee' as const,
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
-  profile: {
-    id: 'profile-123',
-    user_id: 'user-123',
-    name: 'Test User',
-    title: 'Software Engineer',
-    company: 'Test Corp',
-    bio: 'This is a test bio',
-    created_at: '2025-01-01T00:00:00Z',
-    updated_at: '2025-01-01T00:00:00Z',
-  },
-};
-
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,6 +45,7 @@ describe('ProfilePage', () => {
   });
 
   it('should render profile data in view mode', async () => {
+    const mockUserProfile = createMockUserProfile();
     vi.mocked(apiClient.getCurrentUser).mockResolvedValue(mockUserProfile);
 
     render(<ProfilePage />);
@@ -81,6 +64,7 @@ describe('ProfilePage', () => {
 
   it('should toggle to edit mode when edit button clicked', async () => {
     const user = userEvent.setup();
+    const mockUserProfile = createMockUserProfile();
     vi.mocked(apiClient.getCurrentUser).mockResolvedValue(mockUserProfile);
 
     render(<ProfilePage />);
@@ -100,6 +84,7 @@ describe('ProfilePage', () => {
 
   it('should update form fields in edit mode', async () => {
     const user = userEvent.setup();
+    const mockUserProfile = createMockUserProfile();
     vi.mocked(apiClient.getCurrentUser).mockResolvedValue(mockUserProfile);
 
     render(<ProfilePage />);
@@ -125,6 +110,7 @@ describe('ProfilePage', () => {
 
   it('should call API on save button click', async () => {
     const user = userEvent.setup();
+    const mockUserProfile = createMockUserProfile();
     vi.mocked(apiClient.getCurrentUser).mockResolvedValue(mockUserProfile);
     vi.mocked(apiClient.updateCurrentUser).mockResolvedValue({
       ...mockUserProfile,
@@ -166,6 +152,7 @@ describe('ProfilePage', () => {
 
   it('should cancel edit mode without saving changes', async () => {
     const user = userEvent.setup();
+    const mockUserProfile = createMockUserProfile();
     vi.mocked(apiClient.getCurrentUser).mockResolvedValue(mockUserProfile);
 
     render(<ProfilePage />);
@@ -205,6 +192,7 @@ describe('ProfilePage', () => {
 
   it('should disable save button when name is empty', async () => {
     const user = userEvent.setup();
+    const mockUserProfile = createMockUserProfile();
     vi.mocked(apiClient.getCurrentUser).mockResolvedValue(mockUserProfile);
 
     render(<ProfilePage />);
@@ -224,6 +212,7 @@ describe('ProfilePage', () => {
 
   it('should render email and role as disabled fields in edit mode', async () => {
     const user = userEvent.setup();
+    const mockUserProfile = createMockUserProfile();
     vi.mocked(apiClient.getCurrentUser).mockResolvedValue(mockUserProfile);
 
     render(<ProfilePage />);
