@@ -7,6 +7,7 @@ import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
 const CallbackPage = lazy(() => import('@/pages/auth/CallbackPage'));
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
+const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
 
 export const router = createBrowserRouter([
   {
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: <DashboardPage />,
+      },
+      {
+        path: 'profile',
+        element: <ProfilePage />,
       },
     ],
   },

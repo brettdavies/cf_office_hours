@@ -1,5 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 export default function DashboardPage() {
   const { user, signOut } = useAuth();
@@ -17,6 +18,9 @@ export default function DashboardPage() {
               <h1 className="text-xl font-bold">CF Office Hours</h1>
             </div>
             <div className="flex items-center gap-4">
+              <Link to="/profile">
+                <Button variant="ghost">Profile</Button>
+              </Link>
               <span className="text-sm text-gray-700">{user?.email}</span>
               <Button variant="outline" onClick={handleSignOut}>
                 Sign Out
