@@ -1,13 +1,13 @@
 # 5. API Specification
 
 ---
-> **⚠️ Type System Migration (Story 0.7.1)**
+> **⚠️ Type System Migration (Story 0.6.1)**
 > This document has been updated to reflect the new automated type generation system.
 > Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
 > - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
 > - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
 >
-> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+> See [Story 0.6.1](../stories/0.6.1.story.md) for complete migration details.
 ---
 
 Based on the chosen API style (REST with OpenAPI 3.1), the API contract is defined using **Hono + Zod + @hono/zod-openapi**. This approach generates TypeScript types and OpenAPI documentation from a single source of truth.
@@ -514,7 +514,7 @@ interface ApiError {
 
 ## 5.6 OpenAPI Type Generation
 
-**IMPORTANT (Story 0.7.1)**: This is the **mandatory pattern** for all frontend API type usage.
+**IMPORTANT (Story 0.6.1)**: This is the **mandatory pattern** for all frontend API type usage.
 Do NOT create manual interfaces - always use types generated from OpenAPI spec.
 
 **Frontend Type Generation:**

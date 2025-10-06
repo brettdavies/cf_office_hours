@@ -1,13 +1,13 @@
 # 10. Development Workflow
 
 ---
-> **⚠️ Type System Migration (Story 0.7.1)**
+> **⚠️ Type System Migration (Story 0.6.1)**
 > This document has been updated to reflect the new automated type generation system.
 > Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
 > - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
 > - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
 >
-> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+> See [Story 0.6.1](../stories/0.6.1.story.md) for complete migration details.
 ---
 
 This section covers the complete development workflow, from initial setup through code review and collaboration practices. It provides practical guidance for developers working on the CF Office Hours platform.
@@ -371,7 +371,7 @@ npx supabase start
 npx supabase stop
 ```
 
-**Type Generation Workflow (Story 0.7.1):**
+**Type Generation Workflow (Story 0.6.1):**
 
 After modifying any Zod schema in `packages/shared/src/schemas/`:
 

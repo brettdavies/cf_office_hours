@@ -1,13 +1,13 @@
 # 8. Backend Architecture
 
 ---
-> **⚠️ Type System Migration (Story 0.7.1)**
+> **⚠️ Type System Migration (Story 0.6.1)**
 > This document has been updated to reflect the new automated type generation system.
 > Manual TypeScript interfaces for data models (`IUser`, `IBooking`, etc.) are deprecated.
 > - **Backend**: Use `z.infer<typeof Schema>` from Zod schemas
 > - **Frontend**: Use types from `packages/shared/src/types/api.generated.ts`
 >
-> See [Story 0.7.1](../stories/0.7.1.story.md) for complete migration details.
+> See [Story 0.6.1](../stories/0.6.1.story.md) for complete migration details.
 ---
 
 This section defines the backend architecture for the Cloudflare Workers API, including application structure, Hono framework patterns, service layer design, repository pattern for data access, middleware implementation, and backend-specific concerns. The backend is built with **Hono 4.x**, **TypeScript 5.7.x**, and runs on **Cloudflare Workers** with edge deployment.
