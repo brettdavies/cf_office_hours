@@ -72,12 +72,61 @@ export const requireAuth = async (
       );
     }
 
-    // Inject user into context
+    // Check if user is whitelisted using email_whitelist view
+    const userEmail = user.email;
+
+    if (!userEmail) {
+      console.warn('[AUTH] User has no email', {
+        userId: user.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      return c.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. User email not found.',
+            timestamp: new Date().toISOString(),
+          },
+        },
+        403
+      );
+    }
+
+    // Single query to check whitelist and get role
+    const { data: whitelistEntry, error: whitelistError } = await supabase
+      .from('email_whitelist')
+      .select('email, role')
+      .eq('email', userEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (whitelistError || !whitelistEntry) {
+      // User authenticated with Supabase but not whitelisted
+      console.warn('[AUTH] User not whitelisted', {
+        userId: user.id,
+        email: userEmail,
+        error: whitelistError?.message,
+        timestamp: new Date().toISOString(),
+      });
+
+      return c.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. Your email is not registered in the system.',
+            timestamp: new Date().toISOString(),
+          },
+        },
+        403
+      );
+    }
+
+    // Inject whitelisted user into context
     c.set('user', {
       id: user.id,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      email: user.email!,
-      role: user.user_metadata?.role || 'mentee',
+      email: whitelistEntry.email,
+      role: whitelistEntry.role as 'mentee' | 'mentor' | 'coordinator',
     });
 
     return await next();

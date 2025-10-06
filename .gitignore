@@ -67,3 +67,4 @@ packages/shared/src/types/api.generated.ts
 test-results/
 playwright-report/
 playwright/.cache/
+/docs/qa/screenshots

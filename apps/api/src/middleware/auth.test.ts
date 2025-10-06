@@ -85,11 +85,11 @@ describe('requireAuth middleware', () => {
     expect(data.error.message).toContain('Invalid or expired token');
   });
 
-  it('should inject user context when JWT token is valid', async () => {
+  it('should return 403 when user is not whitelisted', async () => {
     const mockUser = {
-      id: 'user-123',
-      email: 'test@example.com',
-      user_metadata: { role: 'mentor' },
+      id: 'user-999',
+      email: 'notwhitelisted@example.com',
+      user_metadata: {},
     };
 
     const mockSupabase = {
@@ -99,6 +99,62 @@ describe('requireAuth middleware', () => {
           error: null,
         }),
       },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null, // Not found in email_whitelist view
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      }),
+    };
+
+    vi.mocked(db.createSupabaseClient).mockReturnValue(mockSupabase as any);
+
+    const res = await app.request(
+      '/protected',
+      {
+        headers: { Authorization: 'Bearer valid-token' },
+      },
+      mockEnv
+    );
+    const data = (await res.json()) as { error: { code: string; message: string } };
+
+    expect(res.status).toBe(403);
+    expect(data.error.code).toBe('FORBIDDEN');
+    expect(data.error.message).toContain('Access denied');
+  });
+
+  it('should inject user context when JWT token is valid and user is whitelisted', async () => {
+    const mockUser = {
+      id: 'user-123',
+      email: 'mentor@example.com',
+      user_metadata: {},
+    };
+
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: mockUser },
+          error: null,
+        }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { email: 'mentor@example.com', role: 'mentor' },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      }),
     };
 
     vi.mocked(db.createSupabaseClient).mockReturnValue(mockSupabase as any);
@@ -119,15 +175,15 @@ describe('requireAuth middleware', () => {
     expect(data.message).toBe('success');
     expect(data.user).toEqual({
       id: 'user-123',
-      email: 'test@example.com',
+      email: 'mentor@example.com',
       role: 'mentor',
     });
   });
 
-  it('should default role to mentee if not in user_metadata', async () => {
+  it('should set role to mentee if found in email_whitelist with mentee role', async () => {
     const mockUser = {
       id: 'user-456',
-      email: 'newuser@example.com',
+      email: 'mentee@example.com',
       user_metadata: {},
     };
 
@@ -138,6 +194,18 @@ describe('requireAuth middleware', () => {
           error: null,
         }),
       },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                data: { email: 'mentee@example.com', role: 'mentee' },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      }),
     };
 
     vi.mocked(db.createSupabaseClient).mockReturnValue(mockSupabase as any);

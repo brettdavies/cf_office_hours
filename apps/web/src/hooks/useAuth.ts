@@ -123,7 +123,7 @@ export function useAuth() {
         // Fetch user role from API
         try {
           const apiUrl = import.meta.env.VITE_API_BASE_URL;
-          const response = await fetch(`${apiUrl}/users/me`, {
+          const response = await fetch(`${apiUrl}/v1/users/me`, {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
@@ -168,33 +168,18 @@ export function useAuth() {
             }
             setUser(userProfile);
           } else {
-            // Fallback if API call fails
-            const userProfile: UserWithProfile = {
-              id: authUser.id,
-              airtable_record_id: null,
-              email: authUser.email || '',
-              role: 'mentee', // Default role
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              profile: {
-                id: '',
-                user_id: authUser.id,
-                name: authUser.user_metadata?.name || null,
-                title: null,
-                company: null,
-                bio: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-            };
+            // API call failed - sign user out (no fallback for security)
             if (import.meta.env.DEV) {
-              console.log('[PROFILE] API call failed, using default role', {
+              console.error('[AUTH] API call failed, signing out', {
                 status: response.status,
                 userId: authUser.id,
+                email: authUser.email,
                 timestamp: new Date().toISOString(),
               });
             }
-            setUser(userProfile);
+            await supabase.auth.signOut();
+            setUser(null);
+            setSession(null);
           }
         } catch (apiError) {
           console.error('[ERROR] Failed to fetch user profile from API', {
