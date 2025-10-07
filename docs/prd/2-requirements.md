@@ -22,11 +22,13 @@
 
 ### Matching & Discovery
 
-- **FR13**: System shall implement `IMatchingEngine` interface for pluggable matching algorithms
-- **FR14**: MVP matching engine shall use tag overlap, company stage, and reputation scores as primary factors
+- **FR13**: System shall implement `IMatchingEngine` interface for pluggable matching algorithms. Match calculations shall be event-driven (triggered on data changes) with results cached in `user_match_cache` table for instant retrieval. Algorithm version shall be stored as data (column filter), enabling A/B testing and gradual rollout of new algorithms
+- **FR13a**: System shall recalculate matches in the background when triggering events occur: (1) user profile updated, (2) user tags changed, (3) portfolio company tags changed (affects linked mentees), (4) user reputation tier changed
+- **FR13b**: Match retrieval shall query pre-calculated cache table (`user_match_cache`) with target response time < 100ms. Retrieval logic shall NOT use polymorphic interface (same SQL query regardless of algorithm version)
+- **FR14**: MVP matching engine shall use tag overlap (60% weight), company stage match (20% weight), and reputation tier compatibility (20% weight) as scoring factors. Total score range: 0-100
 - **FR15**: Mentees shall view searchable/filterable directory of all mentors with personalized recommendations
 - **FR16**: Mentors shall view searchable/filterable directory of all mentees with personalized recommendations
-- **FR17**: System shall display match explanations (e.g., "3 shared industry tags, similar stage")
+- **FR17**: System shall display match explanations (e.g., "3 shared industry tags, similar stage") retrieved from cached `match_explanation` JSONB field
 - **FR18**: System shall provide manual search/filter capabilities alongside AI recommendations (hybrid approach)
 - **FR19**: Mentors shall send meeting interest notifications to mentees (via email and toast if online) with link to mentor's booking page. System shall automatically check tier restrictions and create override request if mentee cannot book mentor due to tier mismatch
 

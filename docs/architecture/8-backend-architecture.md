@@ -1877,7 +1877,241 @@ export class SlotGenerator extends DurableObject<Env> {
 }
 ```
 
-_[Continued in next part...]_
+**Matching Engine Interface:**
+
+```typescript
+// apps/api/src/providers/matching/interface.ts
+
+/**
+ * Matching engine interface for calculating and caching user matches
+ *
+ * Implementations calculate match scores in the background and write
+ * results to the user_match_cache table. This enables instant retrieval
+ * for the UI without expensive calculations on every request.
+ *
+ * @example
+ * const engine = new TagBasedMatchingEngineV1(db);
+ * await engine.recalculateMatches(userId); // Background calculation
+ */
+export interface IMatchingEngine {
+  /**
+   * Recalculate matches for a specific user
+   * Writes results to user_match_cache table
+   *
+   * @param userId - User ID to recalculate matches for
+   *
+   * @logging
+   * - [MATCHING] recalculateMatches { userId, algorithmVersion }
+   * - [MATCHING] Fetched potential matches { userId, potentialMatchCount }
+   * - [MATCHING] Calculated scores { userId, matchCount, avgScore }
+   * - [MATCHING] Wrote to cache { userId, cachedMatchCount }
+   */
+  recalculateMatches(userId: string): Promise<void>;
+
+  /**
+   * Recalculate matches for all users (batch operation)
+   * Used for initial population or admin-triggered recalculation
+   *
+   * @param options - Bulk operation options
+   *
+   * @logging
+   * - [MATCHING] recalculateAllMatches { algorithmVersion, options }
+   * - [MATCHING] Processing batch { currentBatch, totalUsers }
+   * - [MATCHING] Batch complete { processedCount, avgTimePerUser }
+   */
+  recalculateAllMatches(options?: BulkRecalculationOptions): Promise<void>;
+
+  /**
+   * Get the algorithm version identifier
+   * Used to tag cache entries with algorithm version
+   *
+   * @returns Algorithm version string (e.g., 'tag-based-v1', 'ml-v2')
+   */
+  getAlgorithmVersion(): string;
+}
+
+/**
+ * Options for bulk recalculation operations
+ */
+export interface BulkRecalculationOptions {
+  /** Limit number of users to process (for testing/gradual rollout) */
+  limit?: number;
+
+  /** Process only users modified after this date */
+  modifiedAfter?: Date;
+
+  /** Batch size for processing (default: 100) */
+  batchSize?: number;
+}
+```
+
+**Tag-Based Matching Engine Implementation:**
+
+```typescript
+// apps/api/src/providers/matching/tag-based.engine.ts
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { IMatchingEngine, BulkRecalculationOptions } from './interface';
+
+/**
+ * Tag-based matching algorithm (v1)
+ *
+ * Formula: (tagOverlap × 60%) + (stageMatch × 20%) + (reputationMatch × 20%)
+ *
+ * - Tag overlap: Number of shared tags (industries, technologies, stages)
+ * - Stage match: Same startup stage
+ * - Reputation match: Tier difference ≤ 1
+ */
+export class TagBasedMatchingEngineV1 implements IMatchingEngine {
+  constructor(private db: SupabaseClient) {}
+
+  async recalculateMatches(userId: string): Promise<void> {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] recalculateMatches', { userId, algorithmVersion: this.getAlgorithmVersion() });
+    }
+
+    // 1. Fetch user with profile and tags
+    const user = await this.fetchUserWithTags(userId);
+
+    // 2. Determine if user is mentor or mentee
+    const targetRole = user.role === 'mentor' ? 'mentee' : 'mentor';
+
+    // 3. Fetch all potential matches (active, non-dormant)
+    const potentialMatches = await this.fetchPotentialMatches(targetRole);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Fetched potential matches', { userId, potentialMatchCount: potentialMatches.length });
+    }
+
+    // 4. Calculate scores for each potential match
+    const matchResults = potentialMatches.map(match => ({
+      user_id: userId,
+      recommended_user_id: match.id,
+      match_score: this.calculateScore(user, match),
+      match_explanation: this.generateExplanation(user, match),
+      algorithm_version: this.getAlgorithmVersion(),
+    }));
+
+    if (process.env.NODE_ENV === 'development') {
+      const avgScore = matchResults.reduce((sum, r) => sum + r.match_score, 0) / matchResults.length;
+      console.log('[MATCHING] Calculated scores', { userId, matchCount: matchResults.length, avgScore });
+    }
+
+    // 5. Delete old cache entries for this user+algorithm
+    await this.db
+      .from('user_match_cache')
+      .delete()
+      .eq('user_id', userId)
+      .eq('algorithm_version', this.getAlgorithmVersion());
+
+    // 6. Insert new cache entries
+    await this.db
+      .from('user_match_cache')
+      .insert(matchResults);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Wrote to cache', { userId, cachedMatchCount: matchResults.length });
+    }
+  }
+
+  async recalculateAllMatches(options?: BulkRecalculationOptions): Promise<void> {
+    const batchSize = options?.batchSize ?? 100;
+    const limit = options?.limit;
+
+    // Fetch all active users
+    let query = this.db
+      .from('users')
+      .select('id')
+      .is('deleted_at', null);
+
+    if (limit) query = query.limit(limit);
+
+    const { data: users } = await query;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] recalculateAllMatches', {
+        algorithmVersion: this.getAlgorithmVersion(),
+        totalUsers: users?.length ?? 0,
+        batchSize
+      });
+    }
+
+    // Process in batches
+    for (let i = 0; i < (users?.length ?? 0); i += batchSize) {
+      const batch = users!.slice(i, i + batchSize);
+      await Promise.all(batch.map(user => this.recalculateMatches(user.id)));
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MATCHING] Processing batch', {
+          currentBatch: Math.floor(i / batchSize) + 1,
+          totalBatches: Math.ceil((users?.length ?? 0) / batchSize)
+        });
+      }
+    }
+  }
+
+  getAlgorithmVersion(): string {
+    return 'tag-based-v1';
+  }
+
+  private calculateScore(user1: UserWithTags, user2: UserWithTags): number {
+    const tagOverlap = this.calculateTagOverlap(user1, user2);
+    const stageMatch = this.calculateStageMatch(user1, user2);
+    const reputationMatch = this.calculateReputationMatch(user1, user2);
+
+    const total = tagOverlap + stageMatch + reputationMatch;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Score breakdown', {
+        user1Id: user1.id,
+        user2Id: user2.id,
+        tagOverlap,
+        stageMatch,
+        reputationMatch,
+        total
+      });
+    }
+
+    return total;
+  }
+
+  private calculateTagOverlap(user1: UserWithTags, user2: UserWithTags): number {
+    // Calculate shared tags (industries, technologies, stages)
+    // Return score 0-60
+  }
+
+  private calculateStageMatch(user1: UserWithTags, user2: UserWithTags): number {
+    // Check if startup stages match
+    // Return score 0-20
+  }
+
+  private calculateReputationMatch(user1: UserWithTags, user2: UserWithTags): number {
+    // Check if reputation tiers are compatible (difference ≤ 1)
+    // Return score 0-20
+  }
+
+  private generateExplanation(user1: UserWithTags, user2: UserWithTags): object {
+    // Generate match explanation JSON
+  }
+
+  private async fetchUserWithTags(userId: string) {
+    // Fetch user with tags
+  }
+
+  private async fetchPotentialMatches(role: string) {
+    // Fetch all users with target role (active, non-dormant)
+  }
+}
+```
+
+**Key Design Principles:**
+
+1. **Calculation is polymorphic** → Uses `IMatchingEngine` interface
+2. **Retrieval is NOT polymorphic** → Plain `MatchingService` class (Section 8.5)
+3. **Algorithm version is data** → Stored as string in database column
+4. **Event-driven recalculation** → Triggered on data changes
+5. **Background processing** → Expensive calculations run asynchronously
+6. **Instant retrieval** → UI queries pre-calculated cache table (< 100ms)
 
 ## 8.9 Webhook Handling (Airtable Sync)
 

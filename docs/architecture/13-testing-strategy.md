@@ -1646,23 +1646,220 @@ This subsection maps the PRD's epic structure to specific test coverage expectat
 **Epic 6: Matching & Discovery**
 - **Target Coverage:** 85% for matching algorithms
 - **Focus Areas:**
-  - `IMatchingEngine` interface
-  - Tag-based matching algorithm
-  - Match score calculations
+  - `IMatchingEngine` interface (calculation only, no retrieval interface)
+  - Tag-based matching algorithm (`TagBasedMatchingEngineV1`)
+  - Match score calculations (tag overlap, stage, reputation)
   - Match explanation generation
+  - Event-driven recalculation triggers
+  - Cache retrieval via `MatchingService` (plain class)
   - Mentor/mentee directory filtering
-- **Unit Tests Required:**
+- **Unit Tests Required (Story 0.23):**
   - Tag overlap scoring (60% weight)
   - Stage compatibility (20% weight)
   - Reputation tier compatibility (20% weight)
-  - Match explanation formatting
-- **Integration Tests Required:**
-  - Find mentors with filters (tags, tier, dormancy)
-  - Match score calculation with real data
-  - Personalized recommendations
+  - Match explanation formatting (JSONB structure)
+  - Tag inheritance from portfolio companies (mentees)
+  - Filtering (inactive users, dormant users)
+  - Batch processing logic (`recalculateAllMatches`)
+  - **Coverage target:** 85%
+  - **MANDATORY:** Centralized mock fixtures in `apps/api/src/test/fixtures/matching.ts`
+- **Integration Tests Required (Story 0.24):**
+  - API endpoint authentication (coordinator role only)
+  - Request validation (Zod schemas)
+  - Cache retrieval accuracy (`MatchingService`)
+  - Algorithm version filtering
+  - Error responses (400, 401, 403, 404, 500)
+- **Integration Tests Required (Story 0.25):**
+  - Event triggers fire on data changes (profile, tags, portfolio company)
+  - Recalculation completes successfully
+  - Multiple users affected by portfolio company tag change
+  - Initial population script completes
 - **E2E Tests Required:**
+  - Coordinator loads matching UI (instant < 100ms)
   - Mentee searches mentors with filters
   - Mentor sends meeting interest (auto-creates override if needed)
+
+**Matching System Test Strategy:**
+
+**Story 0.22: IMatchingEngine Interface Definition**
+- **Testing:** TypeScript type checking only (interface definition)
+- **Acceptance:** `npm run type-check` passes
+
+**Story 0.23: TagBasedMatchingEngineV1 Implementation**
+```typescript
+// apps/api/src/providers/matching/__tests__/tag-based.engine.test.ts
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { TagBasedMatchingEngineV1 } from '../tag-based.engine';
+import { createMockUser, createMockUserWithTags } from '@/test/fixtures/matching';
+
+describe('TagBasedMatchingEngineV1', () => {
+  let engine: TagBasedMatchingEngineV1;
+  let mockDb: SupabaseClient;
+
+  beforeEach(() => {
+    mockDb = createMockSupabaseClient();
+    engine = new TagBasedMatchingEngineV1(mockDb);
+  });
+
+  describe('calculateScore', () => {
+    it('should calculate correct score with tag overlap', () => {
+      const mentee = createMockUserWithTags({
+        role: 'mentee',
+        tags: ['fintech', 'react', 'seed-stage']
+      });
+      const mentor = createMockUserWithTags({
+        role: 'mentor',
+        tags: ['fintech', 'react', 'series-a']
+      });
+
+      const score = engine.calculateScore(mentee, mentor);
+
+      // 2 shared tags (fintech, react) = high tag overlap score
+      // Different stages = lower stage match score
+      expect(score).toBeGreaterThan(50);
+    });
+
+    it('should apply reputation tier compatibility (difference ≤ 1)', () => {
+      const mentee = createMockUser({ reputation_tier: 'bronze' });
+      const mentorGold = createMockUser({ reputation_tier: 'gold' }); // Difference = 2
+      const mentorSilver = createMockUser({ reputation_tier: 'silver' }); // Difference = 1
+
+      const scoreIncompatible = engine.calculateReputationMatch(mentee, mentorGold);
+      const scoreCompatible = engine.calculateReputationMatch(mentee, mentorSilver);
+
+      expect(scoreIncompatible).toBe(0); // Not compatible
+      expect(scoreCompatible).toBeGreaterThan(0); // Compatible
+    });
+  });
+
+  describe('recalculateMatches', () => {
+    it('should write results to user_match_cache table', async () => {
+      const userId = 'user-123';
+      mockDb.from('users').select.mockResolvedValue({ data: [createMockUser()] });
+      mockDb.from('user_match_cache').delete.mockResolvedValue({ error: null });
+      mockDb.from('user_match_cache').insert.mockResolvedValue({ error: null });
+
+      await engine.recalculateMatches(userId);
+
+      expect(mockDb.from('user_match_cache').insert).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            user_id: userId,
+            algorithm_version: 'tag-based-v1',
+            match_score: expect.any(Number),
+            match_explanation: expect.any(Object),
+          })
+        ])
+      );
+    });
+  });
+
+  describe('tag inheritance from portfolio companies', () => {
+    it('should include company tags for mentees', () => {
+      const mentee = createMockUserWithTags({
+        role: 'mentee',
+        portfolio_company_id: 'company-123',
+        tags: ['react'] // Personal tags
+      });
+      const companyTags = ['fintech', 'b2b']; // Company tags
+
+      const effectiveTags = engine.getEffectiveTags(mentee, companyTags);
+
+      expect(effectiveTags).toEqual(['react', 'fintech', 'b2b']);
+    });
+  });
+});
+```
+
+**Story 0.24: MatchingService & API Endpoints**
+```typescript
+// apps/api/src/routes/__tests__/matching.routes.test.ts
+
+describe('POST /v1/matching/find-matches', () => {
+  it('returns cached matches from user_match_cache', async () => {
+    const response = await app.request('/v1/matching/find-matches', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${coordinatorToken}` },
+      body: JSON.stringify({
+        userId: 'mentee-123',
+        targetRole: 'mentor',
+        options: { algorithmVersion: 'tag-based-v1', limit: 5 }
+      })
+    });
+
+    expect(response.status).toBe(200);
+    const { matches } = await response.json();
+    expect(matches).toHaveLength(5);
+    expect(matches[0]).toHaveProperty('user');
+    expect(matches[0]).toHaveProperty('score');
+    expect(matches[0]).toHaveProperty('explanation');
+  });
+
+  it('requires coordinator role', async () => {
+    const response = await app.request('/v1/matching/find-matches', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${menteeToken}` },
+      body: JSON.stringify({ userId: 'mentee-123', targetRole: 'mentor' })
+    });
+
+    expect(response.status).toBe(403);
+  });
+});
+```
+
+**Story 0.25: Event-Driven Triggers**
+```typescript
+// apps/api/src/events/__tests__/matching-triggers.test.ts
+
+describe('Matching Event Triggers', () => {
+  it('recalculates matches when user profile is updated', async () => {
+    const spy = vi.spyOn(engine, 'recalculateMatches');
+
+    await handleUserProfileUpdate('user-123', db);
+
+    expect(spy).toHaveBeenCalledWith('user-123');
+  });
+
+  it('recalculates matches for all mentees when portfolio company tags change', async () => {
+    const mentees = [
+      createMockUser({ id: 'mentee-1', portfolio_company_id: 'company-123' }),
+      createMockUser({ id: 'mentee-2', portfolio_company_id: 'company-123' })
+    ];
+    mockDb.from('user_profiles').select.mockResolvedValue({ data: mentees });
+
+    const spy = vi.spyOn(engine, 'recalculateMatches');
+
+    await handlePortfolioCompanyTagsChange('company-123', db);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledWith('mentee-1');
+    expect(spy).toHaveBeenCalledWith('mentee-2');
+  });
+});
+```
+
+**Performance Targets (Stories 0.23-0.24):**
+
+| Metric | Target | Story | Test Type |
+|--------|--------|-------|-----------|
+| Cache Write (single user) | < 500ms | 0.23 | Performance test |
+| Cache Write (100 users) | < 1 minute | 0.23 | Performance test |
+| Cache Read (coordinator UI) | < 100ms | 0.24 | Integration test |
+
+**Cache Write Optimizations (Story 0.23):**
+- Batch tag queries (fetch all users' tags in one query)
+- Use database indexes for filtering
+- Process in batches for `recalculateAllMatches` (default: 100 users/batch)
+
+**Cache Read Optimizations (Story 0.24):**
+- Database indexes on `user_id`, `match_score`, `algorithm_version`
+- Limit results (default: 5 matches)
+- Single query with JOINs (no N+1 queries)
+
+**Scalability Targets:**
+- MVP (100 users): Recalculate all matches in < 1 minute, UI loads < 100ms
+- Future (1000+ users): Use Cloudflare Queues, incremental updates, cache expiration (7 days)
 
 **Epic 7: Reputation & Ratings**
 - **Target Coverage:** 95% for reputation calculator (business-critical)

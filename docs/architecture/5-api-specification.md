@@ -380,15 +380,27 @@ GET /portfolio-companies/:id
 ### **8. Matching & Recommendations**
 
 ```yaml
+POST /matching/find-matches
+  Headers: Authorization Bearer <token>
+  Body: { userId: string, targetRole: 'mentor' | 'mentee', options?: { algorithmVersion?: string, limit?: number, minScore?: number } }
+  Response: { matches: Array<{ user: UserWithProfile, score: number, explanation: MatchExplanation }> }
+  Description: Get cached match recommendations from user_match_cache table (coordinator only)
+
+POST /matching/explain
+  Headers: Authorization Bearer <token>
+  Body: { userId1: string, userId2: string }
+  Response: { explanation: MatchExplanation }
+  Description: Get cached match explanation for a specific mentor-mentee pair (coordinator only)
+
 GET /mentors/recommended
   Headers: Authorization Bearer <token>
   Response: { recommendations: Array<{ mentor: UserWithProfile, match_score: number, explanation: string[] }> }
-  Description: Personalized mentor recommendations (IMatchingEngine interface)
+  Description: Personalized mentor recommendations (reads from user_match_cache)
 
 GET /mentees/recommended
   Headers: Authorization Bearer <token>
   Response: Similar to /mentors/recommended
-  Description: Personalized mentee recommendations for mentors
+  Description: Personalized mentee recommendations for mentors (reads from user_match_cache)
 
 POST /mentors/:mentor_id/send-interest
   Headers: Authorization Bearer <token>

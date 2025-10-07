@@ -2,7 +2,7 @@
 
 ## 5.1 Epic Overview
 
-The CF Office Hours platform uses a **Walking Skeleton approach** organized into **9 epics** with **90 total stories**. Epic 0 delivers a minimal end-to-end working product by Sprint 2, then subsequent epics iteratively add depth and sophistication.
+The CF Office Hours platform uses a **Walking Skeleton approach** organized into **9 epics** with **95 total stories**. Epic 0 delivers a minimal end-to-end working product by Sprint 2, then subsequent epics iteratively add depth and sophistication.
 
 **Key Strategy:**
 - ✅ **End-to-End by Week 4**: Epic 0 delivers complete booking flow (login → profile → availability → booking)
@@ -47,7 +47,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 23 (Stories 0-16 = local development, Story 0.16.1 = pre-deployment testing & logging, Stories 17-19 = deployment, Stories 20-21 = post-deployment improvements)
+**Estimated Stories:** 27 (Stories 0-21 = core skeleton, Stories 22-25 = event-driven matching system, Story 26 = coordinator matching UI)
 **Dependencies:** None (foundation)
 **Timeline:** Sprint 1-2 (Weeks 1-4) + 1 day for pre-deployment testing + 1 day for production deployment
 **Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
@@ -266,7 +266,7 @@ Epic 8: Admin & Coordinator Tools
       - Magic link redirect bug fixed (user redirected to dashboard, NOT login page)
       - All BLOCKER gaps fixed before deployment
     - **Related:** Section 13, NFR37, NFR44
-    - **Note:** E2E test automation deferred to Epic 1 Story 27 (Walking Skeleton prioritizes working software over automation)
+    - **Note:** E2E test automation deferred to Epic 1 Story 36 (Walking Skeleton prioritizes working software over automation)
 
 17. **SKEL-SUPABASE-001: Production Supabase Project Setup**
     - As a **developer**, I want a production Supabase project configured with the database schema and credentials
@@ -346,12 +346,107 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** Section 7.2, Section 13.4
     - **Note:** Reduces login friction for users clicking email links from coordinators or notification emails
 
+22. **MATCH-INTERFACE-001: IMatchingEngine Interface Definition & Cache Schema**
+    - As a **developer**, I want a pluggable matching engine interface for event-driven match calculation
+    - **Acceptance Criteria:**
+      - `IMatchingEngine` interface defined in `apps/api/src/providers/matching/interface.ts`
+      - Methods: `recalculateMatches(userId)`, `recalculateAllMatches(options)`, `getAlgorithmVersion()`
+      - TypeScript types: `BulkRecalculationOptions`
+      - Database migration creates `user_match_cache` table with indexes and RLS
+      - Cache schema: user_id, recommended_user_id, match_score, match_explanation (JSONB), algorithm_version, calculated_at
+      - Comprehensive JSDoc with `@logging` tags documenting expected dev-only log points
+      - No implementation code (interface only)
+    - **Related:** FR13, NFR21, PRD Section 4.5, Architecture: matching-cache-architecture.md
+    - **Note:** Originally Story 66 in Epic 6, moved forward and redesigned for event-driven caching architecture
+
+23. **MATCH-TAG-001: TagBasedMatchingEngine Background Calculation**
+    - As a **developer**, I want tag-based matching algorithm to pre-calculate and cache match scores
+    - **Acceptance Criteria:**
+      - `TagBasedMatchingEngineV1 implements IMatchingEngine`
+      - Score calculation (0-100): Tag overlap (60%), stage compatibility (20%), reputation compatibility (20%)
+      - `recalculateMatches(userId)`: Calculates scores for one user, writes to `user_match_cache` table
+      - `recalculateAllMatches()`: Batch processing for all users (initial population)
+      - `getAlgorithmVersion()`: Returns `'tag-based-v1'`
+      - Handles mentee tag inheritance from portfolio companies
+      - Algorithm version stamped on all cache entries
+      - Comprehensive dev-only logging for all operations (20+ log points)
+      - Unit tests with centralized mock fixtures (85% coverage target)
+    - **Related:** FR14, FR17, PRD Section 4.5, Architecture: matching-cache-architecture.md
+    - **Dependencies:** Story 0.22 (IMatchingEngine Interface)
+    - **Note:** Originally Story 67 in Epic 6, moved forward and redesigned for event-driven caching architecture
+
+24. **MATCH-SERVICE-001: MatchingService & Cache Retrieval API**
+    - As a **coordinator**, I want instant access to pre-calculated match recommendations
+    - **Acceptance Criteria:**
+      - `MatchingService` class (plain class, no interface) reads from `user_match_cache` table
+      - Methods: `getRecommendedMentors(id, options)`, `getRecommendedMentees(id, options)`, `explainMatch(id1, id2)`
+      - Support `algorithmVersion` parameter for A/B testing (defaults to `'tag-based-v1'`)
+      - API endpoints: `POST /v1/matching/find-matches`, `POST /v1/matching/explain`
+      - Both endpoints require `requireAuth` and `requireRole('coordinator')` middleware
+      - Request validation with Zod schemas
+      - Comprehensive dev-only logging
+      - Unit tests for service methods
+      - Integration tests for API endpoints
+    - **Related:** FR15, FR16, PRD Section 4.5, Architecture: matching-cache-architecture.md
+    - **Dependencies:** Story 0.22 (cache schema), Story 0.23 (populated cache data)
+    - **Note:** New story for retrieval layer - retrieval is NOT polymorphic (no interface needed)
+
+25. **MATCH-EVENTS-001: Event-Driven Match Recalculation Triggers**
+    - As a **developer**, I want match scores automatically recalculated when underlying data changes
+    - **Acceptance Criteria:**
+      - Event handler: User profile update → Call `engine.recalculateMatches(userId)`
+      - Event handler: User tags change → Call `engine.recalculateMatches(userId)`
+      - Event handler: Portfolio company tags change → Recalculate all linked mentees
+      - Event handler: User reputation tier change → Call `engine.recalculateMatches(userId)`
+      - Initial population script: `engine.recalculateAllMatches()` for existing users
+      - Comprehensive dev-only logging for all triggers (trigger event, affected users, completion status)
+      - Integration tests verify triggers fire on data changes
+    - **Related:** FR13, Architecture: matching-cache-architecture.md
+    - **Dependencies:** Story 0.23 (TagBasedMatchingEngine)
+    - **Note:** New story for event-driven architecture - ensures cache stays fresh on data changes
+
+26. **COORD-MATCH-001: Coordinator Matching UI**
+    - As a **coordinator**, I want to find and review recommended mentor-mentee matches with algorithm comparison
+    - **Acceptance Criteria:**
+      - Coordinator dashboard page with "Find Matches" section
+      - **User Selection:**
+        - Dropdown to select a user (mentor or mentee)
+        - User search with autocomplete (by name, email)
+        - Selected user card displays: avatar, name, role, tags, reputation tier
+      - **Algorithm Selector:**
+        - Dropdown to switch between matching algorithms (initially: "Tag-Based V1", extensible for future algorithms)
+        - Algorithm version displayed prominently (e.g., "tag-based-v1")
+        - Algorithm description tooltip explaining scoring methodology
+      - **Match Results Display:**
+        - Grid of recommended match cards (top 10-20 matches)
+        - Each card shows: avatar, name, role, tags, reputation tier, match score (0-100), "Explain Match" button
+        - Cards sorted by match score (highest first)
+        - Real-time loading state when switching algorithms or users
+      - **Algorithm Switching:**
+        - On algorithm change: Re-fetch matches from API with `algorithmVersion` parameter
+        - API call: `POST /v1/matching/find-matches` with `{userId, algorithmVersion, limit: 20}`
+        - Smooth transition with loading spinner while fetching
+        - Match cards repopulate with new scores/rankings
+      - **Match Explanation:**
+        - Click "Explain Match" opens modal with detailed breakdown
+        - API call: `POST /v1/matching/explain` with `{userId1, userId2, algorithmVersion}`
+        - Modal displays: Tag overlap details, stage compatibility, reputation compatibility, total score
+        - JSONB `match_explanation` rendered as human-readable breakdown
+      - **Performance:**
+        - Initial load: <500ms (reading from pre-calculated cache)
+        - Algorithm switch: <500ms (reading from cache with different version filter)
+        - No recalculation on UI interactions (all reads from `user_match_cache` table)
+      - **Comprehensive dev-only logging for all coordinator actions**
+    - **Related:** Stories 0.22-0.25 (Matching Engine Foundation), FR13, FR15, FR16, Section 4.5
+    - **Dependencies:** Story 0.24 (MatchingService API endpoints)
+    - **Note:** UI consumes matching cache infrastructure from Epic 0; algorithm switching demonstrates pluggable architecture
+
 ---
 
 ### **Epic 1: Infrastructure Depth**
 **Goal:** Add production-grade infrastructure features to the working skeleton
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 9 (Stories 19-27)
+**Estimated Stories:** 9 (Stories 28-36)
 **Dependencies:** Epic 0
 **Timeline:** Sprint 3 (Weeks 5-6)
 
@@ -364,7 +459,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-19. **INFRA-DB-001: Full Database Schema Migration**
+28. **INFRA-DB-001: Full Database Schema Migration**
     - As a **developer**, I want to extend the minimal schema with all production fields
     - **Acceptance Criteria:**
       - Add soft delete columns (`deleted_at`, `deleted_by`) to all tables
@@ -378,7 +473,7 @@ Epic 8: Admin & Coordinator Tools
       - Migration script updates existing data safely
     - **Related:** FR82, NFR17, NFR18
 
-20. **INFRA-DB-002: Database Views for Soft Deletes**
+29. **INFRA-DB-002: Database Views for Soft Deletes**
    - As a **developer**, I want database views that automatically filter soft-deleted records
    - **Acceptance Criteria:**
      - Views created: `active_users_with_profiles`, `active_bookings`, `available_slots`
@@ -386,7 +481,7 @@ Epic 8: Admin & Coordinator Tools
      - Application queries updated to use views by default
    - **Related:** NFR29, NFR30
 
-21. **INFRA-DB-003: Database Migration Tooling Setup**
+30. **INFRA-DB-003: Database Migration Tooling Setup**
    - As a **developer**, I want Supabase migration tooling configured for version-controlled schema changes
    - **Acceptance Criteria:**
      - Supabase CLI installed and configured in project
@@ -399,7 +494,7 @@ Epic 8: Admin & Coordinator Tools
    - **Related:** Section 10.1.6, Section 11.8, NFR17
    - **Note:** Migration strategy and tooling must be in place before schema changes
 
-22. **INFRA-DB-004: Comprehensive Row Level Security**
+31. **INFRA-DB-004: Comprehensive Row Level Security**
    - As a **user**, I want my data protected with comprehensive RLS policies
    - **Acceptance Criteria:**
      - Full RLS policies implemented per Section 4.1
@@ -409,7 +504,7 @@ Epic 8: Admin & Coordinator Tools
      - Test suite validates RLS policies
    - **Related:** NFR12, Section 4.1
 
-23. **INFRA-API-001: Centralized Error Handling**
+32. **INFRA-API-001: Centralized Error Handling**
    - As a **developer**, I want consistent error responses across all API endpoints
    - **Acceptance Criteria:**
      - Custom `AppError` class created (Section 4.3)
@@ -419,7 +514,7 @@ Epic 8: Admin & Coordinator Tools
      - Error logging for debugging
    - **Related:** FR95, FR96, FR97, FR98, NFR37
 
-24. **INFRA-API-002: Zod Schemas & OpenAPI Generation**
+33. **INFRA-API-002: Zod Schemas & OpenAPI Generation**
    - As a **developer**, I want API contracts defined with Zod schemas and OpenAPI spec auto-generated
    - **Acceptance Criteria:**
      - Zod schemas created for all request/response types (examples in Section 4.2)
@@ -428,7 +523,7 @@ Epic 8: Admin & Coordinator Tools
      - Frontend types auto-generated via `openapi-typescript`
    - **Related:** FR77, FR78, NFR26, NFR34
 
-25. **INFRA-UTIL-001: Date/Time Utilities**
+34. **INFRA-UTIL-001: Date/Time Utilities**
    - As a **developer**, I want centralized timezone utilities for consistent date handling
    - **Acceptance Criteria:**
      - Utility functions: `formatForDisplay`, `toUTC`, `getUserTimezone` (Section 4.4)
@@ -436,7 +531,7 @@ Epic 8: Admin & Coordinator Tools
      - Timezone conversion tested with multiple timezones
    - **Related:** FR26, FR99, NFR17
 
-26. **INFRA-UTIL-002: Database Query Helpers**
+35. **INFRA-UTIL-002: Database Query Helpers**
    - As a **developer**, I want reusable database query functions
    - **Acceptance Criteria:**
      - Helper functions: `getUserWithProfile`, `getAvailableSlots` (Section 4.4)
@@ -444,7 +539,7 @@ Epic 8: Admin & Coordinator Tools
      - Queries automatically use soft-delete views
    - **Related:** FR101
 
-27. **INFRA-TEST-001: Testing Infrastructure (Enhanced with E2E Automation)**
+36. **INFRA-TEST-001: Testing Infrastructure (Enhanced with E2E Automation)**
    - As a **developer**, I want comprehensive automated testing infrastructure including E2E tests
    - **Acceptance Criteria:**
      - Vitest configured for unit tests ✅ (already done in Epic 0)
@@ -470,7 +565,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 2: Authentication & Profile Depth**
 **Goal:** Add OAuth authentication, rich profile features, and user management
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 11
+**Estimated Stories:** 11 (Stories 37-47)
 **Dependencies:** Epic 1
 **Timeline:** Sprint 4 (Weeks 7-8)
 
@@ -483,7 +578,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-28. **AUTH-OAUTH-001: Google OAuth Authentication (Combined Auth + Calendar)**
+37. **AUTH-OAUTH-001: Google OAuth Authentication (Combined Auth + Calendar)**
     - As a **user**, I want to sign in with Google and connect my calendar in one flow
     - **Acceptance Criteria:**
       - "Continue with Google" button on login page
@@ -493,7 +588,7 @@ Epic 8: Admin & Coordinator Tools
       - `calendar_integrations` record created with `connection_method='oauth_signup'`
     - **Related:** FR2, FR21, FR105, Section 4.2
 
-29. **AUTH-OAUTH-002: Microsoft OAuth Authentication (Combined Auth + Calendar)**
+38. **AUTH-OAUTH-002: Microsoft OAuth Authentication (Combined Auth + Calendar)**
     - As a **user**, I want to sign in with Microsoft and connect my calendar in one flow
     - **Acceptance Criteria:**
       - "Continue with Microsoft" button on login page
@@ -503,7 +598,7 @@ Epic 8: Admin & Coordinator Tools
       - `calendar_integrations` record created with `connection_method='oauth_signup'`
     - **Related:** FR2, FR21, FR105, Section 4.2
 
-30. **AUTH-WHITELIST-001: Email Whitelist Validation**
+39. **AUTH-WHITELIST-001: Email Whitelist Validation**
     - As a **developer**, I want to restrict authentication to users in the mock/synced database
     - **Acceptance Criteria:**
       - Authentication checks user email against `users` table
@@ -512,7 +607,7 @@ Epic 8: Admin & Coordinator Tools
       - Error logged for tracking
     - **Related:** FR3, FR4
 
-31. **PROFILE-TAGS-001: Tag Selection UI**
+40. **PROFILE-TAGS-001: Tag Selection UI**
     - As a **user**, I want to select tags from CF's taxonomy to describe my profile
     - **Acceptance Criteria:**
       - Multi-select dropdown for industries, technologies, stages
@@ -521,7 +616,7 @@ Epic 8: Admin & Coordinator Tools
       - "Add custom tag" option triggers new tag request workflow (saved as `is_approved=false`)
     - **Related:** FR11, FR12, FR91, FR92
 
-32. **PROFILE-MENTEE-001: Mentee-Specific Profile Fields**
+41. **PROFILE-MENTEE-001: Mentee-Specific Profile Fields**
     - As a **mentee**, I want to add my Pitch.vc profile link and upload pitch decks
     - **Acceptance Criteria:**
       - Pitch.vc URL input field (optional)
@@ -531,7 +626,7 @@ Epic 8: Admin & Coordinator Tools
       - File list with download/delete actions
     - **Related:** FR8, FR9, NFR14, Section 4.6
 
-33. **PROFILE-MENTOR-001: Mentor-Specific Profile Fields**
+42. **PROFILE-MENTOR-001: Mentor-Specific Profile Fields**
     - As a **mentor**, I want to describe my expertise and ideal mentee
     - **Acceptance Criteria:**
       - "Expertise description" rich text area (markdown support optional)
@@ -540,7 +635,7 @@ Epic 8: Admin & Coordinator Tools
       - Displayed on mentor profile view
     - **Related:** FR10
 
-34. **PROFILE-AVATAR-001: Avatar Upload & Cropping**
+43. **PROFILE-AVATAR-001: Avatar Upload & Cropping**
     - As a **user**, I want to upload and crop a profile avatar image
     - **Acceptance Criteria:**
       - Upload button accepts image file or URL input
@@ -551,7 +646,7 @@ Epic 8: Admin & Coordinator Tools
       - Avatar displayed as circle throughout app
     - **Related:** FR88, FR89, FR90, Section 4.2, Section 4.6
 
-35. **PROFILE-LINKS-001: Additional Links Management**
+44. **PROFILE-LINKS-001: Additional Links Management**
     - As a **user**, I want to add multiple custom links to my profile (website, portfolio, etc.)
     - **Acceptance Criteria:**
       - "Add link" button creates new URL input field
@@ -560,7 +655,7 @@ Epic 8: Admin & Coordinator Tools
       - Remove link button for each entry (soft-deletes `user_urls` record)
     - **Related:** FR7
 
-36. **PROFILE-PREFS-001: Reminder Preferences**
+45. **PROFILE-PREFS-001: Reminder Preferences**
     - As a **user**, I want to configure when I receive meeting reminder emails
     - **Acceptance Criteria:**
       - Settings dropdown: "1 hour before", "24 hours before", "Both" (default: 1 hour)
@@ -568,7 +663,7 @@ Epic 8: Admin & Coordinator Tools
       - System sends reminders based on user preference
     - **Related:** FR33, FR94
 
-37. **USER-SEARCH-001: User Search & Directory API**
+46. **USER-SEARCH-001: User Search & Directory API**
     - As a **developer**, I want API endpoints for searching and filtering users
     - **Acceptance Criteria:**
       - `GET /api/users/search` supports filtering by role, tags, status
@@ -577,7 +672,7 @@ Epic 8: Admin & Coordinator Tools
       - Returns user profiles with tags, avatar, reputation tier
     - **Related:** FR15, FR16, FR18
 
-38. **USER-RBAC-001: Role-Based Access Control**
+47. **USER-RBAC-001: Role-Based Access Control**
     - As a **developer**, I want users assigned roles with appropriate permissions
     - **Acceptance Criteria:**
       - User role stored in `users.role` (enum: mentee, mentor, coordinator)
@@ -591,7 +686,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 3: Calendar Integration**
 **Goal:** Integrate Google Calendar and Microsoft Outlook, replace manual location entry with calendar-based scheduling
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 10
+**Estimated Stories:** 10 (Stories 48-57)
 **Dependencies:** Epic 2
 **Timeline:** Sprint 5 (Weeks 9-10)
 
@@ -605,7 +700,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-39. **CAL-INTERFACE-001: ICalendarProvider Interface Definition**
+48. **CAL-INTERFACE-001: ICalendarProvider Interface Definition**
     - As a **developer**, I want a pluggable calendar provider interface for extensibility
     - **Acceptance Criteria:**
       - `ICalendarProvider` interface defined per Section 4.5
@@ -613,7 +708,7 @@ Epic 8: Admin & Coordinator Tools
       - TypeScript types defined for `CreateEventInput`, `CalendarEvent`, `FreeBusySlot`
     - **Related:** FR20, NFR21, NFR23, Section 4.5
 
-40. **CAL-GOOGLE-001: Google Calendar Provider Implementation**
+49. **CAL-GOOGLE-001: Google Calendar Provider Implementation**
     - As a **developer**, I want Google Calendar integration implemented via ICalendarProvider
     - **Acceptance Criteria:**
       - `GoogleCalendarProvider implements ICalendarProvider`
@@ -623,7 +718,7 @@ Epic 8: Admin & Coordinator Tools
       - Implements all interface methods from CAL-INTERFACE-001
     - **Related:** FR21, NFR15, CR2, Section 4.5
 
-41. **CAL-OUTLOOK-001: Microsoft Outlook Provider Implementation**
+50. **CAL-OUTLOOK-001: Microsoft Outlook Provider Implementation**
     - As a **developer**, I want Microsoft Outlook integration implemented via ICalendarProvider
     - **Acceptance Criteria:**
       - `OutlookCalendarProvider implements ICalendarProvider`
@@ -633,7 +728,7 @@ Epic 8: Admin & Coordinator Tools
       - Implements all interface methods from CAL-INTERFACE-001
     - **Related:** FR21, NFR15, CR2, Section 4.5
 
-42. **CAL-CONNECT-001: Post-Login Calendar Connection (Magic Link Users)**
+51. **CAL-CONNECT-001: Post-Login Calendar Connection (Magic Link Users)**
     - As a **magic link user**, I want to connect my calendar after logging in
     - **Acceptance Criteria:**
       - Dismissible banner on dashboard: "Connect your calendar to book meetings"
@@ -643,7 +738,7 @@ Epic 8: Admin & Coordinator Tools
       - Banner removed after successful connection
     - **Related:** FR21, FR105, Section 3.3, Section 4.2
 
-43. **CAL-REQUIRE-001: Calendar Connection Requirement Enforcement**
+52. **CAL-REQUIRE-001: Calendar Connection Requirement Enforcement**
     - As a **developer**, I want booking/availability actions blocked until user connects calendar
     - **Acceptance Criteria:**
       - Frontend checks: user has connected calendar before showing slot picker, availability form
@@ -652,7 +747,7 @@ Epic 8: Admin & Coordinator Tools
       - Coordinators exempt from requirement (can use app without calendar)
     - **Related:** FR105, Section 3.3
 
-44. **CAL-CONFLICT-001: Calendar Conflict Checking**
+53. **CAL-CONFLICT-001: Calendar Conflict Checking**
     - As a **user**, I want the system to prevent double-booking by checking my external calendar
     - **Acceptance Criteria:**
       - Before confirming booking: API calls `calendarProvider.checkConflicts()` for both mentor and mentee
@@ -660,7 +755,7 @@ Epic 8: Admin & Coordinator Tools
       - Frontend displays error toast and returns to slot selection
     - **Related:** FR27, FR79, FR106, NFR10
 
-45. **CAL-EVENT-001: Calendar Event Creation**
+54. **CAL-EVENT-001: Calendar Event Creation**
     - As a **user**, I want meetings automatically added to my calendar with all details
     - **Acceptance Criteria:**
       - On booking confirmation: `calendarProvider.createEvent()` called
@@ -669,7 +764,7 @@ Epic 8: Admin & Coordinator Tools
       - Event stored in user's connected calendar (Google or Outlook)
     - **Related:** FR36, FR37, FR39
 
-46. **CAL-MEET-001: Google Meet Link Generation**
+55. **CAL-MEET-001: Google Meet Link Generation**
     - As a **user**, I want virtual meetings to automatically include a Google Meet link
     - **Acceptance Criteria:**
       - For online meetings: System checks if either party has Google Calendar connected
@@ -678,7 +773,7 @@ Epic 8: Admin & Coordinator Tools
       - Meet link stored in `bookings.google_meet_link`
     - **Related:** FR28, FR62, Section 4.5
 
-47. **CAL-DISCONNECT-001: Calendar Disconnection**
+56. **CAL-DISCONNECT-001: Calendar Disconnection**
     - As a **user**, I want to disconnect my calendar integration while preserving existing bookings
     - **Acceptance Criteria:**
       - Settings page: "Disconnect calendar" button
@@ -688,7 +783,7 @@ Epic 8: Admin & Coordinator Tools
       - User must reconnect to create new availability/bookings
     - **Related:** FR93
 
-48. **CAL-ICAL-001: iCal Feed for Calendar Subscription**
+57. **CAL-ICAL-001: iCal Feed for Calendar Subscription**
     - As a **user**, I want to subscribe to my bookings via .ical feed in any calendar app
     - **Acceptance Criteria:**
       - `GET /api/calendar/feed/:userId/:token` generates RFC 5545 iCalendar feed
@@ -703,7 +798,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 4: Availability & Booking Depth**
 **Goal:** Add advanced availability features (recurrence patterns, preset locations), booking management, and real-time updates
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 11
+**Estimated Stories:** 11 (Stories 58-68)
 **Dependencies:** Epic 3
 **Timeline:** Sprint 6 (Weeks 11-12)
 
@@ -718,7 +813,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-49. **AVAIL-RECUR-001: Recurrence Pattern Support**
+58. **AVAIL-RECUR-001: Recurrence Pattern Support**
     - As a **mentor**, I want to create recurring availability blocks
     - **Acceptance Criteria:**
       - Availability form supports: one-time, weekly, monthly, quarterly
@@ -728,7 +823,7 @@ Epic 8: Admin & Coordinator Tools
       - Preview shows: "This will create X slots per week/month"
     - **Related:** FR22, FR23, FR24
 
-50. **AVAIL-RECUR-002: Time Slot Generation Logic**
+59. **AVAIL-RECUR-002: Time Slot Generation Logic**
     - As a **developer**, I want availability blocks to automatically generate bookable time slots
     - **Acceptance Criteria:**
       - On availability block creation: Generate `time_slots` rows based on recurrence
@@ -738,7 +833,7 @@ Epic 8: Admin & Coordinator Tools
       - Each slot: `start_time` (UTC), `end_time` (UTC + slot_duration + buffer), `is_booked=false`
     - **Related:** FR22, FR38
 
-51. **AVAIL-GRID-001: Calendar Grid Slot Picker**
+60. **AVAIL-GRID-001: Calendar Grid Slot Picker**
     - As a **mentee**, I want to view available mentor slots in a week grid calendar
     - **Acceptance Criteria:**
       - Custom week grid component (Section 3.3)
@@ -749,7 +844,7 @@ Epic 8: Admin & Coordinator Tools
       - Minimum 1-day advance enforced (past dates grayed out)
     - **Related:** FR15, FR38, Section 3.3
 
-52. **AVAIL-REALTIME-001: Real-Time Slot Availability Updates**
+61. **AVAIL-REALTIME-001: Real-Time Slot Availability Updates**
     - As a **mentee**, I want to see slots disappear immediately when booked by another user
     - **Acceptance Criteria:**
       - Frontend subscribes to Supabase Realtime on `time_slots` table
@@ -758,7 +853,7 @@ Epic 8: Admin & Coordinator Tools
       - Toast notification if user tries to book already-taken slot: "This slot was just booked by another user"
     - **Related:** FR40, FR41, FR42, FR43, NFR5, NFR28, Section 3.3
 
-53. **BOOK-ENHANCE-001: Enhanced Booking Form**
+62. **BOOK-ENHANCE-001: Enhanced Booking Form**
     - As a **mentee**, I want to add materials URLs and see meeting type details
     - **Acceptance Criteria:**
       - Form fields: Meeting goal (textarea, required), Materials URLs (multiple inputs, optional)
@@ -766,7 +861,7 @@ Epic 8: Admin & Coordinator Tools
       - Confirmation message: "This meeting is scheduled for [DATE/TIME] in your timezone ([TIMEZONE])"
     - **Related:** FR30, Section 3.3
 
-54. **BOOK-CANCEL-001: Meeting Cancellation**
+63. **BOOK-CANCEL-001: Meeting Cancellation**
     - As a **user**, I want to cancel a meeting with notification to the other party
     - **Acceptance Criteria:**
       - "Cancel Meeting" button on booking detail page
@@ -777,7 +872,7 @@ Epic 8: Admin & Coordinator Tools
       - Calendar events updated (marked as canceled)
     - **Related:** FR34, FR60, FR61
 
-55. **BOOK-REMIND-001: Meeting Reminders**
+64. **BOOK-REMIND-001: Meeting Reminders**
     - As a **user**, I want reminder emails before my meetings based on my preferences
     - **Acceptance Criteria:**
       - Background job (Cloudflare Workers Cron): Check upcoming meetings and user reminder preferences
@@ -786,7 +881,7 @@ Epic 8: Admin & Coordinator Tools
       - Reminder logged in `notification_log`
     - **Related:** FR33, FR94
 
-56. **BOOK-LOCATION-001: Preset Location Management**
+65. **BOOK-LOCATION-001: Preset Location Management**
     - As a **coordinator**, I want to create and manage preset meeting locations
     - **Acceptance Criteria:**
       - Admin UI: List of locations with name, address, notes, active status
@@ -795,7 +890,7 @@ Epic 8: Admin & Coordinator Tools
       - Seed script with initial CF office locations (Section 4.8)
     - **Related:** FR74, Section 4.8
 
-57. **BOOK-MATERIALS-001: Materials URL Handling**
+66. **BOOK-MATERIALS-001: Materials URL Handling**
     - As a **user**, I want to see meeting materials shared by the mentee
     - **Acceptance Criteria:**
       - Booking detail page shows materials URLs as clickable links
@@ -803,7 +898,7 @@ Epic 8: Admin & Coordinator Tools
       - Frontend validates URL format before saving
     - **Related:** FR30
 
-58. **AVAIL-EDIT-001: Availability Block Editing**
+67. **AVAIL-EDIT-001: Availability Block Editing**
     - As a **mentor**, I want to edit or delete my availability blocks
     - **Acceptance Criteria:**
       - "Edit" button on availability block card
@@ -813,7 +908,7 @@ Epic 8: Admin & Coordinator Tools
       - Deletions send cancellation emails to affected mentees
     - **Related:** FR80
 
-59. **BOOK-CONFIRM-001: Booking Confirmation Flow with Pending/Expired States**
+68. **BOOK-CONFIRM-001: Booking Confirmation Flow with Pending/Expired States**
     - As a **developer**, I want bookings to support pending, confirmed, and expired status flow
     - **Acceptance Criteria:**
       - Extend `bookings` schema with `confirmed_by` (uuid, fk -> users, null) and `confirmed_at` (timestamptz, null)
@@ -829,7 +924,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 5: Airtable Integration**
 **Goal:** Replace mock data with live Airtable sync for all four data sources
 **Priority:** P1 (High)
-**Estimated Stories:** 6
+**Estimated Stories:** 7 (Stories 69-75)
 **Dependencies:** Epic 1 (schema must be ready)
 **Timeline:** Sprint 7 (Weeks 13-14)
 
@@ -844,7 +939,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-59. **AIRTABLE-WEBHOOK-001: Webhook Endpoint Setup**
+69. **AIRTABLE-WEBHOOK-001: Webhook Endpoint Setup**
     - As a **developer**, I want a webhook endpoint to receive Airtable change notifications
     - **Acceptance Criteria:**
       - `POST /api/webhooks/airtable` endpoint created
@@ -858,7 +953,7 @@ Epic 8: Admin & Coordinator Tools
       - Endpoint responds within 10ms (synchronous ack per NFR31)
     - **Related:** FR5, FR86, NFR4, NFR16, NFR31, Section 4.10
 
-60. **AIRTABLE-SYNC-001: Users Table Sync**
+70. **AIRTABLE-SYNC-001: Users Table Sync**
     - As a **developer**, I want user data synced from Airtable to Supabase on webhook trigger
     - **Acceptance Criteria:**
       - Webhook triggers full users table fetch from Airtable
@@ -870,7 +965,7 @@ Epic 8: Admin & Coordinator Tools
       - Processing completes within 5 seconds (NFR4)
     - **Related:** FR5, FR85, FR86, NFR4, Section 4.10
 
-61. **AIRTABLE-TAGS-001: User Tags Sync**
+71. **AIRTABLE-TAGS-001: User Tags Sync**
     - As a **developer**, I want user tags (industries, technologies, stages) synced from Airtable
     - **Acceptance Criteria:**
       - Multi-select tag columns in Airtable mapped to `entity_tags` rows via `taxonomy` table lookups
@@ -880,7 +975,7 @@ Epic 8: Admin & Coordinator Tools
       - Tag values normalized (lowercase, underscores) per Section 4.10
     - **Related:** FR11, FR87, Section 4.10
 
-62. **AIRTABLE-TAXONOMY-001: Industries Taxonomy Sync**
+72. **AIRTABLE-TAXONOMY-001: Industries Taxonomy Sync**
     - As a **developer**, I want CF industries taxonomy synced from Airtable
     - **Acceptance Criteria:**
       - Airtable Industries table synced to `taxonomy` table with `category='industry'`
@@ -892,7 +987,7 @@ Epic 8: Admin & Coordinator Tools
       - Upsert based on `airtable_record_id`
     - **Related:** FR87, Section 4.10
 
-63. **AIRTABLE-TAXONOMY-002: Technologies Taxonomy Sync**
+73. **AIRTABLE-TAXONOMY-002: Technologies Taxonomy Sync**
     - As a **developer**, I want CF technologies taxonomy synced from Airtable
     - **Acceptance Criteria:**
       - Airtable Technologies table synced to `taxonomy` table with `category='technology'`
@@ -904,7 +999,7 @@ Epic 8: Admin & Coordinator Tools
       - Upsert based on `airtable_record_id`
     - **Related:** FR87, Section 4.10
 
-64. **AIRTABLE-COMPANIES-001: Portfolio Companies Sync**
+74. **AIRTABLE-COMPANIES-001: Portfolio Companies Sync**
     - As a **developer**, I want portfolio companies synced from Airtable to Supabase on webhook trigger
     - **Acceptance Criteria:**
       - Webhook triggers full portfolio companies table fetch from Airtable
@@ -918,7 +1013,7 @@ Epic 8: Admin & Coordinator Tools
       - **Sync Order**: Portfolio companies synced **before** users (users reference `portfolio_company_id`)
     - **Related:** FR85, FR86, NFR4, Section 4.10
 
-65. **AIRTABLE-DELETE-001: User Deletion Handling**
+75. **AIRTABLE-DELETE-001: User Deletion Handling**
     - As a **developer**, I want user removals in Airtable to trigger cascading actions in the app
     - **Acceptance Criteria:**
       - User removed from Airtable: `users.deleted_at` populated (soft delete)
@@ -934,58 +1029,48 @@ Epic 8: Admin & Coordinator Tools
 ---
 
 ### **Epic 6: Matching & Discovery**
-**Goal:** Provide intelligent mentor-mentee recommendations and searchable directories
+**Goal:** Provide enhanced mentor-mentee directories with intelligent recommendations
 **Priority:** P1 (High)
-**Estimated Stories:** 7
-**Dependencies:** Epic 2 (tags must be available)
+**Estimated Stories:** 5 (Stories 66-67 moved to Epic 0 as Stories 0.22-0.25)
+**Dependencies:** Epic 2 (tags must be available), Epic 0 (matching engine foundation)
 **Timeline:** Sprint 8 (Weeks 15-16)
 
-**Deliverable:** Intelligent matching with:
-- Pluggable matching engine interface
-- Tag-based matching algorithm (MVP)
-- Recommended mentors/mentees API
+**Deliverable:** Enhanced discovery features with:
 - Enhanced mentor/mentee directories with filters
-- Match explanations
+- Match explanations integrated into UI
 - Mentor "reach out" feature with tier override
+- Search and filter persistence
+- Recommended matches displayed prominently
+
+**Note:** Core matching engine and cache infrastructure implemented in Epic 0 (Stories 0.22-0.25). This epic focuses on UI/UX enhancements for discovery.
 
 **User Stories:**
 
-66. **MATCH-INTERFACE-001: IMatchingEngine Interface Definition**
-    - As a **developer**, I want a pluggable matching engine interface for algorithm flexibility
-    - **Acceptance Criteria:**
-      - `IMatchingEngine` interface defined per Section 4.5
-      - Methods: `getRecommendedMentors`, `getRecommendedMentees`, `explainMatch`
-      - TypeScript types: `MatchingOptions`, `MatchResult`, `MatchExplanation`
+66. **MATCH-INTERFACE-001: IMatchingEngine Interface Definition** ⚠️ **MOVED TO STORY 0.22**
+    - **Note:** This story was moved forward to Epic 0 (Story 0.22) and redesigned for event-driven caching architecture
+    - **See:** Story 0.22 for complete implementation details
+    - **Architecture:** [matching-cache-architecture.md](../architecture/matching-cache-architecture.md)
     - **Related:** FR13, NFR21, Section 4.5
 
-67. **MATCH-TAG-001: Tag-Based Matching Algorithm (MVP)**
-    - As a **developer**, I want a tag-based matching algorithm for mentor-mentee recommendations
-    - **Acceptance Criteria:**
-      - `TagBasedMatchingEngine implements IMatchingEngine`
-      - Score calculation (0-100): Tag overlap (60%), stage compatibility (20%), reputation compatibility (20%)
-      - Returns top 5 matches sorted by score
-      - Includes match explanation: shared tags, stage match, reputation tier compatibility
+67. **MATCH-TAG-001: Tag-Based Matching Algorithm (MVP)** ⚠️ **MOVED TO STORY 0.23**
+    - **Note:** This story was moved forward to Epic 0 (Story 0.23) and redesigned for background calculation
+    - **See:** Story 0.23 for complete implementation details
+    - **Architecture:** [matching-cache-architecture.md](../architecture/matching-cache-architecture.md)
     - **Related:** FR14, FR17, Section 4.5
 
-68. **MATCH-API-001: Recommended Mentors API**
-    - As a **mentee**, I want personalized mentor recommendations based on my profile
-    - **Acceptance Criteria:**
-      - `GET /api/mentors/recommended?menteeId={uuid}` endpoint
-      - Calls `matchingEngine.getRecommendedMentors(mentee)`
-      - Returns top 5 mentors with match scores and explanations
-      - Filters out inactive/dormant mentors
-    - **Related:** FR15, FR17
+67a. **MATCH-SERVICE-001: MatchingService & Cache Retrieval API** ⚠️ **MOVED TO STORY 0.24**
+    - **Note:** This story was created as part of the event-driven architecture redesign
+    - **See:** Story 0.24 for complete implementation details
+    - **Architecture:** [matching-cache-architecture.md](../architecture/matching-cache-architecture.md)
+    - **Related:** FR15, FR16, Section 4.5
 
-69. **MATCH-API-002: Recommended Mentees API**
-    - As a **mentor**, I want personalized mentee recommendations based on my expertise
-    - **Acceptance Criteria:**
-      - `GET /api/mentees/recommended?mentorId={uuid}` endpoint
-      - Calls `matchingEngine.getRecommendedMentees(mentor)`
-      - Returns top 5 mentees with match scores and explanations
-      - Filters out inactive/dormant mentees
-    - **Related:** FR16, FR17
+67b. **MATCH-EVENTS-001: Event-Driven Match Recalculation Triggers** ⚠️ **MOVED TO STORY 0.25**
+    - **Note:** This story was created as part of the event-driven architecture redesign
+    - **See:** Story 0.25 for complete implementation details
+    - **Architecture:** [matching-cache-architecture.md](../architecture/matching-cache-architecture.md)
+    - **Related:** FR13, Section 4.5
 
-70. **MATCH-UI-001: Enhanced Mentor Directory**
+76. **MATCH-UI-001: Enhanced Mentor Directory**
     - As a **mentee**, I want to browse all mentors with filtering, search, and recommendations
     - **Acceptance Criteria:**
       - "Recommended for you" section at top (3-5 mentor cards with match scores)
@@ -996,7 +1081,7 @@ Epic 8: Admin & Coordinator Tools
       - Mentor cards: avatar, name, title, company, tags, reputation badge, "View Profile" + "Book Meeting" buttons
     - **Related:** FR15, FR17, FR18, Section 3.3
 
-71. **MATCH-UI-002: Enhanced Mentee Directory**
+77. **MATCH-UI-002: Enhanced Mentee Directory**
     - As a **mentor**, I want to browse all mentees with filtering, search, and recommendations
     - **Acceptance Criteria:**
       - Similar layout to mentor directory
@@ -1005,7 +1090,7 @@ Epic 8: Admin & Coordinator Tools
       - Match explanations focused on how mentor can help
     - **Related:** FR16, FR18, Section 3.3
 
-72. **MATCH-REACH-001: Mentor Send Interest (Reach Out)**
+78. **MATCH-REACH-001: Mentor Send Interest (Reach Out)**
     - As a **mentor**, I want to express interest in meeting a mentee
     - **Acceptance Criteria:**
       - "Reach Out" button on mentee profile/card
@@ -1038,7 +1123,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-73. **REP-INTERFACE-001: IReputationCalculator Interface Definition**
+79. **REP-INTERFACE-001: IReputationCalculator Interface Definition**
     - As a **developer**, I want a pluggable reputation calculator interface for formula flexibility
     - **Acceptance Criteria:**
       - `IReputationCalculator` interface defined per Section 4.5
@@ -1046,7 +1131,7 @@ Epic 8: Admin & Coordinator Tools
       - TypeScript types: `ReputationScore`, `ReputationTier`
     - **Related:** FR44, NFR21, Section 4.5
 
-74. **REP-CALC-001: Reputation Score Calculation Logic**
+80. **REP-CALC-001: Reputation Score Calculation Logic**
     - As a **developer**, I want reputation scores calculated using rating, completion, responsiveness, and tenure
     - **Acceptance Criteria:**
       - Formula: `(AvgRating × CompletionRate × ResponsivenessFactor) + TenureBonus`
@@ -1056,7 +1141,7 @@ Epic 8: Admin & Coordinator Tools
       - Completion rate: % of booked sessions attended (vs. canceled/no-show)
     - **Related:** FR46, FR47, FR48, Section 1.9
 
-75. **REP-TIER-001: Reputation Tier Assignment**
+81. **REP-TIER-001: Reputation Tier Assignment**
     - As a **developer**, I want users assigned reputation tiers based on their score
     - **Acceptance Criteria:**
       - Tiers: Bronze (0-3.0), Silver (3.0-4.0), Gold (4.0-4.5), Platinum (4.5+)
@@ -1064,7 +1149,7 @@ Epic 8: Admin & Coordinator Tools
       - `users.reputation_tier` updated, change logged in `reputation_history`
     - **Related:** FR49, Section 1.9
 
-76. **REP-LIMIT-001: Tier-Based Booking Limits**
+82. **REP-LIMIT-001: Tier-Based Booking Limits**
     - As a **developer**, I want booking limits enforced based on user reputation tier
     - **Acceptance Criteria:**
       - Limits: Bronze (2/week), Silver (5/week), Gold (10/week), Platinum (unlimited)
@@ -1073,7 +1158,7 @@ Epic 8: Admin & Coordinator Tools
       - Frontend displays remaining bookings count
     - **Related:** FR50
 
-77. **REP-RESTRICT-001: Tier Restriction on Mentor Booking**
+83. **REP-RESTRICT-001: Tier Restriction on Mentor Booking**
     - As a **developer**, I want to prevent mentees from booking mentors more than one tier above them
     - **Acceptance Criteria:**
       - Before booking: API checks `canBookMentor(menteeId, mentorId)` (tier difference validation)
@@ -1082,7 +1167,7 @@ Epic 8: Admin & Coordinator Tools
       - Exception request workflow in REP-OVERRIDE-001
     - **Related:** FR51, FR71
 
-78. **REP-RATING-001: Post-Meeting Rating Prompt**
+84. **REP-RATING-001: Post-Meeting Rating Prompt**
     - As a **user**, I want to rate meetings after they complete
     - **Acceptance Criteria:**
       - 1 hour after meeting end: Email sent "How was your session with [NAME]?" with rating link
@@ -1093,7 +1178,7 @@ Epic 8: Admin & Coordinator Tools
       - Toast: "Thank you for your feedback!"
     - **Related:** FR45, FR60, NFR20
 
-79. **REP-UI-001: Reputation Score Display**
+85. **REP-UI-001: Reputation Score Display**
     - As a **user**, I want to see my reputation score breakdown
     - **Acceptance Criteria:**
       - Profile page section: Large score number + tier badge
@@ -1102,7 +1187,7 @@ Epic 8: Admin & Coordinator Tools
       - Simple bar chart or progress indicators for visual breakdown
     - **Related:** FR52, Section 3.3
 
-80. **REP-OVERRIDE-001: Tier Override Request (Mentee-Initiated)**
+86. **REP-OVERRIDE-001: Tier Override Request (Mentee-Initiated)**
     - As a **mentee**, I want to request an exception to book a higher-tier mentor
     - **Acceptance Criteria:**
       - "Request Exception" button on restricted mentor profile
@@ -1112,7 +1197,7 @@ Epic 8: Admin & Coordinator Tools
       - Email notification sent to coordinators (with approve magic link + dashboard link)
     - **Related:** FR54, FR55, FR56
 
-81. **REP-DORMANT-001: Dormant User Detection**
+87. **REP-DORMANT-001: Dormant User Detection**
     - As a **developer**, I want users with no meetings for 90+ days marked as dormant
     - **Acceptance Criteria:**
       - `users.last_activity_at` updated on every booking creation (as mentor or mentee)
@@ -1122,7 +1207,7 @@ Epic 8: Admin & Coordinator Tools
       - Dormant users cannot be booked directly (requires coordinator override)
     - **Related:** FR57, FR58
 
-82. **REP-HISTORY-001: Reputation History Tracking**
+88. **REP-HISTORY-001: Reputation History Tracking**
     - As a **coordinator**, I want to view reputation score changes over time for a user
     - **Acceptance Criteria:**
       - `reputation_history` table logs all score changes
@@ -1136,8 +1221,8 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 8: Admin & Coordinator Tools**
 **Goal:** Provide coordinators with essential oversight, user documentation, and white-glove scheduling capabilities
 **Priority:** P2 (Medium)
-**Estimated Stories:** 6
-**Dependencies:** Epic 7 (reputation system must be functional)
+**Estimated Stories:** 7
+**Dependencies:** Epic 4 (booking confirmation flow), Epic 7 (reputation system must be functional)
 **Timeline:** Sprint 10 (Weeks 19-20)
 
 **Deliverable:** Admin tools with:
@@ -1155,7 +1240,7 @@ Epic 8: Admin & Coordinator Tools
 
 **User Stories:**
 
-83. **ADMIN-DASH-001-LITE: Basic Dashboard KPI Cards (MVP)**
+89. **ADMIN-DASH-001-LITE: Basic Dashboard KPI Cards (MVP)**
     - As a **coordinator**, I want to see essential platform metrics as simple KPI cards
     - **Acceptance Criteria:**
       - Four static KPI cards only (no charts): Mentor utilization rate (%), Weekly slots filled (#), Active users (#), Upcoming meetings (#)
@@ -1166,7 +1251,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR68, FR69, Section 3.3
     - **Note:** Interactive dashboard with charts deferred to FE31 (post-MVP)
 
-84. **ADMIN-OVERRIDE-001: Tier Override Request Management**
+90. **ADMIN-OVERRIDE-001: Tier Override Request Management**
     - As a **coordinator**, I want to review and approve/deny tier override requests
     - **Acceptance Criteria:**
       - "Override Requests" tab in coordinator dashboard
@@ -1177,7 +1262,7 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** FR54, FR55, FR56
     - **Note:** Email magic link approval deferred to FE32 (post-MVP)
 
-85. **ADMIN-REP-001: Manual Reputation Override**
+91. **ADMIN-REP-001: Manual Reputation Override**
     - As a **coordinator**, I want to manually adjust user reputation scores with audit trail
     - **Acceptance Criteria:**
       - User profile (admin view): "Override Reputation" button
@@ -1186,7 +1271,7 @@ Epic 8: Admin & Coordinator Tools
       - Audit log: before/after values, admin user, reason, timestamp
     - **Related:** FR53, FR71, FR72
 
-86. **ADMIN-SCHEDULE-001: White-Glove Scheduling**
+92. **ADMIN-SCHEDULE-001: White-Glove Scheduling**
     - As a **coordinator**, I want to manually schedule meetings on behalf of mentors/mentees
     - **Acceptance Criteria:**
       - "Schedule Meeting" button on any user's profile (coordinator view)
@@ -1196,7 +1281,7 @@ Epic 8: Admin & Coordinator Tools
       - Logged as admin action in `audit_log`
     - **Related:** FR65, FR67, FR71
 
-87. **ADMIN-MEETINGS-001: Meeting Management**
+93. **ADMIN-MEETINGS-001: Meeting Management**
     - As a **coordinator**, I want to view, edit, and cancel any meeting
     - **Acceptance Criteria:**
       - "Meetings" tab in coordinator dashboard
@@ -1205,7 +1290,7 @@ Epic 8: Admin & Coordinator Tools
       - All edits logged in `audit_log` with before/after values
     - **Related:** FR66, FR71, FR72
 
-88. **ADMIN-DOCS-001: User Documentation and Coordinator Manual**
+94. **ADMIN-DOCS-001: User Documentation and Coordinator Manual**
     - As a **coordinator/user**, I want comprehensive documentation for using the platform
     - **Acceptance Criteria:**
       - User guide documentation structure created: Getting started, Mentor guide, Mentee guide, FAQ, Troubleshooting
@@ -1217,26 +1302,40 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** Section 10, FR66
     - **Note:** Tag approval workflow (ADMIN-TAGS-001) deferred to FE33 (post-MVP)
 
+95. **ADMIN-PENDING-001: Coordinator Pending Meetings Page**
+    - As a **coordinator**, I want to view all pending meetings requiring confirmation
+    - **Acceptance Criteria:**
+      - Coordinator dashboard page with "Pending Meetings" section
+      - Table displays: Mentee name, Mentor name, Date/Time, Meeting goal, Days pending
+      - Filter by mentor, mentee, or date range
+      - Sortable columns (name, date, days pending)
+      - Click row to view meeting details
+      - "Confirm" button changes booking status from 'pending' to 'confirmed'
+      - Comprehensive dev-only logging for all coordinator actions
+    - **Related:** Story 68 (Booking Confirmation Flow), Epic 8 (Coordinator Tools)
+    - **Note:** Coordinator tooling to support manual booking confirmation workflow
+
 ---
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 92 (Epic 0 includes deployment stories 17-19 and improvements 20-21)
-**Critical Path (P0):** Epics 0-4 (23 + 9 + 11 + 10 + 11 = 64 stories)
-**High Priority (P1):** Epics 5-7 (7 + 7 + 10 = 24 stories)
-**Medium Priority (P2):** Epic 8 (6 stories)
+**Total Stories:** 95 (Epic 0 expanded with event-driven matching system)
+**Critical Path (P0):** Epics 0-4 (27 + 9 + 11 + 10 + 11 = 68 stories)
+**High Priority (P1):** Epics 5-7 (7 + 3 + 10 = 20 stories) (Epic 6 reduced: 4 stories moved to Epic 0)
+**Medium Priority (P2):** Epic 8 (7 stories) - Stories 89-95
+**Total:** 68 + 20 + 7 = 95 stories
 
 **Recommended Sprint Breakdown (2-week sprints):**
 
-- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 23 stories (Stories 0-16 local dev, 0.16.1 testing, 17-19 deployment, 20-21 improvements) → **DEPLOYED END-TO-END WORKING PRODUCT**
-- **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories
-- **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories
-- **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories
-- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 11 stories (includes booking confirmation flow)
-- **Sprint 7:** Epic 5 (Airtable Integration) - 7 stories (mentors, portfolio companies, industries, technologies)
-- **Sprint 8:** Epic 6 (Matching & Discovery) - 7 stories
-- **Sprint 9:** Epic 7 (Reputation & Ratings) - 10 stories
-- **Sprint 9.5:** Epic 8 (Admin & Coordinator Tools) - 6 stories
+- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 27 stories (Stories 0-26) → **DEPLOYED END-TO-END WORKING PRODUCT**
+- **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories (Stories 28-36)
+- **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories (Stories 37-47)
+- **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories (Stories 48-57)
+- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 11 stories (Stories 58-68, includes booking confirmation flow)
+- **Sprint 7:** Epic 5 (Airtable Integration) - 7 stories (Stories 69-75, mentors, portfolio companies, industries, technologies)
+- **Sprint 8:** Epic 6 (Matching & Discovery) - 3 stories (Stories 76-78, core engine in Epic 0)
+- **Sprint 9:** Epic 7 (Reputation & Ratings) - 10 stories (Stories 79-88)
+- **Sprint 9.5:** Epic 8 (Admin & Coordinator Tools) - 7 stories (Stories 89-95)
 
 **Estimated Timeline:** 19 weeks (9.5 sprints)
 

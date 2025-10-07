@@ -850,11 +850,129 @@ When notifications need to be sent to **all coordinators** (e.g., `tag_approval_
 - NotificationLog → User (many:1 recipient)
 - AuditLog → User (many:1 admin)
 
-## 4.8 Sample Data & Seed Scripts
+## 4.8 Matching & Recommendation Models
+
+**Purpose:** Cache pre-calculated match scores for instant retrieval in the UI
+
+**Key Design Notes:**
+- Event-driven background calculation using `IMatchingEngine` interface
+- Cached retrieval with no polymorphic interface (simple SQL queries)
+- Algorithm version stored as data (column filter), not behavior
+- Supports multiple algorithms simultaneously (A/B testing, gradual rollout)
+
+**TypeScript Interface:**
+
+```typescript
+// packages/shared/src/types/matching.ts
+
+export interface UserMatchCache {
+  id: string;
+  user_id: string; // Who is this recommendation FOR
+  recommended_user_id: string; // Who is being recommended
+  match_score: number; // 0-100
+  match_explanation: MatchExplanation; // JSONB
+  algorithm_version: string; // e.g., 'tag-based-v1', 'ml-v2'
+  calculated_at: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MatchExplanation {
+  tagOverlap: Array<{ category: string; tag: string }>;
+  stageMatch: boolean;
+  reputationCompatible: boolean;
+  summary: string;
+}
+
+export interface MatchResult {
+  user: UserWithProfile;
+  score: number;
+  explanation: MatchExplanation;
+}
+```
+
+**Database Schema:**
+
+```sql
+CREATE TABLE user_match_cache (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Who is this recommendation FOR
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+  -- Who is being recommended
+  recommended_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+  -- Match score (0-100)
+  match_score numeric(5,2) NOT NULL CHECK (match_score >= 0 AND match_score <= 100),
+
+  -- Detailed explanation (JSON)
+  match_explanation jsonb NOT NULL,
+
+  -- Which algorithm calculated this
+  algorithm_version text NOT NULL,
+
+  -- When was this calculated
+  calculated_at timestamptz NOT NULL DEFAULT now(),
+
+  -- Audit fields
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+
+  -- Constraints
+  UNIQUE(user_id, recommended_user_id, algorithm_version),
+  CHECK (user_id != recommended_user_id)
+);
+
+-- Indexes for fast retrieval
+CREATE INDEX idx_user_match_cache_user_id ON user_match_cache(user_id);
+CREATE INDEX idx_user_match_cache_score ON user_match_cache(user_id, match_score DESC);
+CREATE INDEX idx_user_match_cache_algorithm ON user_match_cache(algorithm_version);
+CREATE INDEX idx_user_match_cache_calculated_at ON user_match_cache(calculated_at);
+
+-- RLS Policy: Coordinators only
+ALTER TABLE user_match_cache ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Coordinators can view all match cache"
+  ON user_match_cache
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid()
+        AND users.role = 'coordinator'
+    )
+  );
+```
+
+**Key Design Decisions:**
+
+1. **Calculation vs Retrieval:**
+   - **Calculation** is polymorphic → `IMatchingEngine` interface
+   - **Retrieval** is NOT polymorphic → Plain `MatchingService` class
+   - Algorithm version is data (column filter), not behavior
+
+2. **Event-Driven Recalculation:**
+   - User profile updated → Recalculate matches for that user
+   - User tags changed → Recalculate matches for that user
+   - Portfolio company tags changed → Recalculate matches for linked mentees
+   - User reputation tier changed → Recalculate matches for that user
+
+3. **On-Demand Retrieval:**
+   - Coordinator loads matching UI → API call → Query cache table
+   - Always fast (< 100ms)
+   - Algorithm version filter allows A/B testing
+
+**Relationships:**
+- UserMatchCache → User as user_id (many:1)
+- UserMatchCache → User as recommended_user_id (many:1)
+
+## 4.9 Sample Data & Seed Scripts
 
 **Purpose:** Provide comprehensive sample data for local development and testing environments. All sample data is hard-coded in SQL seed files located in `supabase/seeds/` and is **never used in production**.
 
-### 4.8.1 Taxonomy Sample Data
+### 4.9.1 Taxonomy Sample Data
 
 **Files:**
 - `supabase/seeds/01_seed_industries.sql` - Industry taxonomy with hierarchical relationships (55 records)
@@ -901,7 +1019,7 @@ INSERT INTO raw_industries (name, parent) VALUES
    - Apply approval distribution: 90% true, 10% false (for testing)
    - Set `source='sample_data'`, `airtable_record_id=null`
 
-### 4.8.2 User/Mentor Sample Data
+### 4.9.2 User/Mentor Sample Data
 
 **File:** `supabase/seeds/06_seed_mentors.sql`
 
@@ -934,7 +1052,7 @@ Mike Advisor,"Partner at Venture Capital Firm. Focus on FinTech investments.","F
      AND is_approved = true
    ```
 
-### 4.8.3 Portfolio Company Sample Data
+### 4.9.3 Portfolio Company Sample Data
 
 **File:** `supabase/seeds/03_seed_portfolio_companies.sql`
 
@@ -961,7 +1079,7 @@ INSERT INTO raw_portfolio_companies (name, description, website, pitch_url, loca
 2. Parse comma-separated tag columns (Industry, Technology, Stage)
 3. Create `entity_tags` entries linking to taxonomy
 
-### 4.8.4 Production-Safe Seed Data
+### 4.9.4 Production-Safe Seed Data
 
 **File:** `seeds/locations.sql`
 
@@ -979,7 +1097,7 @@ ON CONFLICT DO NOTHING;
 
 **Production Safety:** This seed file is safe to run in production (idempotent, essential data).
 
-### 4.8.5 Seed Script Organization
+### 4.9.5 Seed Script Organization
 
 **Directory Structure:**
 ```
@@ -993,7 +1111,7 @@ ON CONFLICT DO NOTHING;
   └── README.md                 # Seeding instructions
 ```
 
-### 4.8.6 Execution Strategy
+### 4.9.6 Execution Strategy
 
 **Development (`npm run dev:setup`):**
 ```bash
@@ -1041,7 +1159,7 @@ INSERT INTO raw_industries (name, parent) VALUES
 - Rely on Airtable sync for taxonomy, users, and portfolio companies in production
 - Document in deployment guide: "Never run numbered seed files (01-06) in production"
 
-### 4.8.7 Development Workflow
+### 4.9.7 Development Workflow
 
 1. Developer clones repo
 2. Runs `supabase db reset`
@@ -1049,7 +1167,7 @@ INSERT INTO raw_industries (name, parent) VALUES
 4. Developer has realistic data for local testing (90% approved tags, 10% pending for testing approval flow)
 5. When ready for production testing → configure Airtable sync, sample data replaced
 
-## 4.9 Edge Case Handling
+## 4.10 Edge Case Handling
 
 **User Deletion (Airtable Sync):**
 - Soft delete user (`is_active = false`)
@@ -1067,11 +1185,11 @@ INSERT INTO raw_industries (name, parent) VALUES
 - If conflict detected: Show error, remove ⭐ indicator, refresh slot list
 - User picks different slot
 
-## 4.10 External System Integration
+## 4.11 External System Integration
 
 This section documents the integration with external systems, specifically the **Airtable webhook synchronization** that maintains user data and taxonomy as the source of truth.
 
-### 4.10.1 Airtable as Source of Truth
+### 4.11.1 Airtable as Source of Truth
 
 **Overview:**
 Airtable serves as the **external source of truth** for:
@@ -1088,7 +1206,7 @@ The application syncs data via **webhooks** triggered on CRUD operations in Airt
 - **Stable IDs**: `airtable_record_id` acts as the join key between systems
 - **Graceful degradation**: Application continues operating if Airtable is temporarily unavailable
 
-### 4.10.2 Airtable Data Schema
+### 4.11.2 Airtable Data Schema
 
 **Users Table (Airtable):**
 - Record ID (unique identifier)
@@ -1123,7 +1241,7 @@ Three separate tables or tabs:
 - Sales Model (text)
 - Stage (text)
 
-### 4.10.3 Field Mapping Table
+### 4.11.3 Field Mapping Table
 
 **User Data Mapping:**
 
@@ -1175,7 +1293,7 @@ Three separate tables or tabs:
 | Sales Model | `portfolio_companies` | `sales_model` | Text field |
 | Stage | `portfolio_companies` | `stage` | Text field |
 
-### 4.10.4 Webhook Configuration
+### 4.11.4 Webhook Configuration
 
 **Airtable Webhook Setup:**
 1. Navigate to Airtable Automations
@@ -1230,7 +1348,7 @@ Three separate tables or tabs:
 }
 ```
 
-### 4.10.5 Webhook Processing Flow
+### 4.11.5 Webhook Processing Flow
 
 **High-Level Flow:**
 
@@ -1394,7 +1512,7 @@ sequenceDiagram
    }
    ```
 
-### 4.10.6 Error Handling & Retry Strategy
+### 4.11.6 Error Handling & Retry Strategy
 
 **Transient Failures:**
 - Airtable webhook will **retry automatically** on 5xx errors
@@ -1415,7 +1533,7 @@ sequenceDiagram
 - Deduplication via KV cache prevents double-processing
 - Safe to retry manually if needed
 
-### 4.10.7 Development vs Production Sync
+### 4.11.7 Development vs Production Sync
 
 **Development Environment:**
 - **NO Airtable sync** (uses sample data from SQL seeds)
@@ -1439,7 +1557,7 @@ sequenceDiagram
 3. Configure Airtable webhooks
 4. System maintains sync via webhooks
 
-### 4.10.8 Sync Dependency Graph
+### 4.11.8 Sync Dependency Graph
 
 **Dependency Order (CRITICAL for referential integrity):**
 

@@ -1223,31 +1223,48 @@ if (hasConflict) {
 
 ### IMatchingEngine Interface
 
+**Architecture:** Event-driven pre-calculation with cached retrieval (see FR13, FR13a, FR13b)
+
+**Key Design Principle:** This interface is ONLY for calculation (background operations). Retrieval uses plain `MatchingService` class (no interface needed).
+
 ```typescript
+/**
+ * Matching engine interface for calculating and caching user matches
+ *
+ * Implementations calculate match scores in the background and write
+ * results to the user_match_cache table. This enables instant retrieval
+ * for the UI without expensive calculations on every request.
+ */
 interface IMatchingEngine {
-  getRecommendedMentors(
-    mentee: User,
-    options: MatchingOptions
-  ): Promise<MatchResult[]>;
+  /**
+   * Recalculate matches for a specific user
+   * Writes results to user_match_cache table
+   */
+  recalculateMatches(userId: string): Promise<void>;
 
-  getRecommendedMentees(
-    mentor: User,
-    options: MatchingOptions
-  ): Promise<MatchResult[]>;
+  /**
+   * Recalculate matches for all users (batch operation)
+   * Used for initial population or admin-triggered recalculation
+   */
+  recalculateAllMatches(options?: BulkRecalculationOptions): Promise<void>;
 
-  explainMatch(menteeId: string, mentorId: string): Promise<MatchExplanation>;
+  /**
+   * Get the algorithm version identifier
+   * Used to tag cache entries with algorithm version
+   */
+  getAlgorithmVersion(): string;
 }
 
-interface MatchingOptions {
-  limit?: number;
-  minScore?: number;
-  includeExplanation?: boolean;
+interface BulkRecalculationOptions {
+  limit?: number;          // Limit users to process
+  modifiedAfter?: Date;    // Only process users modified after this date
+  batchSize?: number;      // Batch size (default: 100)
 }
 
 interface MatchResult {
-  user: User;
+  user: UserWithProfile;
   score: number; // 0-100
-  explanation?: MatchExplanation;
+  explanation: MatchExplanation;
 }
 
 interface MatchExplanation {
@@ -1258,12 +1275,40 @@ interface MatchExplanation {
 }
 ```
 
-**MVP Implementation: TagBasedMatchingEngine**
+**Event Triggers (FR13a):**
+- User profile updated → `recalculateMatches(userId)`
+- User tags changed → `recalculateMatches(userId)`
+- Portfolio company tags changed → `recalculateMatches()` for all linked mentees
+- User reputation tier changed → `recalculateMatches(userId)`
+
+**MVP Implementation: TagBasedMatchingEngineV1**
 
 Calculates score based on:
 - Tag overlap (weight: 60%)
 - Stage compatibility (weight: 20%)
 - Reputation tier compatibility (weight: 20%)
+
+Writes results to `user_match_cache` table with `algorithm_version='tag-based-v1'`.
+
+**Retrieval (MatchingService - Plain Class, No Interface):**
+
+Match retrieval queries the pre-calculated cache table. This does NOT use a polymorphic interface because the SQL query is identical regardless of which algorithm calculated the data.
+
+```typescript
+class MatchingService {
+  async getRecommendedMentors(
+    menteeId: string,
+    options?: { algorithmVersion?: string; limit?: number; minScore?: number }
+  ): Promise<MatchResult[]>;
+
+  async getRecommendedMentees(
+    mentorId: string,
+    options?: { algorithmVersion?: string; limit?: number; minScore?: number }
+  ): Promise<MatchResult[]>;
+
+  async explainMatch(userId1: string, userId2: string): Promise<MatchExplanation>;
+}
+```
 
 ---
 
