@@ -28,6 +28,7 @@ build/
 .env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
 .dev.vars
 
@@ -62,6 +63,10 @@ temp/
 
 # Generated files
 packages/shared/src/types/api.generated.ts
+
+# Production seed data (may contain PII)
+supabase/seeds/production/*.sql
+!supabase/seeds/production/seed_all_production.sql
 
 # Playwright
 test-results/

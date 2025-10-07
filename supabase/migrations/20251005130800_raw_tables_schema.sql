@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS raw_portfolio_companies (
 CREATE TABLE IF NOT EXISTS raw_mentees (
     id SERIAL PRIMARY KEY,
     record_id TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
     role TEXT NOT NULL,
     name TEXT,
     title TEXT,
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS raw_mentees (
 
 CREATE TABLE IF NOT EXISTS raw_mentors (
     id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
     full_name TEXT NOT NULL,
     bio TEXT,
     industry_expertise TEXT,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS raw_mentors (
 
 CREATE TABLE IF NOT EXISTS raw_users (
     id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
     role TEXT NOT NULL,
     name TEXT,
     title TEXT,
