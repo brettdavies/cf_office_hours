@@ -73,17 +73,3 @@ INSERT INTO raw_mentees (record_id, email, role, name, title, company, phone, li
 
 -- Log the loaded data
 SELECT 'Loaded ' || COUNT(*) || ' mentees' as result FROM raw_mentees;
-
--- ============================================================================
--- Local Development: Create users directly (ETL disabled for users)
--- ============================================================================
--- In production, users are created via Supabase Auth on first login.
--- For local development, we manually insert users from raw_mentees.
-
-INSERT INTO users (airtable_record_id, email, role)
-SELECT record_id, email, role
-FROM raw_mentees
-ON CONFLICT (email) DO NOTHING;
-
-SELECT 'Created ' || COUNT(*) || ' mentee users' as result FROM users WHERE role = 'mentee';
-

@@ -66,7 +66,11 @@ sql_paths = [
   "./seeds/03_seed_portfolio_companies.sql",
   "./seeds/04_seed_mentees.sql",
   "./seeds/05_seed_users.sql",
-  "./seeds/06_seed_mentors.sql"
+  "./seeds/06_seed_mentors.sql",
+  "./seeds/07_seed_modify_emails.sql",
+  "./seeds/08_seed_create_users.sql",
+  "./seeds/09_seed_availability.sql",
+  "./seeds/10_seed_bookings.sql"
 ]
 
 [db.network_restrictions]

@@ -509,17 +509,3 @@ INSERT INTO raw_mentors (email, full_name, bio, industry_expertise, technology_e
 
 -- Log the loaded data
 SELECT 'Loaded ' || COUNT(*) || ' mentors' as result FROM raw_mentors;
-
--- ============================================================================
--- Local Development: Create users directly (ETL disabled for users)
--- ============================================================================
--- In production, users are created via Supabase Auth on first login.
--- For local development, we manually insert users from raw_mentors.
-
-INSERT INTO users (airtable_record_id, email, role)
-SELECT 'mentor-' || ROW_NUMBER() OVER()::text, email, 'mentor'
-FROM raw_mentors
-ON CONFLICT (email) DO NOTHING;
-
-SELECT 'Created ' || COUNT(*) || ' mentor users' as result FROM users WHERE role = 'mentor';
-

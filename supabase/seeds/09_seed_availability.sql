@@ -70,10 +70,11 @@ BEGIN
         ELSE 60
       END;
 
-      -- Calculate start datetime
-      start_datetime := NOW() +
+      -- Calculate start datetime with minutes restricted to :00 or :30
+      start_datetime := date_trunc('hour', NOW() +
         (INTERVAL '1 day' * random_day_offset) +
-        (INTERVAL '1 hour' * random_hour_offset);
+        (INTERVAL '1 hour' * random_hour_offset)) +
+        (INTERVAL '30 minutes' * floor(random() * 2)::int);  -- Add 0 or 30 minutes
 
       -- Random block duration: 1-3 hours for realistic availability windows
       random_block_hours := 1 + floor(random() * 3)::int;
