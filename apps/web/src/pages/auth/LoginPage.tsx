@@ -1,12 +1,23 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/services/supabase';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getErrorMessage } from '@/lib/error-messages';
+import { isValidEmail } from '@/lib/validators';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const emailParam = searchParams.get('u');
+
+  // Initialize email state with query parameter if valid
+  const [email, setEmail] = useState(() => {
+    if (emailParam && isValidEmail(emailParam)) {
+      return emailParam;
+    }
+    return '';
+  });
   const [loading, setLoading] = useState(false);
   const addToast = useNotificationStore(state => state.addToast);
 

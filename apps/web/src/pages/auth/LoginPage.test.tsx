@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import LoginPage from './LoginPage';
 import { supabase } from '@/services/supabase';
 
@@ -24,7 +25,11 @@ describe('LoginPage', () => {
   });
 
   it('should render email input and submit button', () => {
-    render(<LoginPage />);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
 
     expect(screen.getByPlaceholderText(/enter your email/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send magic link/i })).toBeInTheDocument();
@@ -34,7 +39,11 @@ describe('LoginPage', () => {
     const mockSignIn = vi.fn().mockResolvedValue({ error: null });
     vi.mocked(supabase.auth.signInWithOtp).mockImplementation(mockSignIn);
 
-    render(<LoginPage />);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
 
     const emailInput = screen.getByPlaceholderText(/enter your email/i);
     const submitButton = screen.getByRole('button', { name: /send magic link/i });
@@ -60,7 +69,11 @@ describe('LoginPage', () => {
       );
     vi.mocked(supabase.auth.signInWithOtp).mockImplementation(mockSignIn);
 
-    render(<LoginPage />);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
 
     const emailInput = screen.getByPlaceholderText(/enter your email/i);
     const submitButton = screen.getByRole('button', { name: /send magic link/i });
@@ -77,7 +90,11 @@ describe('LoginPage', () => {
   });
 
   it('should handle empty email validation', async () => {
-    render(<LoginPage />);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
 
     const submitButton = screen.getByRole('button', { name: /send magic link/i });
     fireEvent.click(submitButton);
@@ -93,7 +110,11 @@ describe('LoginPage', () => {
     });
     vi.mocked(supabase.auth.signInWithOtp).mockImplementation(mockSignIn);
 
-    render(<LoginPage />);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
 
     const emailInput = screen.getByPlaceholderText(/enter your email/i);
     const submitButton = screen.getByRole('button', { name: /send magic link/i });
@@ -110,7 +131,11 @@ describe('LoginPage', () => {
     const mockSignIn = vi.fn().mockResolvedValue({ error: null });
     vi.mocked(supabase.auth.signInWithOtp).mockImplementation(mockSignIn);
 
-    render(<LoginPage />);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
 
     const emailInput = screen.getByPlaceholderText(/enter your email/i);
 
@@ -119,6 +144,76 @@ describe('LoginPage', () => {
 
     await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalled();
+    });
+  });
+
+  describe('Query Parameter - Email Auto-fill', () => {
+    it('should auto-fill email from query parameter', () => {
+      render(
+        <MemoryRouter initialEntries={['/auth/login?u=test@example.com']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('test@example.com');
+    });
+
+    it('should ignore invalid email query parameter', () => {
+      render(
+        <MemoryRouter initialEntries={['/auth/login?u=invalid']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('');
+    });
+
+    it('should handle URL-encoded email query parameter', () => {
+      render(
+        <MemoryRouter initialEntries={['/auth/login?u=test%40example.com']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('test@example.com');
+    });
+
+    it('should allow user to edit pre-filled email', () => {
+      render(
+        <MemoryRouter initialEntries={['/auth/login?u=test@example.com']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('test@example.com');
+
+      fireEvent.change(emailInput, { target: { value: 'newemail@example.com' } });
+      expect(emailInput.value).toBe('newemail@example.com');
+    });
+
+    it('should handle missing query parameter (no regression)', () => {
+      render(
+        <MemoryRouter initialEntries={['/auth/login']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('');
     });
   });
 });
