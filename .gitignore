@@ -62,7 +62,8 @@ temp/
 *.tmp
 
 # Generated files
-packages/shared/src/types/api.generated.ts
+# Commented out: Needed for Cloudflare Pages build (no API server during build)
+# packages/shared/src/types/api.generated.ts
 
 # Production seed data (may contain PII)
 supabase/seeds/production/*.sql
