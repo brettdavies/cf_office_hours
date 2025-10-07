@@ -187,6 +187,48 @@ describe('LoginPage', () => {
       expect(emailInput.value).toBe('test@example.com');
     });
 
+    it('should handle URL-encoded email with plus character', () => {
+      render(
+        <MemoryRouter initialEntries={['/auth/login?u=test%2Bmentor%40example.com']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('test+mentor@example.com');
+    });
+
+    it('should handle unencoded plus character (decoded as space by browser)', () => {
+      // When user types ?u=test+mentor@example.com in browser, the + is decoded as space
+      // Our code converts the space back to + to support this common pattern
+      render(
+        <MemoryRouter initialEntries={['/auth/login?u=test mentor@example.com']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('test+mentor@example.com');
+    });
+
+    it('should handle email with plus in username (e.g., test+mentor@example.com)', () => {
+      // Real email addresses can have plus in the local part (not just for tagging)
+      render(
+        <MemoryRouter initialEntries={['/auth/login?u=test mentor@example.com']}>
+          <Routes>
+            <Route path="/auth/login" element={<LoginPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      const emailInput = screen.getByPlaceholderText(/enter your email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('test+mentor@example.com');
+    });
+
     it('should allow user to edit pre-filled email', () => {
       render(
         <MemoryRouter initialEntries={['/auth/login?u=test@example.com']}>

@@ -13,8 +13,13 @@ export default function LoginPage() {
 
   // Initialize email state with query parameter if valid
   const [email, setEmail] = useState(() => {
-    if (emailParam && isValidEmail(emailParam)) {
-      return emailParam;
+    if (emailParam) {
+      // URL decoding converts '+' to space, but email '+' is valid (e.g., test+tag@gmail.com)
+      // Convert spaces back to '+' before validation to support unencoded URLs
+      const normalizedEmail = emailParam.replace(/\s/g, '+');
+      if (isValidEmail(normalizedEmail)) {
+        return normalizedEmail;
+      }
     }
     return '';
   });
