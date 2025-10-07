@@ -40,6 +40,7 @@ DECLARE
   random_hour_offset INT;
   start_datetime TIMESTAMPTZ;
   slot_duration_mins INT;
+  random_block_hours INT;
 BEGIN
   -- Loop through ALL mentors
   FOR mentor_record IN
@@ -71,6 +72,9 @@ BEGIN
         (INTERVAL '1 day' * random_day_offset) +
         (INTERVAL '1 hour' * random_hour_offset);
 
+      -- Random block duration: 1-3 hours for realistic availability windows
+      random_block_hours := 1 + floor(random() * 3)::int;
+
       -- Insert availability block
       INSERT INTO availability (
         mentor_id,
@@ -81,7 +85,7 @@ BEGIN
       ) VALUES (
         mentor_record.mentor_id,
         start_datetime,
-        start_datetime + (INTERVAL '1 minute' * slot_duration_mins),
+        start_datetime + (INTERVAL '1 hour' * random_block_hours),
         slot_duration_mins,
         location_options[1 + floor(random() * array_length(location_options, 1))::int]
       );
@@ -138,6 +142,6 @@ END $$;
 SELECT 'Availability blocks created: ' || COUNT(*) as result
 FROM availability WHERE deleted_at IS NULL;
 
--- Count time slots (should equal availability blocks since each block is one slot duration)
+-- Count time slots (should be 4800-7200 slots with 1-3 hour blocks)
 SELECT 'Time slots created: ' || COUNT(*) as result
 FROM time_slots WHERE deleted_at IS NULL;
