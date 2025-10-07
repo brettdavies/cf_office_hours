@@ -76,9 +76,13 @@ describe('isValidEmail', () => {
     });
 
     it('should reject non-string values', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(isValidEmail(null as any)).toBe(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(isValidEmail(undefined as any)).toBe(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(isValidEmail(123 as any)).toBe(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(isValidEmail({} as any)).toBe(false);
     });
 

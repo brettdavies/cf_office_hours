@@ -5,9 +5,9 @@
  * Tests are updated directly when new migrations modify RLS policies.
  * Uses Supabase client which automatically enforces RLS.
  *
- * Current Schema Version: v2.4
- * Current Migration: 20251003041821_minimal_database_schema.sql
- * Last Updated: 2025-10-05 (Story 1.1)
+ * Current Schema Version: v2.5
+ * Current Migration: 20251007183502_create_user_match_cache.sql
+ * Last Updated: 2025-10-07 (Story 0.22)
  *
  * When updating for new migrations:
  * 1. Add tests for new tables' RLS policies
@@ -15,16 +15,17 @@
  * 3. Remove tests for dropped tables/policies (document reason)
  * 4. Update "Current Migration" and "Last Updated" above
  *
- * Policies Tested (27 policies across 9 tables):
+ * Policies Tested (28 policies across 10 tables):
  * - Public read: portfolio_companies, taxonomy, user_profiles, user_urls,
  *                availability, time_slots, entity_tags
  * - User-owned CRUD: users, user_profiles, user_urls, bookings, availability
  * - Coordinator overrides: 8 tables (admin capabilities)
+ * - Coordinator-only read: user_match_cache (SELECT only for coordinators)
  * - Soft delete filtering: entity_tags (WHERE deleted_at IS NULL)
  */
 
 import { describe, it, expect } from 'vitest';
-import { supabase } from './test-client';
+import { supabase } from '../test-client';
 
 describe('RLS Policies - Public Read Access', () => {
   it('should allow reading from portfolio_companies (public read)', async () => {
@@ -72,7 +73,7 @@ describe('RLS Policies - Public Read Access', () => {
     // availability has public read (for mentees to browse)
     const { data, error } = await supabase
       .from('availability')
-      .select('id, start_date, start_time, end_time, location')
+      .select('id, start_time, end_time, location')
       .limit(10);
 
     // Should succeed
@@ -201,6 +202,70 @@ describe('RLS Policies - Soft Delete Handling', () => {
       .not('deleted_at', 'is', null); // Try to fetch soft-deleted rows
 
     // Should return empty (RLS blocks soft-deleted rows)
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+});
+
+describe('RLS Policies - user_match_cache (Coordinator-Only)', () => {
+  it('should block anonymous read from user_match_cache', async () => {
+    // user_match_cache has "Coordinators can view all match cache" policy
+    // Anonymous users should get empty result (RLS blocks)
+    const { data, error } = await supabase
+      .from('user_match_cache')
+      .select('id, user_id, recommended_user_id, match_score')
+      .limit(10);
+
+    // Should succeed but return empty (RLS blocks anonymous)
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it('should block anonymous insert to user_match_cache', async () => {
+    // Get valid user IDs
+    const { data: users } = await supabase
+      .from('users')
+      .select('id')
+      .limit(2);
+
+    if (!users || users.length < 2) {
+      // Skip test if no users available
+      expect(true).toBe(true);
+      return;
+    }
+
+    const { error } = await supabase.from('user_match_cache').insert({
+      user_id: users[0].id,
+      recommended_user_id: users[1].id,
+      match_score: 50,
+      match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+      algorithm_version: 'test-v1',
+    });
+
+    // Should error (no INSERT policy defined - coordinator-only table)
+    expect(error).not.toBeNull();
+  });
+
+  it('should block anonymous update to user_match_cache', async () => {
+    const { error, data } = await supabase
+      .from('user_match_cache')
+      .update({ match_score: 100 })
+      .eq('id', '00000000-0000-0000-0000-000000000000')
+      .select();
+
+    // RLS silently filters rows - success with 0 rows is correct behavior
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it('should block anonymous delete from user_match_cache', async () => {
+    const { error, data } = await supabase
+      .from('user_match_cache')
+      .delete()
+      .eq('id', '00000000-0000-0000-0000-000000000000')
+      .select();
+
+    // RLS silently filters rows - success with 0 rows deleted is correct behavior
     expect(error).toBeNull();
     expect(data).toEqual([]);
   });

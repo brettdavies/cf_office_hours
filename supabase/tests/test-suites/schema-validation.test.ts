@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { supabase } from './test-client';
+import { supabase } from '../test-client';
 
 describe('Database Schema v2.4 - Table Structure', () => {
   it('should have users table with audit columns', async () => {
@@ -98,7 +98,7 @@ describe('Database Schema v2.4 - Table Structure', () => {
     const { data, error } = await supabase
       .from('availability')
       .select(
-        'id, mentor_id, start_date, end_date, start_time, end_time, slot_duration_minutes, location, created_at, updated_at, created_by, updated_by, deleted_at, deleted_by'
+        'id, mentor_id, start_time, end_time, slot_duration_minutes, location, created_at, updated_at, created_by, updated_by, deleted_at, deleted_by'
       )
       .limit(0);
 

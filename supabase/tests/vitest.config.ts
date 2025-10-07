@@ -10,7 +10,7 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     globals: true,
-    include: ['**/*.test.ts'],
+    include: ['test-suites/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
   },
 });

@@ -10,12 +10,14 @@
  * Story: 0.11 (Booking Creation API)
  * Migration: 20251006120000_create_booking_transaction.sql
  *
- * TODO: Fix test data setup to match v2.4 minimal schema
- * The availability table schema in the migration differs from availability_blocks
- * used in Story 0.9. Tests need to be updated to use the correct columns:
- * - start_date/end_date (date) instead of start_time/end_time (timestamptz)
- * - start_time/end_time (time) for time-of-day
- * - location (text) instead of meeting_type/buffer_minutes
+ * KNOWN ISSUE: Tests currently fail due to RLS policies
+ * - RLS blocks anonymous inserts to availability table
+ * - Tests need authenticated user context or service role key
+ * - Alternative: Test via service layer with authenticated context
+ *
+ * Schema updated to v2.5 (Story 0.22):
+ * - Removed: start_date, end_date, recurrence_pattern, buffer_minutes, meeting_type
+ * - Current columns: start_time, end_time, slot_duration_minutes, location
  *
  * For now, booking transaction function is tested via:
  * - Service layer unit tests (BookingService.test.ts)
@@ -23,7 +25,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { supabase } from './test-client';
+import { supabase } from '../test-client';
 
 describe('Database Function: create_booking_transaction', () => {
   // Test data UUIDs
@@ -63,12 +65,10 @@ describe('Database Function: create_booking_transaction', () => {
       .from('availability')
       .insert({
         mentor_id: mentorId,
-        recurrence_pattern: 'one_time',
         start_time: '2025-10-15T19:00:00Z',
         end_time: '2025-10-15T20:00:00Z',
         slot_duration_minutes: 30,
-        buffer_minutes: 0,
-        meeting_type: 'online',
+        location: 'Online',
         created_by: mentorId,
         updated_by: mentorId,
       })
