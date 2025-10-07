@@ -4,7 +4,8 @@
 **Production Project ID:** `mwkptgdsoxlvxyeexwbf`
 **Production URL:** `https://mwkptgdsoxlvxyeexwbf.supabase.co`
 **Production API URL:** `https://api.officehours.youcanjustdothings.io`
-**Last Updated:** 2025-10-07 (Story 0.18)
+**Production Frontend URL:** `https://officehours.youcanjustdothings.io`
+**Last Updated:** 2025-10-07 (Story 0.19)
 
 ---
 
