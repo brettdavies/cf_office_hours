@@ -18,6 +18,37 @@ import type { UserListResponse } from '@/services/api/users';
 // Mock the useUsers hook module
 vi.mock('@/hooks/useUsers');
 
+// Helper function to create proper UseQueryResult mocks
+function createMockUseQueryResult<T>(
+  overrides: Partial<UseQueryResult<T, Error>>
+): UseQueryResult<T, Error> {
+  const base = {
+    data: undefined,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+    isError: false,
+    isSuccess: false,
+    status: 'pending' as const,
+    isPending: true,
+    isLoadingError: false,
+    isRefetchError: false,
+    isPlaceholderData: false,
+    isStale: false,
+    isFetching: false,
+    isRefetching: false,
+    fetchStatus: 'idle' as const,
+    ...overrides,
+  };
+
+  // Ensure consistency between isLoading and isPending
+  if (base.isLoading) {
+    base.isPending = true;
+  }
+
+  return base as UseQueryResult<T, Error>;
+}
+
 // Create test wrapper with React Query and Router
 function createTestWrapper() {
   const queryClient = new QueryClient({
@@ -43,15 +74,13 @@ describe('BrowseMentorsPage', () => {
   });
 
   it('shows loading spinner during fetch', () => {
-    vi.mocked(useMentors).mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      error: null,
-      refetch: vi.fn(),
-      isError: false,
-      isSuccess: false,
-      status: 'pending',
-    } as UseQueryResult<UserListResponse, Error>);
+    vi.mocked(useMentors).mockReturnValue(
+      createMockUseQueryResult<UserListResponse>({
+        data: undefined,
+        isLoading: true,
+        status: 'pending',
+      })
+    );
 
     render(<BrowseMentorsPage />, { wrapper: createTestWrapper() });
 
@@ -64,15 +93,15 @@ describe('BrowseMentorsPage', () => {
       createMockUserProfile({ id: 'mentor-2', role: 'mentor' }),
     ];
 
-    vi.mocked(useMentors).mockReturnValue({
-      data: mockMentors,
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-      isError: false,
-      isSuccess: true,
-      status: 'success',
-    } as UseQueryResult<UserListResponse, Error>);
+    vi.mocked(useMentors).mockReturnValue(
+      createMockUseQueryResult<UserListResponse>({
+        data: mockMentors,
+        isLoading: false,
+        isSuccess: true,
+        isPending: false,
+        status: 'success',
+      })
+    );
 
     render(<BrowseMentorsPage />, { wrapper: createTestWrapper() });
 
@@ -85,15 +114,17 @@ describe('BrowseMentorsPage', () => {
   it('shows error message on API failure', () => {
     const mockError = new Error('Network error');
 
-    vi.mocked(useMentors).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      error: mockError,
-      refetch: vi.fn(),
-      isError: true,
-      isSuccess: false,
-      status: 'error',
-    } as UseQueryResult<UserListResponse, Error>);
+    vi.mocked(useMentors).mockReturnValue(
+      createMockUseQueryResult<UserListResponse>({
+        data: undefined,
+        isLoading: false,
+        error: mockError,
+        isError: true,
+        isSuccess: false,
+        isPending: false,
+        status: 'error',
+      })
+    );
 
     render(<BrowseMentorsPage />, { wrapper: createTestWrapper() });
 
@@ -102,15 +133,15 @@ describe('BrowseMentorsPage', () => {
   });
 
   it('shows empty state if no mentors', () => {
-    vi.mocked(useMentors).mockReturnValue({
-      data: [],
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-      isError: false,
-      isSuccess: true,
-      status: 'success',
-    } as UseQueryResult<UserListResponse, Error>);
+    vi.mocked(useMentors).mockReturnValue(
+      createMockUseQueryResult<UserListResponse>({
+        data: [],
+        isLoading: false,
+        isSuccess: true,
+        isPending: false,
+        status: 'success',
+      })
+    );
 
     render(<BrowseMentorsPage />, { wrapper: createTestWrapper() });
 
@@ -122,15 +153,18 @@ describe('BrowseMentorsPage', () => {
     const mockRefetch = vi.fn();
     const mockError = new Error('Network error');
 
-    vi.mocked(useMentors).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      error: mockError,
-      refetch: mockRefetch,
-      isError: true,
-      isSuccess: false,
-      status: 'error',
-    } as UseQueryResult<UserListResponse, Error>);
+    vi.mocked(useMentors).mockReturnValue(
+      createMockUseQueryResult<UserListResponse>({
+        data: undefined,
+        isLoading: false,
+        error: mockError,
+        refetch: mockRefetch,
+        isError: true,
+        isSuccess: false,
+        isPending: false,
+        status: 'error',
+      })
+    );
 
     render(<BrowseMentorsPage />, { wrapper: createTestWrapper() });
 

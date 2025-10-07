@@ -6,13 +6,13 @@
  */
 
 // External dependencies
-import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/services/supabase';
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/services/supabase";
 
 // Internal modules
-import { bookingKeys } from './useMyBookings';
-import { toast } from '@/hooks/use-toast';
+import { bookingKeys } from "./useMyBookings";
+import { toast } from "@/hooks/use-toast";
 
 /**
  * Subscribe to real-time updates for user's bookings.
@@ -42,40 +42,42 @@ export function useMyBookingsRealtime(userId: string | undefined) {
 
     // Subscribe to bookings table changes for current user
     const channel = supabase
-      .channel('my_bookings')
+      .channel("my_bookings")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'bookings',
+          event: "*",
+          schema: "public",
+          table: "bookings",
           filter: `or(mentor_id.eq.${userId},mentee_id.eq.${userId})`,
         },
-        payload => {
+        (payload) => {
           if (import.meta.env.DEV) {
-            console.log('[Realtime] Booking change detected:', payload);
+            console.log("[Realtime] Booking change detected:", payload);
           }
 
           // Invalidate bookings cache to trigger refetch
           queryClient.invalidateQueries({ queryKey: bookingKeys.my() });
 
           // Show notification if booking was canceled
-          if (payload.eventType === 'UPDATE' && payload.new.status === 'canceled') {
+          if (
+            payload.eventType === "UPDATE" && payload.new.status === "canceled"
+          ) {
             toast({
-              title: 'Booking Cancelled',
-              description: 'One of your meetings was cancelled.',
-              variant: 'destructive',
+              title: "Booking Cancelled",
+              description: "One of your meetings was cancelled.",
+              variant: "error",
             });
           }
 
           // Show notification if new booking was created
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === "INSERT") {
             toast({
-              title: 'New Booking',
-              description: 'A new meeting has been scheduled.',
+              title: "New Booking",
+              description: "A new meeting has been scheduled.",
             });
           }
-        }
+        },
       )
       .subscribe();
 

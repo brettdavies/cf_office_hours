@@ -1,3 +1,17 @@
+// Mock notification store
+import { vi } from 'vitest';
+
+const mockAddToast = vi.fn();
+
+vi.mock('@/stores/notificationStore', () => ({
+  useNotificationStore: vi.fn((selector) => {
+    const state = {
+      addToast: mockAddToast,
+    };
+    return selector ? selector(state) : state;
+  }),
+}));
+
 /**
  * Unit tests for BookingFormModal component (Story 0.11).
  *
@@ -6,7 +20,7 @@
  */
 
 // External dependencies
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -16,14 +30,6 @@ import { mockTimeSlots } from '@/test/fixtures/slots';
 import { createMockBooking } from '@/test/fixtures/bookings';
 import * as apiClient from '@/lib/api-client';
 
-// Mock toast hook
-const mockToast = vi.fn();
-vi.mock('@/hooks/use-toast', () => ({
-  useToast: () => ({
-    toast: mockToast,
-  }),
-}));
-
 describe('BookingFormModal', () => {
   const user = userEvent.setup();
   const mockOnClose = vi.fn();
@@ -31,6 +37,7 @@ describe('BookingFormModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAddToast.mockClear();
   });
 
   describe('modal rendering', () => {
@@ -242,7 +249,7 @@ describe('BookingFormModal', () => {
 
       // Should show validation error toast
       await waitFor(() => {
-        expect(mockToast).toHaveBeenCalled();
+        expect(mockAddToast).toHaveBeenCalled();
       });
 
       // Modal should NOT close
@@ -396,7 +403,7 @@ describe('BookingFormModal', () => {
       await user.click(confirmButton);
 
       await waitFor(() => {
-        expect(mockToast).toHaveBeenCalled();
+        expect(mockAddToast).toHaveBeenCalled();
       });
 
       // Modal should NOT close on error
@@ -425,7 +432,7 @@ describe('BookingFormModal', () => {
       await user.click(confirmButton);
 
       await waitFor(() => {
-        expect(mockToast).toHaveBeenCalled();
+        expect(mockAddToast).toHaveBeenCalled();
       });
 
       expect(mockOnClose).not.toHaveBeenCalled();
