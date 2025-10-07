@@ -42,11 +42,14 @@ DECLARE
   slot_duration_mins INT;
   random_block_hours INT;
 BEGIN
-  -- Loop through ALL mentors
+  -- Loop through mentors (excluding those with @gmail.com or @capitalfactory.com domains)
   FOR mentor_record IN
     SELECT u.id as mentor_id
     FROM users u
-    WHERE u.role = 'mentor' AND u.deleted_by IS NULL
+    WHERE u.role = 'mentor'
+    AND u.deleted_by IS NULL
+    AND u.email NOT LIKE '%@gmail.com'
+    AND u.email NOT LIKE '%@capitalfactory.com'
   LOOP
     -- Create 3 availability blocks (one per week)
     FOR week_offset IN 1..3 LOOP

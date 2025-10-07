@@ -44,21 +44,32 @@ DECLARE
   booking_status TEXT;
   new_booking_id UUID;
 BEGIN
-  -- Get all mentee IDs (use ALL mentees, not just a subset)
+  -- Get mentee IDs (excluding those with @gmail.com or @capitalfactory.com domains)
   SELECT ARRAY_AGG(id) INTO mentee_ids
   FROM users
-  WHERE role = 'mentee' AND deleted_by IS NULL;
+  WHERE role = 'mentee'
+  AND deleted_by IS NULL
+  AND email NOT LIKE '%@gmail.com'
+  AND email NOT LIKE '%@capitalfactory.com';
 
-  -- Select random 50% of slots for bookings
+  -- Select random 50% of slots for bookings (from mentors without target domains)
   FOR slot_record IN
     SELECT ts.id, ts.start_time, ts.end_time, a.mentor_id
     FROM time_slots ts
     INNER JOIN availability a ON ts.availability_id = a.id
+    INNER JOIN users u ON a.mentor_id = u.id
     WHERE ts.deleted_at IS NULL
+    AND u.email NOT LIKE '%@gmail.com'
+    AND u.email NOT LIKE '%@capitalfactory.com'
     ORDER BY RANDOM()
-    LIMIT (SELECT FLOOR(COUNT(*) * 0.5) FROM time_slots WHERE deleted_at IS NULL)
+    LIMIT (SELECT FLOOR(COUNT(*) * 0.5) FROM time_slots ts
+           INNER JOIN availability a ON ts.availability_id = a.id
+           INNER JOIN users u ON a.mentor_id = u.id
+           WHERE ts.deleted_at IS NULL
+           AND u.email NOT LIKE '%@gmail.com'
+           AND u.email NOT LIKE '%@capitalfactory.com')
   LOOP
-    -- Random mentee (from all mentees)
+    -- Random mentee (from mentees without target domains)
     selected_mentee_id := mentee_ids[1 + floor(random() * array_length(mentee_ids, 1))::int];
 
     -- Random meeting goal
