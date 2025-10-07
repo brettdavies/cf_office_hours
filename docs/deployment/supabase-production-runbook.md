@@ -3,7 +3,8 @@
 **Project:** CF Office Hours
 **Production Project ID:** `mwkptgdsoxlvxyeexwbf`
 **Production URL:** `https://mwkptgdsoxlvxyeexwbf.supabase.co`
-**Last Updated:** 2025-10-07 (Story 0.17)
+**Production API URL:** `https://api.officehours.youcanjustdothings.io`
+**Last Updated:** 2025-10-07 (Story 0.18)
 
 ---
 

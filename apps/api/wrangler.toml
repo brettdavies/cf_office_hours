@@ -10,3 +10,19 @@ port = 8787
 ENVIRONMENT = "development"
 SUPABASE_URL = "http://127.0.0.1:54321"
 DASHBOARD_URL = "http://127.0.0.1:3000"
+
+# Production Environment Configuration
+[env.production]
+name = "cf-office-hours-api"
+main = "src/index.ts"
+compatibility_date = "2025-03-11"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production.vars]
+ENVIRONMENT = "production"
+SUPABASE_URL = "https://mwkptgdsoxlvxyeexwbf.supabase.co"
+DASHBOARD_URL = "https://officehours.youcanjustdothings.io"
+
+[[env.production.routes]]
+pattern = "api.officehours.youcanjustdothings.io/*"
+zone_name = "youcanjustdothings.io"
