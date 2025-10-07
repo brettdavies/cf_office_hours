@@ -106,8 +106,7 @@ export class UserRepository {
           updated_at
         )
       `
-      )
-      .is('deleted_at', null);
+      );
 
     if (filters?.role) {
       query = query.eq('role', filters.role);

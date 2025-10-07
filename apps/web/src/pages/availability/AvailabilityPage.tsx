@@ -39,11 +39,31 @@ export default function AvailabilityPage() {
     setIsLoading(true);
     setError(null);
 
+    if (import.meta.env.DEV) {
+      console.log('[AVAILABILITY] Fetching availability blocks', {
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     try {
       const data = await apiClient.getMyAvailability();
+
+      if (import.meta.env.DEV) {
+        console.log('[AVAILABILITY] Availability blocks fetched successfully', {
+          blockCount: data.length,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       setAvailability(data);
     } catch (err) {
-      console.error('Failed to fetch availability:', err);
+      if (import.meta.env.DEV) {
+        console.error('[AVAILABILITY] Failed to fetch availability', {
+          error: err,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to load availability';
       setError(errorMessage);
 
@@ -92,8 +112,8 @@ export default function AvailabilityPage() {
 
   // 5. Return JSX
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">My Availability</h1>
         <CreateAvailabilityDialog onSuccess={handleCreateSuccess} />
       </div>

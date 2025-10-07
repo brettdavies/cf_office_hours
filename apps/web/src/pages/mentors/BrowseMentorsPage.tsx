@@ -32,8 +32,17 @@ export default function BrowseMentorsPage() {
   const { data: mentors, isLoading, error, refetch } = useMentors();
 
   const handleViewProfile = (userId: string) => {
-    navigate(`/profile/${userId}`);
+    navigate(`/mentors/${userId}`);
   };
+
+  if (import.meta.env.DEV) {
+    console.log('[MENTORS] Browse mentors page loaded', {
+      mentorsCount: mentors?.length ?? 0,
+      isLoading,
+      hasError: !!error,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
   if (isLoading) {
     return <LoadingSpinner size="lg" text="Loading mentors..." />;

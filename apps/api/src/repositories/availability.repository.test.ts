@@ -1,7 +1,7 @@
 /**
  * Unit tests for AvailabilityRepository.
  *
- * Tests database operations for availability_blocks table.
+ * Tests database operations for availability table.
  */
 
 // External dependencies
@@ -58,7 +58,7 @@ describe('AvailabilityRepository', () => {
       const result = await repository.create(mentorId, createMockAvailabilityRequest());
 
       expect(result).toEqual(mockBlock);
-      expect(mockSupabase.from).toHaveBeenCalledWith('availability_blocks');
+      expect(mockSupabase.from).toHaveBeenCalledWith('availability');
     });
 
     it('should throw error when database insert fails', async () => {
@@ -99,7 +99,8 @@ describe('AvailabilityRepository', () => {
 
       expect(insertMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          recurrence_pattern: 'one_time',
+          mentor_id: 'mentor-uuid-123',
+          location: 'online',
         })
       );
     });
@@ -126,7 +127,7 @@ describe('AvailabilityRepository', () => {
       const result = await repository.findByMentor(mentorId);
 
       expect(result).toEqual(mockBlocks);
-      expect(mockSupabase.from).toHaveBeenCalledWith('availability_blocks');
+      expect(mockSupabase.from).toHaveBeenCalledWith('availability');
     });
 
     it('should return empty array when no blocks found', async () => {

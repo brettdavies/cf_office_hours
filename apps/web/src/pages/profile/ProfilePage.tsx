@@ -77,20 +77,55 @@ export default function ProfilePage() {
   const handleSave = async () => {
     try {
       setIsSaving(true);
+
+      const changes = {
+        name: formData.name !== profile?.profile.name ? formData.name : undefined,
+        bio: formData.bio !== profile?.profile.bio ? formData.bio : undefined,
+        title: formData.title !== profile?.profile.title ? formData.title : undefined,
+        company: formData.company !== profile?.profile.company ? formData.company : undefined,
+      };
+
+      if (import.meta.env.DEV) {
+        console.log('[PROFILE] Profile update started', {
+          userId: profile?.id,
+          changes: Object.fromEntries(
+            Object.entries(changes).filter(([, value]) => value !== undefined)
+          ),
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const updated = await apiClient.updateCurrentUser({
         name: formData.name,
         bio: formData.bio || undefined,
         title: formData.title || undefined,
         company: formData.company || undefined,
       });
+
       setProfile(updated);
       setIsEditing(false);
+
+      if (import.meta.env.DEV) {
+        console.log('[PROFILE] Profile updated successfully', {
+          userId: updated.id,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       toast({
         variant: 'success',
         title: 'Profile updated',
         description: 'Your profile has been updated successfully.',
       });
     } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[ERROR] Profile update failed', {
+          userId: profile?.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       if (error instanceof ApiError) {
         toast({
           variant: 'error',
@@ -105,27 +140,22 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center justify-center">
-          <p className="text-muted-foreground">Loading profile...</p>
-        </div>
+      <div className="flex items-center justify-center">
+        <p className="text-muted-foreground">Loading profile...</p>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center justify-center">
-          <p className="text-muted-foreground">Profile not found</p>
-        </div>
+      <div className="flex items-center justify-center">
+        <p className="text-muted-foreground">Profile not found</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <Card className="max-w-2xl mx-auto">
+    <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Profile</CardTitle>
           <CardDescription>View and manage your profile information</CardDescription>
@@ -233,6 +263,5 @@ export default function ProfilePage() {
           )}
         </CardFooter>
       </Card>
-    </div>
   );
 }

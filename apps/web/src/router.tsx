@@ -40,31 +40,32 @@ export const router = createBrowserRouter([
   },
   // Protected routes with AppLayout
   {
-    element: (
-      <ProtectedRoute>
-        <AppLayout />
-      </ProtectedRoute>
-    ),
+    element: <ProtectedRoute />,
     children: [
       {
-        path: 'dashboard',
-        element: <DashboardPage />,
-      },
-      {
-        path: 'profile',
-        element: <ProfilePage />,
-      },
-      {
-        path: 'availability',
-        element: <AvailabilityPage />,
-      },
-      {
-        path: 'mentors',
-        element: <BrowseMentorsPage />,
-      },
-      {
-        path: 'mentors/:mentorId',
-        element: <MentorProfilePage />,
+        element: <AppLayout />,
+        children: [
+          {
+            path: 'dashboard',
+            element: <DashboardPage />,
+          },
+          {
+            path: 'profile',
+            element: <ProfilePage />,
+          },
+          {
+            path: 'availability',
+            element: <AvailabilityPage />,
+          },
+          {
+            path: 'mentors',
+            element: <BrowseMentorsPage />,
+          },
+          {
+            path: 'mentors/:mentorId',
+            element: <MentorProfilePage />,
+          },
+        ],
       },
     ],
   },

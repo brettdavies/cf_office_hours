@@ -61,10 +61,30 @@ export function SlotPickerList({ mentorId, onSlotSelect }: SlotPickerListProps) 
         setLoading(true);
         setError(null);
 
+        if (import.meta.env.DEV) {
+          console.log('[SLOTS] Fetching available slots', {
+            mentorId,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         const response = await apiClient.getAvailableSlots({ mentor_id: mentorId });
+
+        if (import.meta.env.DEV) {
+          console.log('[SLOTS] Available slots fetched', {
+            mentorId,
+            slotCount: response.slots.length,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         setSlots(response.slots);
       } catch (err) {
-        console.error('Failed to fetch slots:', err);
+        console.error('[SLOTS] Failed to fetch slots', {
+          mentorId,
+          error: err instanceof Error ? err.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        });
 
         if (err instanceof ApiError) {
           if (err.statusCode === 404) {

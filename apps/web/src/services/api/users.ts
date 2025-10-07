@@ -35,5 +35,24 @@ export async function getUsers(filters?: {
   if (filters?.role) params.set('role', filters.role);
 
   const endpoint = params.toString() ? `/v1/users?${params.toString()}` : '/v1/users';
-  return apiClient.get(endpoint as '/v1/users');
+
+  if (import.meta.env.DEV) {
+    console.log('[API] Fetching users', {
+      endpoint,
+      filters,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  const result = await apiClient.get(endpoint as '/v1/users');
+
+  if (import.meta.env.DEV) {
+    console.log('[API] Users fetched', {
+      endpoint,
+      count: result?.length ?? 0,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  return result;
 }

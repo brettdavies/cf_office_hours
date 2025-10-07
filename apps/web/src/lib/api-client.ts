@@ -19,6 +19,8 @@ import type { paths } from '../../../../packages/shared/src/types/api.generated'
 
 // Internal modules
 import type { GetSlotsResponse } from '@/test/fixtures/slots';
+import { supabase } from '@/services/supabase';
+import { useAuthStore } from '@/stores/authStore';
 
 /**
  * Type alias for API paths from OpenAPI spec.
@@ -97,6 +99,26 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
         timestamp: new Date().toISOString(),
       },
     }));
+
+    // Handle 403 Forbidden - user removed from whitelist or access revoked
+    if (response.status === 403) {
+      if (import.meta.env.DEV) {
+        console.log('[AUTH] API call failed with 403 Forbidden, signing out', {
+          endpoint,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Clear auth state
+      useAuthStore.getState().clearAuth();
+      localStorage.removeItem('auth_token');
+
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+
+      // Redirect to login page
+      window.location.href = '/auth/login';
+    }
 
     throw new ApiError(
       response.status,

@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { formatFullDate, formatTimeRange } from '@/lib/date-utils';
 import { apiClient, ApiError } from '@/lib/api-client';
 
@@ -71,7 +71,7 @@ export function BookingFormModal({
   slot,
   onBookingCreated,
 }: BookingFormModalProps) {
-  const { toast } = useToast();
+  const addToast = useNotificationStore(state => state.addToast);
   const [meetingGoal, setMeetingGoal] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -102,10 +102,10 @@ export function BookingFormModal({
           timestamp: new Date().toISOString(),
         });
       }
-      toast({
+      addToast({
         title: 'Validation Error',
         description: 'Please enter a longer meeting goal (at least 10 characters)',
-        variant: 'destructive',
+        variant: 'error',
       });
       return;
     }
@@ -138,9 +138,10 @@ export function BookingFormModal({
         });
       }
 
-      toast({
+      addToast({
         title: 'Booking Created',
         description: 'Meeting booked successfully! The mentor will see your request.',
+        variant: 'success',
       });
 
       // Close modal and trigger slot list refresh
@@ -158,35 +159,35 @@ export function BookingFormModal({
 
       if (error instanceof ApiError) {
         if (error.statusCode === 409) {
-          toast({
+          addToast({
             title: 'Slot Unavailable',
             description: 'This slot was just booked by another user. Please select a different time.',
-            variant: 'destructive',
+            variant: 'error',
           });
         } else if (error.statusCode === 404) {
-          toast({
+          addToast({
             title: 'Slot Not Found',
             description: 'This time slot is no longer available.',
-            variant: 'destructive',
+            variant: 'error',
           });
         } else if (error.statusCode === 401 || error.statusCode === 403) {
-          toast({
+          addToast({
             title: 'Authentication Error',
             description: 'Please log in again.',
-            variant: 'destructive',
+            variant: 'error',
           });
         } else {
-          toast({
+          addToast({
             title: 'Error',
             description: 'Unable to create booking. Please try again.',
-            variant: 'destructive',
+            variant: 'error',
           });
         }
       } else {
-        toast({
+        addToast({
           title: 'Error',
           description: 'Unable to create booking. Please try again.',
-          variant: 'destructive',
+          variant: 'error',
         });
       }
     } finally {

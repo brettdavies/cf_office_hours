@@ -198,6 +198,11 @@ export class BookingRepository {
    * @throws Error if database operation fails
    */
   async getMyBookings(userId: string): Promise<MyBookingData[]> {
+    console.log('[BOOKINGS] Fetching user bookings', {
+      userId,
+      timestamp: new Date().toISOString(),
+    });
+
     const { data, error } = await this.supabase
       .from('bookings')
       .select(
@@ -208,26 +213,23 @@ export class BookingRepository {
         time_slot_id,
         status,
         meeting_goal,
-        materials_urls,
         created_at,
         updated_at,
-        time_slot:time_slots!inner (
+        time_slot:time_slots!bookings_time_slot_id_fkey (
           start_time,
           end_time,
           mentor_id
         ),
         mentor:users!bookings_mentor_id_fkey (
           id,
-          profile:profiles!inner (
-            name,
-            avatar_url
+          profile:user_profiles!inner (
+            name
           )
         ),
         mentee:users!bookings_mentee_id_fkey (
           id,
-          profile:profiles!inner (
-            name,
-            avatar_url
+          profile:user_profiles!inner (
+            name
           )
         )
       `
@@ -236,13 +238,31 @@ export class BookingRepository {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Failed to fetch user bookings:', { userId, error });
+      console.error('[BOOKINGS] Failed to fetch user bookings', {
+        userId,
+        error,
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorDetails: error.details,
+        errorHint: error.hint,
+        timestamp: new Date().toISOString(),
+      });
       throw new Error(`Database error: ${error.message}`);
     }
 
     if (!data) {
+      console.log('[BOOKINGS] No bookings found', {
+        userId,
+        timestamp: new Date().toISOString(),
+      });
       return [];
     }
+
+    console.log('[BOOKINGS] Bookings fetched successfully', {
+      userId,
+      bookingCount: data.length,
+      timestamp: new Date().toISOString(),
+    });
 
     // Type assertion and data transformation
     return data.map(booking => ({
@@ -252,7 +272,7 @@ export class BookingRepository {
       time_slot_id: booking.time_slot_id,
       status: booking.status as MyBookingData['status'],
       meeting_goal: booking.meeting_goal,
-      materials_urls: booking.materials_urls || [],
+      materials_urls: [], // Materials feature not implemented yet (Epic 4)
       created_at: booking.created_at,
       updated_at: booking.updated_at,
       time_slot: Array.isArray(booking.time_slot)
@@ -264,9 +284,7 @@ export class BookingRepository {
           name: Array.isArray((booking.mentor as any).profile)
             ? (booking.mentor as any).profile[0].name
             : (booking.mentor as any).profile.name,
-          avatar_url: Array.isArray((booking.mentor as any).profile)
-            ? (booking.mentor as any).profile[0].avatar_url
-            : (booking.mentor as any).profile.avatar_url,
+          avatar_url: null, // Avatar functionality not implemented yet
         },
       },
       mentee: {
@@ -275,9 +293,7 @@ export class BookingRepository {
           name: Array.isArray((booking.mentee as any).profile)
             ? (booking.mentee as any).profile[0].name
             : (booking.mentee as any).profile.name,
-          avatar_url: Array.isArray((booking.mentee as any).profile)
-            ? (booking.mentee as any).profile[0].avatar_url
-            : (booking.mentee as any).profile.avatar_url,
+          avatar_url: null, // Avatar functionality not implemented yet
         },
       },
     })) as MyBookingData[];

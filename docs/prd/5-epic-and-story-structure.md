@@ -47,9 +47,9 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 20 (Stories 0-16 = local development, Story 0.16.1 = pre-deployment testing & logging, Stories 17-18 = deployment)
+**Estimated Stories:** 21 (Stories 0-16 = local development, Story 0.16.1 = pre-deployment testing & logging, Stories 17-19 = deployment)
 **Dependencies:** None (foundation)
-**Timeline:** Sprint 1-2 (Weeks 1-4) + 1 day for pre-deployment testing
+**Timeline:** Sprint 1-2 (Weeks 1-4) + 1 day for pre-deployment testing + 1 day for production deployment
 **Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
 
 **Deliverable:** By end of Sprint 2, users can (IN LOCAL ENVIRONMENT):
@@ -73,7 +73,7 @@ Epic 8: Admin & Coordinator Tools
 - ❌ No deployment required
 - ✅ Complete development and testing locally
 
-**Deployment:** Stories 17-18 deploy to Cloudflare Workers/Pages after local development complete
+**Deployment:** Stories 17-19 deploy to production (Supabase, Cloudflare Workers, Cloudflare Pages) after local development complete
 
 **User Stories:**
 
@@ -268,24 +268,43 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** Section 13, NFR37, NFR44
     - **Note:** E2E test automation deferred to Epic 1 Story 27 (Walking Skeleton prioritizes working software over automation)
 
-17. **SKEL-DEPLOY-001: Cloudflare Workers Deployment**
-    - As a **developer**, I want the API deployed to Cloudflare Workers
+17. **SKEL-SUPABASE-001: Production Supabase Project Setup**
+    - As a **developer**, I want a production Supabase project configured with the database schema and credentials
     - **Acceptance Criteria:**
-      - `wrangler.toml` configured with deployment settings
-      - Environment secrets configured: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
-      - Production deployment accessible
-      - Health check endpoint returns 200 OK
-    - **Related:** Section 4.6, NFR44
+      - Production Supabase project created with appropriate region
+      - All local migrations applied to production database
+      - Production credentials documented securely (URL, anon key, service role key, JWT secret)
+      - Row Level Security policies verified active
+      - Database connection validated from local environment
+      - Initial seed data applied (raw users from Airtable)
+      - Automatic daily backups enabled
+    - **Related:** Section 11.5, NFR17
+    - **Note:** Prerequisite for Stories 18-19 which need production database credentials
+
+18. **SKEL-DEPLOY-001: Cloudflare Workers Deployment**
+    - As a **developer**, I want the API deployed to Cloudflare Workers with production configuration
+    - **Acceptance Criteria:**
+      - `wrangler.toml` configured with production environment settings
+      - Production secrets configured: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`
+      - Environment variables set: `SUPABASE_URL`, `ENVIRONMENT=production`
+      - Custom domain configured: `https://api.officehours.youcanjustdothings.io`
+      - Production deployment successful with health check returning 200 OK
+      - CORS configured for frontend origin
+      - Database connection verified
+    - **Related:** Section 11.4, NFR44
     - **Note:** Deployment moved to end of Epic 0 to allow local-first development
 
-18. **SKEL-DEPLOY-002: Cloudflare Pages Deployment**
-    - As a **developer**, I want the frontend deployed to Cloudflare Pages
+19. **SKEL-DEPLOY-002: Cloudflare Pages Deployment**
+    - As a **developer**, I want the frontend deployed to Cloudflare Pages with production configuration
     - **Acceptance Criteria:**
-      - Vite build configuration working
-      - Environment variables configured: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`
-      - Auto-deployment on main branch push
-      - Production URL accessible
-    - **Related:** Section 4.6
+      - Cloudflare Pages project created and connected to GitHub
+      - Build configuration complete: Vite build with monorepo settings
+      - Environment variables configured: `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+      - Custom domain configured: `https://officehours.youcanjustdothings.io`
+      - Deployment successful with frontend loading without errors
+      - API connection working with production backend
+      - CORS verified (no browser errors)
+    - **Related:** Section 11.3, NFR44
     - **Note:** Deployment moved to end of Epic 0 to allow local-first development
 
 ---
@@ -1163,14 +1182,14 @@ Epic 8: Admin & Coordinator Tools
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 89 (Epic 0 includes deployment stories 17-18)
-**Critical Path (P0):** Epics 0-4 (19 + 9 + 11 + 10 + 11 = 60 stories)
+**Total Stories:** 90 (Epic 0 includes deployment stories 17-19)
+**Critical Path (P0):** Epics 0-4 (21 + 9 + 11 + 10 + 11 = 62 stories)
 **High Priority (P1):** Epics 5-7 (7 + 7 + 10 = 24 stories)
 **Medium Priority (P2):** Epic 8 (6 stories)
 
 **Recommended Sprint Breakdown (2-week sprints):**
 
-- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 19 stories (Stories 0-16 local dev, 17-18 deployment) → **DEPLOYED END-TO-END WORKING PRODUCT**
+- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 21 stories (Stories 0-16 local dev, 0.16.1 testing, 17-19 deployment) → **DEPLOYED END-TO-END WORKING PRODUCT**
 - **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories
 - **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories
 - **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories

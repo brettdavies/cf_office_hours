@@ -28,6 +28,7 @@ export default function MentorProfilePage() {
   const { mentorId } = useParams<{ mentorId: string }>();
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Handle slot selection
   const handleSlotSelect = (slot: TimeSlot) => {
@@ -48,6 +49,11 @@ export default function MentorProfilePage() {
   const handleModalClose = () => {
     setIsModalOpen(false);
     // Keep selectedSlot to preserve modal data until next selection
+  };
+
+  // Handle booking created - refresh the slot list
+  const handleBookingCreated = () => {
+    setRefreshKey(prev => prev + 1);
   };
 
   // Guard: mentor ID must be present
@@ -90,13 +96,18 @@ export default function MentorProfilePage() {
             <CardDescription>Select a time slot to book a meeting with this mentor</CardDescription>
           </CardHeader>
           <CardContent>
-            <SlotPickerList mentorId={mentorId} onSlotSelect={handleSlotSelect} />
+            <SlotPickerList key={refreshKey} mentorId={mentorId} onSlotSelect={handleSlotSelect} />
           </CardContent>
         </Card>
       </div>
 
       {/* Booking Form Modal */}
-      <BookingFormModal isOpen={isModalOpen} onClose={handleModalClose} slot={selectedSlot} />
+      <BookingFormModal
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        slot={selectedSlot}
+        onBookingCreated={handleBookingCreated}
+      />
     </div>
   );
 }

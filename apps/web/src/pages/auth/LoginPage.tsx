@@ -3,6 +3,7 @@ import { supabase } from '@/services/supabase';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getErrorMessage } from '@/lib/error-messages';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -57,16 +58,31 @@ export default function LoginPage() {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send magic link';
+
+      // Determine error code based on error type
+      // Note: Supabase Auth wraps database errors for security, so we infer from the message
+      let errorCode: string | undefined;
+
+      // "Database error saving new user" during signup = email not whitelisted
+      // This is the only database trigger that blocks user creation
+      if (errorMessage.includes('Database error saving new user')) {
+        errorCode = 'EMAIL_NOT_WHITELISTED';
+      }
+
+      const userFriendlyMessage = getErrorMessage(errorCode, errorMessage);
+
       if (import.meta.env.DEV) {
         console.error('[ERROR] Magic link send failed', {
           email,
           error: errorMessage,
+          errorCode,
+          userFriendlyMessage,
           timestamp: new Date().toISOString(),
         });
       }
       addToast({
         title: 'Error',
-        description: errorMessage,
+        description: userFriendlyMessage,
         variant: 'error',
       });
     } finally {
