@@ -25,3 +25,16 @@ INSERT INTO raw_users (email, role, name, title, company, phone, linkedin_url) V
 
 -- Log the loaded data
 SELECT 'Loaded ' || COUNT(*) || ' coordinators' as result FROM raw_users;
+
+-- ============================================================================
+-- Local Development: Create users directly (ETL disabled for users)
+-- ============================================================================
+-- In production, users are created via Supabase Auth on first login.
+-- For local development, we manually insert users from raw_users.
+
+INSERT INTO users (airtable_record_id, email, role)
+SELECT 'coordinator-' || ROW_NUMBER() OVER()::text, email, role
+FROM raw_users
+ON CONFLICT (email) DO NOTHING;
+
+SELECT 'Created ' || COUNT(*) || ' coordinator users' as result FROM users WHERE role = 'coordinator';

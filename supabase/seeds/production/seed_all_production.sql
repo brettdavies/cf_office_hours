@@ -10,6 +10,7 @@
 -- DATA HANDLING:
 --   - Taxonomy tables (industries, technologies, portfolio_companies): TRUNCATE and reload
 --   - User tables (users, mentors, mentees): Idempotent upsert (safe for production reloads)
+--   - Availability and bookings: DELETE and reload (dynamic dates)
 -- ============================================================================
 
 \echo '============================================================================'
@@ -66,6 +67,22 @@
 \echo ''
 
 -- ============================================================================
+-- 7. Availability and Time Slots
+-- ============================================================================
+\echo '→ Loading availability and time slots...'
+\i supabase/seeds/production/07_seed_raw_availability.sql
+\echo '✓ Availability and time slots loaded'
+\echo ''
+
+-- ============================================================================
+-- 8. Bookings
+-- ============================================================================
+\echo '→ Loading bookings...'
+\i supabase/seeds/production/08_seed_raw_bookings.sql
+\echo '✓ Bookings loaded'
+\echo ''
+
+-- ============================================================================
 -- Verification
 -- ============================================================================
 \echo '============================================================================'
@@ -88,11 +105,32 @@ SELECT 'raw_mentees', COUNT(*) FROM raw_mentees
 ORDER BY table_name;
 
 \echo ''
+
+SELECT 'Booking Data Counts:' AS status;
+SELECT 'availability' AS table_name, COUNT(*) AS count FROM availability WHERE deleted_at IS NULL
+UNION ALL
+SELECT 'time_slots', COUNT(*) FROM time_slots WHERE deleted_at IS NULL
+UNION ALL
+SELECT 'bookings', COUNT(*) FROM bookings WHERE deleted_at IS NULL
+ORDER BY table_name;
+
+\echo ''
+
+SELECT 'Booking Status Distribution:' AS status;
+SELECT status, COUNT(*) AS count
+FROM bookings
+WHERE deleted_at IS NULL
+GROUP BY status
+ORDER BY status;
+
+\echo ''
 \echo '============================================================================'
 \echo 'Production seeding complete!'
 \echo ''
 \echo 'Next steps:'
-\echo '  1. Verify ETL processing created users: SELECT COUNT(*) FROM users;'
-\echo '  2. Verify email whitelist: SELECT COUNT(*) FROM email_whitelist;'
-\echo '  3. Test coordinator login with real email'
+\echo '  1. Verify ETL processing created taxonomy: SELECT COUNT(*) FROM industries;'
+\echo '  2. Users will be created on first auth login (ETL disabled for users)'
+\echo '  3. Verify availability and bookings created (see counts above)'
+\echo '  4. Add stakeholder emails to email whitelist for auth access'
+\echo '  5. Test coordinator/mentor/mentee login and booking flows'
 \echo '============================================================================'

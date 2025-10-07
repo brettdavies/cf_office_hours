@@ -47,7 +47,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 21 (Stories 0-16 = local development, Story 0.16.1 = pre-deployment testing & logging, Stories 17-19 = deployment)
+**Estimated Stories:** 23 (Stories 0-16 = local development, Story 0.16.1 = pre-deployment testing & logging, Stories 17-19 = deployment, Stories 20-21 = post-deployment improvements)
 **Dependencies:** None (foundation)
 **Timeline:** Sprint 1-2 (Weeks 1-4) + 1 day for pre-deployment testing + 1 day for production deployment
 **Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
@@ -306,6 +306,45 @@ Epic 8: Admin & Coordinator Tools
       - CORS verified (no browser errors)
     - **Related:** Section 11.3, NFR44
     - **Note:** Deployment moved to end of Epic 0 to allow local-first development
+
+20. **SKEL-SEED-002: Enhanced Local Development Seed Data**
+    - As a **developer**, I want realistic availability slots and booking data for comprehensive local testing
+    - **Acceptance Criteria:**
+      - **Availability Slots for All Mentors:**
+        - Each mentor (10 total from seed data) has 3 availability blocks across upcoming 3 weeks
+        - Week 1: Random date NOW() + random {1-7} days, random time 8am-8pm, random duration (30min, 45min, 60min)
+        - Week 2: Random date NOW() + random {8-14} days, random time 8am-8pm, random duration
+        - Week 3: Random date NOW() + random {15-21} days, random time 8am-8pm, random duration
+        - SQL seed file uses dynamic date calculation (e.g., `NOW() + INTERVAL '5 days' + INTERVAL '9 hours'`)
+        - Each availability block generates time slots (per existing availability schema)
+      - **Booking Slots for Mentees:**
+        - 50% of available slots have bookings
+        - Bookings split: 50% status='pending', 50% status='confirmed'
+        - Random mentee assigned to each booking (from 8 mentees in seed data)
+        - Random meeting_goal text (from predefined templates: "Discuss fundraising strategy", "Get feedback on product roadmap", etc.)
+      - **Test Coverage:**
+        - Test: Verify availability blocks created (30 blocks = 10 mentors × 3 blocks)
+        - Test: Verify time slots generated (count > 30, varies by duration/range)
+        - Test: Verify bookings created (approximately 50% of slots booked)
+        - Test: Verify booking status distribution (approximately 50% pending, 50% confirmed)
+      - **Production Seed Files Updated:**
+        - All changes applied to `supabase/seeds/production/*.sql` to match local seed behavior
+        - Production seeds use same dynamic date logic for realistic test data in production environment
+    - **Related:** Story 0.2 (SKEL-DB-002), Section 4.8
+    - **Note:** Improves local development and testing experience with realistic scenarios
+
+21. **SKEL-UX-001: Auto-Fill Email from Query Parameter on Login Page**
+    - As a **user**, I want the email address pre-filled in the login form when clicking login links
+    - **Acceptance Criteria:**
+      - Login page reads `u` query parameter from URL (e.g., `/auth/login?u=user@example.com`)
+      - Email input field auto-populated with query parameter value on page load
+      - Works with URL-encoded email addresses
+      - Email parameter validated (basic email format check) before auto-filling
+      - Invalid emails ignored (field remains empty)
+      - User can still edit pre-filled email before submitting
+      - XSS protection: Email value sanitized before rendering
+    - **Related:** Section 7.2, Section 13.4
+    - **Note:** Reduces login friction for users clicking email links from coordinators or notification emails
 
 ---
 
@@ -1182,14 +1221,14 @@ Epic 8: Admin & Coordinator Tools
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 90 (Epic 0 includes deployment stories 17-19)
-**Critical Path (P0):** Epics 0-4 (21 + 9 + 11 + 10 + 11 = 62 stories)
+**Total Stories:** 92 (Epic 0 includes deployment stories 17-19 and improvements 20-21)
+**Critical Path (P0):** Epics 0-4 (23 + 9 + 11 + 10 + 11 = 64 stories)
 **High Priority (P1):** Epics 5-7 (7 + 7 + 10 = 24 stories)
 **Medium Priority (P2):** Epic 8 (6 stories)
 
 **Recommended Sprint Breakdown (2-week sprints):**
 
-- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 21 stories (Stories 0-16 local dev, 0.16.1 testing, 17-19 deployment) → **DEPLOYED END-TO-END WORKING PRODUCT**
+- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 23 stories (Stories 0-16 local dev, 0.16.1 testing, 17-19 deployment, 20-21 improvements) → **DEPLOYED END-TO-END WORKING PRODUCT**
 - **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories
 - **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories
 - **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories
