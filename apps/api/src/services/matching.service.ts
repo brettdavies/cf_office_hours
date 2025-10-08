@@ -229,6 +229,7 @@ export class MatchingService {
         `and(user_id.eq.${userId1},recommended_user_id.eq.${userId2}),and(user_id.eq.${userId2},recommended_user_id.eq.${userId1})`
       )
       .eq('algorithm_version', algorithmVersion)
+      .limit(1)
       .maybeSingle();
 
     if (error) {

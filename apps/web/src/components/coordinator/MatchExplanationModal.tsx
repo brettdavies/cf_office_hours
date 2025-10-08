@@ -98,10 +98,10 @@ export function MatchExplanationModal({
                 <div className="space-y-2">
                   {explanation.tagOverlap.map((tag, index) => (
                     <div key={index} className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs bg-green-50 border-green-300 text-green-700">
                         {tag.category}
                       </Badge>
-                      <span className="text-sm">{tag.tag}</span>
+                      <span className="text-sm font-medium text-green-700">{tag.tag}</span>
                     </div>
                   ))}
                   <p className="text-sm text-muted-foreground mt-2">
@@ -115,7 +115,10 @@ export function MatchExplanationModal({
 
             {/* Stage Compatibility Section */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">Stage Compatibility</h3>
+              <h3 className="text-lg font-semibold mb-3">
+                Stage Compatibility
+                <Badge variant="secondary" className="ml-2 text-xs">Coming Later</Badge>
+              </h3>
               <div className="flex items-center gap-2">
                 <BooleanIndicator value={explanation.stageMatch} />
                 <span className="text-sm">
@@ -128,7 +131,10 @@ export function MatchExplanationModal({
 
             {/* Reputation Compatibility Section */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">Reputation Compatibility</h3>
+              <h3 className="text-lg font-semibold mb-3">
+                Reputation Compatibility
+                <Badge variant="secondary" className="ml-2 text-xs">Coming Later</Badge>
+              </h3>
               <div className="flex items-center gap-2">
                 <BooleanIndicator value={explanation.reputationCompatible} />
                 <span className="text-sm">

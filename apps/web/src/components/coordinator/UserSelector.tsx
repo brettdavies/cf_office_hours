@@ -64,12 +64,12 @@ export function UserSelector({ value, onChange }: UserSelectorProps) {
 
       if (import.meta.env.DEV) {
         console.log('[CoordinatorMatching] Users fetched', {
-          count: data.users?.length || 0,
+          count: data?.length || 0,
           timestamp: new Date().toISOString(),
         });
       }
 
-      setUsers(data.users || []);
+      setUsers(data || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch users';
       setError(errorMessage);
@@ -143,20 +143,7 @@ export function UserSelector({ value, onChange }: UserSelectorProps) {
         </Select>
       </div>
 
-      {/* Search Input */}
-      <div>
-        <Label htmlFor="user-search">Search by Name or Email</Label>
-        <Input
-          id="user-search"
-          type="text"
-          placeholder="Type to search..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full"
-        />
-      </div>
-
-      {/* User Dropdown */}
+      {/* User Dropdown with integrated search */}
       <div>
         <Label htmlFor="user-select">Select User</Label>
         {isLoading ? (
@@ -169,15 +156,28 @@ export function UserSelector({ value, onChange }: UserSelectorProps) {
               <SelectValue placeholder="Select a user..." />
             </SelectTrigger>
             <SelectContent>
-              {filteredUsers.length === 0 ? (
-                <div className="p-2 text-sm text-muted-foreground">No users found</div>
-              ) : (
-                filteredUsers.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.profile?.name || user.email} ({user.role})
-                  </SelectItem>
-                ))
-              )}
+              <div className="p-2 border-b">
+                <Input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
+              </div>
+              <div className="max-h-[300px] overflow-y-auto">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">No users found</div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.profile?.name || user.email} ({user.role})
+                    </SelectItem>
+                  ))
+                )}
+              </div>
             </SelectContent>
           </Select>
         )}

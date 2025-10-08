@@ -6,7 +6,8 @@ import { useAuth } from '@/hooks/useAuth';
  *
  * Shows different navigation options based on user role:
  * - Mentors see "My Availability"
- * - Mentees/Coordinators see "Browse Mentors"
+ * - Coordinators see "Find Matches"
+ * - Mentees see "Browse Mentors"
  */
 export function Navigation() {
   const { user } = useAuth();
@@ -19,17 +20,21 @@ export function Navigation() {
 
   return (
     <nav className="hidden md:flex items-center gap-6">
-      <NavLink to="/profile" className={navLinkClass}>
-        My Profile
+      <NavLink to="/dashboard" className={navLinkClass}>
+        Home
       </NavLink>
 
-      <NavLink to="/dashboard" className={navLinkClass}>
-        My Bookings
+      <NavLink to="/profile" className={navLinkClass}>
+        My Profile
       </NavLink>
 
       {role === 'mentor' ? (
         <NavLink to="/availability" className={navLinkClass}>
           My Availability
+        </NavLink>
+      ) : role === 'coordinator' ? (
+        <NavLink to="/coordinator/matching" className={navLinkClass}>
+          Find Matches
         </NavLink>
       ) : (
         <NavLink to="/mentors" className={navLinkClass}>
