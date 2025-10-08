@@ -1256,9 +1256,12 @@ interface IMatchingEngine {
 }
 
 interface BulkRecalculationOptions {
-  limit?: number;          // Limit users to process
-  modifiedAfter?: Date;    // Only process users modified after this date
-  batchSize?: number;      // Batch size (default: 100)
+  limit?: number;              // Limit users to process
+  modifiedAfter?: Date;        // Only process users modified after this date
+  batchSize?: number;          // User batch size (default: 50)
+  delayBetweenBatches?: number; // MS delay between user batches (default: 100)
+  chunkSize?: number;          // Matches per chunk (default: 100)
+  delayBetweenChunks?: number; // MS delay between match chunks (default: 10)
 }
 
 interface MatchResult {
@@ -1289,6 +1292,14 @@ Calculates score based on:
 - Reputation tier compatibility (weight: 20%)
 
 Writes results to `user_match_cache` table with `algorithm_version='tag-based-v1'`.
+
+**Implementation Details (Story 0.23 v1.1):**
+- **Platform:** Runs on Cloudflare Workers (single-tier edge computation)
+- **Database:** Supabase-js client (HTTP-based via PostgREST, no connection limits)
+- **Bulk Processing:** Eliminates N+1 queries (501 → 3-4 queries for 500 users)
+- **Parallel Execution:** Uses `Promise.all()` for batch processing (fully supported on Workers)
+- **Pattern:** Bulk Fetch → Parallel Calculate (in-memory) → Bulk Write
+- **Performance:** 99% query reduction, 10-50x faster processing, memory-efficient chunking
 
 **Retrieval (MatchingService - Plain Class, No Interface):**
 

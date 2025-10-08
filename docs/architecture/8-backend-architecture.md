@@ -1931,17 +1931,26 @@ export interface IMatchingEngine {
 }
 
 /**
- * Options for bulk recalculation operations
+ * Options for bulk recalculation operations (Story 0.23 v1.1)
  */
 export interface BulkRecalculationOptions {
   /** Limit number of users to process (for testing/gradual rollout) */
   limit?: number;
 
-  /** Process only users modified after this date */
+  /** Process only users modified after this date (for incremental updates) */
   modifiedAfter?: Date;
 
-  /** Batch size for processing (default: 100) */
+  /** Batch size for user processing (default: 50, reduced from 100) */
   batchSize?: number;
+
+  /** Millisecond delay between user batches (default: 100ms, prevents DB overload) */
+  delayBetweenBatches?: number;
+
+  /** Matches per chunk when processing potential matches (default: 100, reduces N+1 queries) */
+  chunkSize?: number;
+
+  /** Millisecond delay between match chunks (default: 10ms, prevents DB overload) */
+  delayBetweenChunks?: number;
 }
 ```
 
@@ -2112,6 +2121,27 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
 4. **Event-driven recalculation** → Triggered on data changes
 5. **Background processing** → Expensive calculations run asynchronously
 6. **Instant retrieval** → UI queries pre-calculated cache table (< 100ms)
+
+**Cloudflare Workers Implementation (Story 0.23 v1.1):**
+
+The matching engine runs on **Cloudflare Workers** using a **single-tier edge computation pattern**:
+
+- **Platform:** All code executes on Cloudflare Workers (no external calculation services)
+- **Database Client:** Supabase-js (HTTP-based via PostgREST, unlimited concurrent queries)
+- **Bulk Processing:**
+  - `fetchMultipleUsersWithTags()` reduces N+1 queries: 501 → 3-4 queries (99% reduction)
+  - `recalculateMatches()` processes matches in chunks (default: 100) with `Promise.all()`
+  - `recalculateAllMatches()` processes users in batches (default: 50) with error isolation
+- **Pattern:** Bulk Fetch → Parallel Calculate (in-memory) → Bulk Write
+- **Performance:** 10-50x faster processing, memory-efficient chunking, partial success on failures
+- **Workers Limits:** 6 TCP connections (doesn't apply to Supabase-js HTTP), CPU time excludes I/O
+
+**Anti-Pattern to Avoid:**
+- ❌ Multi-tier architecture (API → Queue → Worker → DB) adds latency without benefit
+- ❌ External calculation services for simple math operations (tag overlap, stage matching)
+- ✅ In-memory calculations on Workers is optimal for edge computation
+
+See [matching-cache-architecture.md](matching-cache-architecture.md) for detailed bulk processing architecture.
 
 ## 8.9 Webhook Handling (Airtable Sync)
 

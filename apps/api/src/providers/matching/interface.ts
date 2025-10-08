@@ -53,16 +53,41 @@ export interface IMatchingEngine {
 
 /**
  * Options for bulk recalculation operations
+ *
+ * @example
+ * // Incremental update pattern (only process recently modified users)
+ * await engine.recalculateAllMatches({
+ *   modifiedAfter: new Date('2025-10-01'),
+ *   batchSize: 50,
+ *   delayBetweenBatches: 200
+ * });
+ *
+ * @example
+ * // Full recalculation with custom chunk size
+ * await engine.recalculateAllMatches({
+ *   batchSize: 50,
+ *   chunkSize: 200,
+ *   delayBetweenChunks: 20
+ * });
  */
 export interface BulkRecalculationOptions {
   /** Limit number of users to process (for testing/gradual rollout) */
   limit?: number;
 
-  /** Process only users modified after this date */
+  /** Process only users modified after this date (for incremental updates) */
   modifiedAfter?: Date;
 
-  /** Batch size for processing (default: 100) */
+  /** Batch size for user processing (default: 50, reduced from 100 for better memory management) */
   batchSize?: number;
+
+  /** Millisecond delay between user batches (default: 100ms, prevents DB overload) */
+  delayBetweenBatches?: number;
+
+  /** Matches per chunk when processing potential matches (default: 100, reduces N+1 queries) */
+  chunkSize?: number;
+
+  /** Millisecond delay between match chunks (default: 10ms, prevents DB overload) */
+  delayBetweenChunks?: number;
 }
 
 /**
