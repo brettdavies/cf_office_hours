@@ -18,6 +18,7 @@ const BrowseMentorsPage = lazy(() =>
     default: () => <div className="p-4">Browse Mentors - Coming Soon</div>,
   }))
 );
+
 const CoordinatorMatchingPage = lazy(() => import('@/pages/coordinator/CoordinatorMatchingPage'));
 
 export const router = createBrowserRouter([
