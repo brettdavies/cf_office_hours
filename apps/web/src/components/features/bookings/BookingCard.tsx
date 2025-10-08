@@ -61,9 +61,7 @@ function UserAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | nul
     .slice(0, 2);
 
   if (avatarUrl) {
-    return (
-      <img src={avatarUrl} alt={name} className="w-12 h-12 rounded-full object-cover" />
-    );
+    return <img src={avatarUrl} alt={name} className="w-12 h-12 rounded-full object-cover" />;
   }
 
   return (

@@ -205,12 +205,14 @@ export const mockMyBookings = {
  * @example
  * const bookings = createMockMyBookingsList({ upcomingCount: 3, pastCount: 2 });
  */
-export const createMockMyBookingsList = (options: {
-  upcomingCount?: number;
-  pastCount?: number;
-  canceledCount?: number;
-  currentUserId?: string;
-} = {}): MyBooking[] => {
+export const createMockMyBookingsList = (
+  options: {
+    upcomingCount?: number;
+    pastCount?: number;
+    canceledCount?: number;
+    currentUserId?: string;
+  } = {}
+): MyBooking[] => {
   const {
     upcomingCount = 2,
     pastCount = 1,

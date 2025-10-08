@@ -51,11 +51,13 @@ describe('Header', () => {
   });
 
   it('should render "My Availability" for mentors', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'mentor-123',
-      email: 'mentor@example.com',
-      role: 'mentor',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'mentor-123',
+        email: 'mentor@example.com',
+        role: 'mentor',
+      })
+    );
 
     renderWithProviders(<Header />);
 

@@ -168,7 +168,12 @@ describe('user_match_cache Constraints', () => {
         user_id: '00000000-0000-0000-0000-999999999999', // Invalid FK
         recommended_user_id: '00000000-0000-0000-0000-000000000000',
         match_score: 50,
-        match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+        match_explanation: {
+          tagOverlap: [],
+          stageMatch: false,
+          reputationCompatible: true,
+          summary: 'test',
+        },
         algorithm_version: 'test-v1',
       });
 
@@ -181,7 +186,12 @@ describe('user_match_cache Constraints', () => {
         user_id: '00000000-0000-0000-0000-000000000000',
         recommended_user_id: '00000000-0000-0000-0000-999999999999', // Invalid FK
         match_score: 50,
-        match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+        match_explanation: {
+          tagOverlap: [],
+          stageMatch: false,
+          reputationCompatible: true,
+          summary: 'test',
+        },
         algorithm_version: 'test-v1',
       });
 
@@ -193,10 +203,7 @@ describe('user_match_cache Constraints', () => {
   describe('CHECK Constraints', () => {
     it('should reject match_score > 100', async () => {
       // Get valid user IDs
-      const { data: users } = await supabase
-        .from('users')
-        .select('id')
-        .limit(2);
+      const { data: users } = await supabase.from('users').select('id').limit(2);
 
       if (!users || users.length < 2) {
         // Skip test if no users available
@@ -208,7 +215,12 @@ describe('user_match_cache Constraints', () => {
         user_id: users[0].id,
         recommended_user_id: users[1].id,
         match_score: 101, // Invalid: > 100
-        match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+        match_explanation: {
+          tagOverlap: [],
+          stageMatch: false,
+          reputationCompatible: true,
+          summary: 'test',
+        },
         algorithm_version: 'test-v1',
       });
 
@@ -221,10 +233,7 @@ describe('user_match_cache Constraints', () => {
 
     it('should reject match_score < 0', async () => {
       // Get valid user IDs
-      const { data: users } = await supabase
-        .from('users')
-        .select('id')
-        .limit(2);
+      const { data: users } = await supabase.from('users').select('id').limit(2);
 
       if (!users || users.length < 2) {
         // Skip test if no users available
@@ -236,7 +245,12 @@ describe('user_match_cache Constraints', () => {
         user_id: users[0].id,
         recommended_user_id: users[1].id,
         match_score: -1, // Invalid: < 0
-        match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+        match_explanation: {
+          tagOverlap: [],
+          stageMatch: false,
+          reputationCompatible: true,
+          summary: 'test',
+        },
         algorithm_version: 'test-v1',
       });
 
@@ -249,10 +263,7 @@ describe('user_match_cache Constraints', () => {
 
     it('should reject self-match (user_id = recommended_user_id)', async () => {
       // Get valid user ID
-      const { data: users } = await supabase
-        .from('users')
-        .select('id')
-        .limit(1);
+      const { data: users } = await supabase.from('users').select('id').limit(1);
 
       if (!users || users.length < 1) {
         // Skip test if no users available
@@ -264,7 +275,12 @@ describe('user_match_cache Constraints', () => {
         user_id: users[0].id,
         recommended_user_id: users[0].id, // Invalid: same as user_id
         match_score: 50,
-        match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+        match_explanation: {
+          tagOverlap: [],
+          stageMatch: false,
+          reputationCompatible: true,
+          summary: 'test',
+        },
         algorithm_version: 'test-v1',
       });
 
@@ -277,10 +293,7 @@ describe('user_match_cache Constraints', () => {
 
     it('should allow valid match_score (0-100)', async () => {
       // Get valid user IDs
-      const { data: users } = await supabase
-        .from('users')
-        .select('id')
-        .limit(2);
+      const { data: users } = await supabase.from('users').select('id').limit(2);
 
       if (!users || users.length < 2) {
         // Skip test if no users available
@@ -292,7 +305,12 @@ describe('user_match_cache Constraints', () => {
         user_id: users[0].id,
         recommended_user_id: users[1].id,
         match_score: 75.5, // Valid: 0-100
-        match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+        match_explanation: {
+          tagOverlap: [],
+          stageMatch: false,
+          reputationCompatible: true,
+          summary: 'test',
+        },
         algorithm_version: 'test-v1',
       });
 
@@ -306,10 +324,7 @@ describe('user_match_cache Constraints', () => {
   describe('UNIQUE Constraint', () => {
     it('should enforce unique (user_id, recommended_user_id, algorithm_version)', async () => {
       // Get valid user IDs
-      const { data: users } = await supabase
-        .from('users')
-        .select('id')
-        .limit(2);
+      const { data: users } = await supabase.from('users').select('id').limit(2);
 
       if (!users || users.length < 2) {
         // Skip test if no users available
@@ -321,14 +336,17 @@ describe('user_match_cache Constraints', () => {
         user_id: users[0].id,
         recommended_user_id: users[1].id,
         match_score: 50,
-        match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+        match_explanation: {
+          tagOverlap: [],
+          stageMatch: false,
+          reputationCompatible: true,
+          summary: 'test',
+        },
         algorithm_version: 'test-unique-v1',
       };
 
       // First insert
-      const { error: error1 } = await supabase
-        .from('user_match_cache')
-        .insert(matchData);
+      const { error: error1 } = await supabase.from('user_match_cache').insert(matchData);
 
       // Second insert with same (user_id, recommended_user_id, algorithm_version)
       const { error: error2 } = await supabase

@@ -104,18 +104,20 @@ describe('UserMenu', () => {
   });
 
   it('should render avatar fallback when profile exists', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      profile: {
-        id: 'profile-123',
-        user_id: 'user-123',
-        name: 'Test User',
-        title: null,
-        company: null,
-        bio: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        profile: {
+          id: 'profile-123',
+          user_id: 'user-123',
+          name: 'Test User',
+          title: null,
+          company: null,
+          bio: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      })
+    );
 
     renderWithProviders(<UserMenu />);
 

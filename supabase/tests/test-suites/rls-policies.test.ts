@@ -223,10 +223,7 @@ describe('RLS Policies - user_match_cache (Coordinator-Only)', () => {
 
   it('should block anonymous insert to user_match_cache', async () => {
     // Get valid user IDs
-    const { data: users } = await supabase
-      .from('users')
-      .select('id')
-      .limit(2);
+    const { data: users } = await supabase.from('users').select('id').limit(2);
 
     if (!users || users.length < 2) {
       // Skip test if no users available
@@ -238,7 +235,12 @@ describe('RLS Policies - user_match_cache (Coordinator-Only)', () => {
       user_id: users[0].id,
       recommended_user_id: users[1].id,
       match_score: 50,
-      match_explanation: { tagOverlap: [], stageMatch: false, reputationCompatible: true, summary: 'test' },
+      match_explanation: {
+        tagOverlap: [],
+        stageMatch: false,
+        reputationCompatible: true,
+        summary: 'test',
+      },
       algorithm_version: 'test-v1',
     });
 

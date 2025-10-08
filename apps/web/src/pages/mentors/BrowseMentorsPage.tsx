@@ -60,13 +60,7 @@ export default function BrowseMentorsPage() {
   }
 
   if (!mentors || mentors.length === 0) {
-    return (
-      <EmptyState
-        icon={Users}
-        title="No mentors available"
-        description="Check back soon!"
-      />
-    );
+    return <EmptyState icon={Users} title="No mentors available" description="Check back soon!" />;
   }
 
   return (

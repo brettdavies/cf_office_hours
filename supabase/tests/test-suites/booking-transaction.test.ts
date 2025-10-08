@@ -38,10 +38,7 @@ describe('Database Function: create_booking_transaction', () => {
     // Clean up any existing test data
     await supabase.from('bookings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('time_slots').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase
-      .from('availability')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('availability').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('users').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
     // Insert test users
@@ -102,10 +99,7 @@ describe('Database Function: create_booking_transaction', () => {
     // Clean up test data
     await supabase.from('bookings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('time_slots').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase
-      .from('availability')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('availability').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('users').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   });
 

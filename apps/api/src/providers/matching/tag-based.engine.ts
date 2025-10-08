@@ -24,11 +24,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Internal modules
-import type {
-  IMatchingEngine,
-  BulkRecalculationOptions,
-  MatchExplanation,
-} from './interface';
+import type { IMatchingEngine, BulkRecalculationOptions, MatchExplanation } from './interface';
 
 /**
  * Tag with category from database
@@ -197,7 +193,10 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
                 user.user_profiles.stage,
                 match.user_profiles.stage
               ),
-              reputationMatch: this.calculateReputationMatch(user.reputation_tier, match.reputation_tier),
+              reputationMatch: this.calculateReputationMatch(
+                user.reputation_tier,
+                match.reputation_tier
+              ),
             });
           }
 
@@ -270,10 +269,7 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
     }
 
     // Fetch all active users
-    let query = this.db
-      .from('users')
-      .select('id')
-      .is('deleted_at', null);
+    let query = this.db.from('users').select('id').is('deleted_at', null);
 
     if (options?.limit) {
       query = query.limit(options.limit);
@@ -334,7 +330,7 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
       }
 
       // Process batch in parallel with individual error isolation
-      const batchPromises = batch.map(async (user) => {
+      const batchPromises = batch.map(async user => {
         try {
           await this.recalculateMatches(user.id, {
             chunkSize: options?.chunkSize,
@@ -441,12 +437,15 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
       return null;
     }
 
-    const personalTags: TagWithCategory[] = personalTagRows?.map(row => {
-      const taxonomy = row.taxonomy as any;
-      return taxonomy?.slug && taxonomy?.category
-        ? { slug: taxonomy.slug, category: taxonomy.category }
-        : null;
-    }).filter((tag): tag is TagWithCategory => tag !== null) || [];
+    const personalTags: TagWithCategory[] =
+      personalTagRows
+        ?.map(row => {
+          const taxonomy = row.taxonomy as any;
+          return taxonomy?.slug && taxonomy?.category
+            ? { slug: taxonomy.slug, category: taxonomy.category }
+            : null;
+        })
+        .filter((tag): tag is TagWithCategory => tag !== null) || [];
 
     // If mentee with portfolio company: fetch company tags with category
     let companyTags: TagWithCategory[] = [];
@@ -459,12 +458,14 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
         .is('deleted_at', null);
 
       if (!companyTagsError && companyTagRows) {
-        companyTags = companyTagRows.map(row => {
-          const taxonomy = row.taxonomy as any;
-          return taxonomy?.slug && taxonomy?.category
-            ? { slug: taxonomy.slug, category: taxonomy.category }
-            : null;
-        }).filter((tag): tag is TagWithCategory => tag !== null);
+        companyTags = companyTagRows
+          .map(row => {
+            const taxonomy = row.taxonomy as any;
+            return taxonomy?.slug && taxonomy?.category
+              ? { slug: taxonomy.slug, category: taxonomy.category }
+              : null;
+          })
+          .filter((tag): tag is TagWithCategory => tag !== null);
       }
 
       if (process.env.NODE_ENV === 'development') {
@@ -774,8 +775,14 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
    */
   private calculateScore(user1: UserWithTags, user2: UserWithTags): number {
     const tagOverlap = this.calculateTagOverlap(user1.tags, user2.tags);
-    const stageMatch = this.calculateStageMatch(user1.user_profiles.stage, user2.user_profiles.stage);
-    const reputationMatch = this.calculateReputationMatch(user1.reputation_tier, user2.reputation_tier);
+    const stageMatch = this.calculateStageMatch(
+      user1.user_profiles.stage,
+      user2.user_profiles.stage
+    );
+    const reputationMatch = this.calculateReputationMatch(
+      user1.reputation_tier,
+      user2.reputation_tier
+    );
 
     return Math.round(tagOverlap + stageMatch + reputationMatch);
   }
@@ -916,9 +923,10 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
 
     // Generate summary
     const strength = score >= 60 ? 'Strong' : score >= 30 ? 'Moderate' : 'Weak';
-    const tagSummary = sharedTags.length > 0
-      ? `${sharedTags.length} shared tags (${sharedTags.map(t => t.tag).join(', ')})`
-      : 'no shared tags';
+    const tagSummary =
+      sharedTags.length > 0
+        ? `${sharedTags.length} shared tags (${sharedTags.map(t => t.tag).join(', ')})`
+        : 'no shared tags';
     const stageSummary = stageMatch ? ', same startup stage' : '';
     const reputationSummary = reputationCompatible ? ', compatible reputation tiers' : '';
 

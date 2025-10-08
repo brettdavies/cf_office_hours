@@ -93,9 +93,7 @@ describe('BookingsList', () => {
     );
 
     expect(screen.getByText('No upcoming bookings')).toBeInTheDocument();
-    expect(
-      screen.getByText(/You don't have any scheduled meetings yet/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/You don't have any scheduled meetings yet/i)).toBeInTheDocument();
   });
 
   it('should show empty state when no past bookings', async () => {
@@ -214,7 +212,9 @@ describe('BookingsList', () => {
       />
     );
 
-    const cards = screen.getAllByRole('button').filter(card => card.getAttribute('aria-label')?.startsWith('Booking'));
+    const cards = screen
+      .getAllByRole('button')
+      .filter(card => card.getAttribute('aria-label')?.startsWith('Booking'));
     // First card should be Earlier Mentor (soonest date)
     expect(cards[0]).toHaveTextContent('Earlier Mentor');
     expect(cards[1]).toHaveTextContent('Later Mentor');
@@ -265,7 +265,9 @@ describe('BookingsList', () => {
     // Switch to past tab
     await user.click(screen.getByText(/Past/i));
 
-    const cards = screen.getAllByRole('button').filter(card => card.getAttribute('aria-label')?.startsWith('Booking'));
+    const cards = screen
+      .getAllByRole('button')
+      .filter(card => card.getAttribute('aria-label')?.startsWith('Booking'));
     // First card should be Recent Mentor (most recent past date)
     expect(cards[0]).toHaveTextContent('Recent Mentor');
     expect(cards[1]).toHaveTextContent('Older Mentor');
@@ -316,7 +318,9 @@ describe('BookingsList', () => {
     await user.click(screen.getByText(/Past \(2\)/i));
 
     // Should show both past and canceled bookings
-    const cards = screen.getAllByRole('button').filter(card => card.getAttribute('aria-label')?.startsWith('Booking'));
+    const cards = screen
+      .getAllByRole('button')
+      .filter(card => card.getAttribute('aria-label')?.startsWith('Booking'));
     expect(cards).toHaveLength(2);
   });
 });

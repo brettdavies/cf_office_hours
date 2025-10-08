@@ -13,9 +13,11 @@ const AvailabilityPage = lazy(() => import('@/pages/availability/AvailabilityPag
 const MentorProfilePage = lazy(() => import('@/pages/mentors/MentorProfilePage'));
 
 // Placeholder for Browse Mentors page (to be implemented)
-const BrowseMentorsPage = lazy(() => import('@/pages/mentors/BrowseMentorsPage').catch(() => ({
-  default: () => <div className="p-4">Browse Mentors - Coming Soon</div>
-})));
+const BrowseMentorsPage = lazy(() =>
+  import('@/pages/mentors/BrowseMentorsPage').catch(() => ({
+    default: () => <div className="p-4">Browse Mentors - Coming Soon</div>,
+  }))
+);
 
 export const router = createBrowserRouter([
   // Root redirects to dashboard

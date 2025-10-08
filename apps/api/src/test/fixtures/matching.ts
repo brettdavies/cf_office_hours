@@ -377,9 +377,7 @@ export const createDormantUser = (): UserWithTags => {
     reputation_tier: 'silver',
     is_active: true,
     last_activity_at: dormancyDate,
-    tags: [
-      { slug: 'fintech', category: 'industry' },
-    ],
+    tags: [{ slug: 'fintech', category: 'industry' }],
   });
 };
 

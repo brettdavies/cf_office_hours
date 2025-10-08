@@ -26,11 +26,13 @@ describe('MobileMenu', () => {
   });
 
   it('should render hamburger menu button', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'user-123',
-      email: 'test@example.com',
-      role: 'mentee',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        role: 'mentee',
+      })
+    );
 
     renderWithProviders(<MobileMenu />);
 
@@ -40,11 +42,13 @@ describe('MobileMenu', () => {
 
   it('should show navigation links when opened', async () => {
     const user = userEvent.setup();
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'user-123',
-      email: 'test@example.com',
-      role: 'mentee',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        role: 'mentee',
+      })
+    );
 
     renderWithProviders(<MobileMenu />);
 
@@ -62,11 +66,13 @@ describe('MobileMenu', () => {
 
   it('should show "My Availability" for mentors', async () => {
     const user = userEvent.setup();
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'mentor-123',
-      email: 'mentor@example.com',
-      role: 'mentor',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'mentor-123',
+        email: 'mentor@example.com',
+        role: 'mentor',
+      })
+    );
 
     renderWithProviders(<MobileMenu />);
 

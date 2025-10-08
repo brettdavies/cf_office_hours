@@ -6,34 +6,28 @@
  */
 
 // External dependencies
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 // Internal modules
-import { requireAuth } from '../middleware/auth';
-import { BookingService } from '../services/booking.service';
-import { CreateBookingSchema, BookingResponseSchema } from '@cf-office-hours/shared';
+import { requireAuth } from "../middleware/auth";
+import { BookingService } from "../services/booking.service";
+import {
+  BookingResponseSchema,
+  CreateBookingSchema,
+  ErrorResponseSchema,
+} from "@cf-office-hours/shared";
 
 // Types
-import type { Env } from '../types/bindings';
-import type { Variables } from '../types/context';
+import type { Env } from "../types/bindings";
+import type { Variables } from "../types/context";
 
 // Create OpenAPI-enabled Hono router
-export const bookingRoutes = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
+export const bookingRoutes = new OpenAPIHono<
+  { Bindings: Env; Variables: Variables }
+>();
 
 // Apply auth middleware to all routes
-bookingRoutes.use('*', requireAuth);
-
-/**
- * Shared error response schema for OpenAPI documentation.
- */
-const ErrorResponseSchema = z.object({
-  error: z.object({
-    code: z.string(),
-    message: z.string(),
-    timestamp: z.string(),
-    details: z.record(z.unknown()).optional(),
-  }),
-});
+bookingRoutes.use("*", requireAuth);
 
 /**
  * Schema for expanded booking with relations (my-bookings response).
@@ -43,7 +37,7 @@ const MyBookingSchema = z.object({
   mentor_id: z.string().uuid(),
   mentee_id: z.string().uuid(),
   time_slot_id: z.string().uuid(),
-  status: z.enum(['pending', 'confirmed', 'completed', 'canceled', 'expired']),
+  status: z.enum(["pending", "confirmed", "completed", "canceled", "expired"]),
   meeting_goal: z.string(),
   materials_urls: z.array(z.string()),
   created_at: z.string().datetime(),
@@ -80,17 +74,17 @@ const MyBookingsResponseSchema = z.object({
  * POST / - Create a booking
  */
 const createBookingRoute = createRoute({
-  method: 'post',
-  path: '/',
-  tags: ['Bookings'],
-  summary: 'Create a new booking',
+  method: "post",
+  path: "/",
+  tags: ["Bookings"],
+  summary: "Create a new booking",
   description:
-    'Book a mentor time slot (Epic 0: Simple booking - no calendar integration, no confirmation flow, status always pending)',
+    "Book a mentor time slot (Epic 0: Simple booking - no calendar integration, no confirmation flow, status always pending)",
   security: [{ Bearer: [] }],
   request: {
     body: {
       content: {
-        'application/json': {
+        "application/json": {
           schema: CreateBookingSchema,
         },
       },
@@ -98,49 +92,50 @@ const createBookingRoute = createRoute({
   },
   responses: {
     201: {
-      description: 'Booking created successfully',
+      description: "Booking created successfully",
       content: {
-        'application/json': {
+        "application/json": {
           schema: BookingResponseSchema,
         },
       },
     },
     400: {
-      description: 'Invalid request - Validation errors (meeting_goal too short, invalid UUID)',
+      description:
+        "Invalid request - Validation errors (meeting_goal too short, invalid UUID)",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     401: {
-      description: 'Unauthorized - Missing or invalid JWT token',
+      description: "Unauthorized - Missing or invalid JWT token",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     404: {
-      description: 'Time slot not found',
+      description: "Time slot not found",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     409: {
-      description: 'Slot already booked - Concurrent booking detected',
+      description: "Slot already booked - Concurrent booking detected",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     500: {
-      description: 'Internal Server Error - Failed to create booking',
+      description: "Internal Server Error - Failed to create booking",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
@@ -148,13 +143,13 @@ const createBookingRoute = createRoute({
   },
 });
 
-bookingRoutes.openapi(createBookingRoute, async c => {
-  const user = c.get('user');
+bookingRoutes.openapi(createBookingRoute, async (c) => {
+  const user = c.get("user");
 
   // Validate request body against schema
-  const body = c.req.valid('json');
+  const body = c.req.valid("json");
 
-  console.log('[BOOKING] Creating booking', {
+  console.log("[BOOKING] Creating booking", {
     userId: user.id,
     slotId: body.time_slot_id,
     meetingGoalLength: body.meeting_goal.length,
@@ -166,7 +161,7 @@ bookingRoutes.openapi(createBookingRoute, async c => {
   try {
     const booking = await bookingService.createBooking(user.id, body);
 
-    console.log('[BOOKING] Booking created successfully', {
+    console.log("[BOOKING] Booking created successfully", {
       bookingId: booking.id,
       userId: user.id,
       slotId: booking.time_slot_id,
@@ -179,7 +174,7 @@ bookingRoutes.openapi(createBookingRoute, async c => {
     return c.json(booking, 201);
   } catch (error) {
     // Handle AppError instances
-    if (error && typeof error === 'object' && 'statusCode' in error) {
+    if (error && typeof error === "object" && "statusCode" in error) {
       const appError = error as {
         statusCode: number;
         code: string;
@@ -187,7 +182,7 @@ bookingRoutes.openapi(createBookingRoute, async c => {
         details?: Record<string, unknown>;
       };
 
-      console.error('[ERROR] Booking creation failed', {
+      console.error("[ERROR] Booking creation failed", {
         userId: user.id,
         error: appError.message,
         code: appError.code,
@@ -205,12 +200,12 @@ bookingRoutes.openapi(createBookingRoute, async c => {
             details: appError.details,
           },
         },
-        appError.statusCode as 400 | 401 | 404 | 409 | 500
+        appError.statusCode as 400 | 401 | 404 | 409 | 500,
       );
     }
 
     // Unknown error
-    console.error('[ERROR] Unexpected error creating booking', {
+    console.error("[ERROR] Unexpected error creating booking", {
       userId: user.id,
       error: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString(),
@@ -218,12 +213,12 @@ bookingRoutes.openapi(createBookingRoute, async c => {
     return c.json(
       {
         error: {
-          code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
+          code: "INTERNAL_ERROR",
+          message: "An unexpected error occurred",
           timestamp: new Date().toISOString(),
         },
       },
-      500
+      500,
     );
   }
 });
@@ -232,34 +227,34 @@ bookingRoutes.openapi(createBookingRoute, async c => {
  * GET /my-bookings - Get all bookings for current user
  */
 const getMyBookingsRoute = createRoute({
-  method: 'get',
-  path: '/my-bookings',
-  tags: ['Bookings'],
-  summary: 'Get all bookings for current user',
+  method: "get",
+  path: "/my-bookings",
+  tags: ["Bookings"],
+  summary: "Get all bookings for current user",
   description:
-    'Returns all bookings where the authenticated user is either the mentor or mentee, with expanded relations for mentor, mentee, and time_slot data',
+    "Returns all bookings where the authenticated user is either the mentor or mentee, with expanded relations for mentor, mentee, and time_slot data",
   security: [{ Bearer: [] }],
   responses: {
     200: {
-      description: 'List of user bookings with expanded relations',
+      description: "List of user bookings with expanded relations",
       content: {
-        'application/json': {
+        "application/json": {
           schema: MyBookingsResponseSchema,
         },
       },
     },
     401: {
-      description: 'Unauthorized - Missing or invalid JWT token',
+      description: "Unauthorized - Missing or invalid JWT token",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     500: {
-      description: 'Internal Server Error - Failed to fetch bookings',
+      description: "Internal Server Error - Failed to fetch bookings",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
@@ -267,8 +262,8 @@ const getMyBookingsRoute = createRoute({
   },
 });
 
-bookingRoutes.openapi(getMyBookingsRoute, async c => {
-  const user = c.get('user');
+bookingRoutes.openapi(getMyBookingsRoute, async (c) => {
+  const user = c.get("user");
 
   const bookingService = new BookingService(c.env);
 
@@ -278,7 +273,7 @@ bookingRoutes.openapi(getMyBookingsRoute, async c => {
     return c.json({ bookings }, 200);
   } catch (error) {
     // Handle AppError instances
-    if (error && typeof error === 'object' && 'statusCode' in error) {
+    if (error && typeof error === "object" && "statusCode" in error) {
       const appError = error as {
         statusCode: number;
         code: string;
@@ -295,21 +290,21 @@ bookingRoutes.openapi(getMyBookingsRoute, async c => {
             details: appError.details,
           },
         },
-        appError.statusCode as 401 | 500
+        appError.statusCode as 401 | 500,
       );
     }
 
     // Unknown error
-    console.error('Unexpected error fetching bookings:', error);
+    console.error("Unexpected error fetching bookings:", error);
     return c.json(
       {
         error: {
-          code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
+          code: "INTERNAL_ERROR",
+          message: "An unexpected error occurred",
           timestamp: new Date().toISOString(),
         },
       },
-      500
+      500,
     );
   }
 });

@@ -25,12 +25,7 @@ interface ErrorMessageProps {
  * @param onRetry - Callback function for retry button (optional)
  * @param retryLabel - Text for retry button (default: "Retry")
  */
-export function ErrorMessage({
-  title,
-  message,
-  onRetry,
-  retryLabel = 'Retry',
-}: ErrorMessageProps) {
+export function ErrorMessage({ title, message, onRetry, retryLabel = 'Retry' }: ErrorMessageProps) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4">
       <div className="rounded-lg bg-red-50 p-6 max-w-md w-full">

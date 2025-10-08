@@ -10,7 +10,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   SESSION_EXPIRED: 'Your session has expired. Please log in again.',
   FORBIDDEN: 'You do not have permission to perform this action.',
   INVALID_CREDENTIALS: 'Invalid email or password.',
-  EMAIL_NOT_WHITELISTED: 'Your email is not authorized. Please contact an administrator for access.',
+  EMAIL_NOT_WHITELISTED:
+    'Your email is not authorized. Please contact an administrator for access.',
 
   // User & Profile
   USER_NOT_FOUND: 'User not found.',
@@ -32,7 +33,8 @@ const ERROR_MESSAGES: Record<string, string> = {
 
   // Availability
   AVAILABILITY_NOT_FOUND: 'Availability block not found.',
-  AVAILABILITY_HAS_BOOKINGS: 'Cannot delete availability with confirmed bookings. Cancel the bookings first.',
+  AVAILABILITY_HAS_BOOKINGS:
+    'Cannot delete availability with confirmed bookings. Cancel the bookings first.',
 
   // Tier Overrides
   OVERRIDE_REQUEST_NOT_FOUND: 'Override request not found.',
@@ -81,5 +83,5 @@ export const getErrorMessage = (
  * @returns Array of user-friendly error messages
  */
 export const getErrorMessages = (errors: string[]): string[] => {
-  return errors.map((code) => getErrorMessage(code));
+  return errors.map(code => getErrorMessage(code));
 };

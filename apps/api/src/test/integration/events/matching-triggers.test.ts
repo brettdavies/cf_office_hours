@@ -171,11 +171,7 @@ describe('Matching Event Triggers', () => {
     it('should recalculate matches for all linked mentees', async () => {
       // Arrange
       const companyId = 'company-123';
-      const mentees = [
-        { user_id: 'mentee-1' },
-        { user_id: 'mentee-2' },
-        { user_id: 'mentee-3' },
-      ];
+      const mentees = [{ user_id: 'mentee-1' }, { user_id: 'mentee-2' }, { user_id: 'mentee-3' }];
 
       const mockIs = vi.fn().mockReturnValue({
         data: mentees,
@@ -269,11 +265,7 @@ describe('Matching Event Triggers', () => {
     it('should continue processing if one mentee fails', async () => {
       // Arrange
       const companyId = 'company-123';
-      const mentees = [
-        { user_id: 'mentee-1' },
-        { user_id: 'mentee-2' },
-        { user_id: 'mentee-3' },
-      ];
+      const mentees = [{ user_id: 'mentee-1' }, { user_id: 'mentee-2' }, { user_id: 'mentee-3' }];
 
       const mockIs = vi.fn().mockReturnValue({
         data: mentees,
@@ -330,9 +322,7 @@ describe('Matching Event Triggers', () => {
       });
 
       // Act & Assert
-      await expect(
-        handlePortfolioCompanyTagsChange(companyId, mockDb)
-      ).resolves.not.toThrow();
+      await expect(handlePortfolioCompanyTagsChange(companyId, mockDb)).resolves.not.toThrow();
       expect(engineSpy).not.toHaveBeenCalled();
     });
   });
@@ -411,9 +401,7 @@ describe('Matching Event Triggers', () => {
       await expect(handleUserProfileUpdate(userId, mockDb)).resolves.not.toThrow();
       await expect(handleUserTagsChange(userId, mockDb)).resolves.not.toThrow();
       await expect(handleReputationTierChange(userId, mockDb)).resolves.not.toThrow();
-      await expect(
-        handlePortfolioCompanyTagsChange(companyId, mockDb)
-      ).resolves.not.toThrow();
+      await expect(handlePortfolioCompanyTagsChange(companyId, mockDb)).resolves.not.toThrow();
     });
   });
 });

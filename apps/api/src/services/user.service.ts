@@ -64,7 +64,9 @@ export class UserService {
    * @param filters - Optional filters (role)
    * @returns Array of users with profiles
    */
-  async listUsers(filters?: { role?: 'mentee' | 'mentor' | 'coordinator' }): Promise<UserResponse[]> {
+  async listUsers(filters?: {
+    role?: 'mentee' | 'mentor' | 'coordinator';
+  }): Promise<UserResponse[]> {
     const users = await this.userRepo.listUsers(filters);
     return users;
   }

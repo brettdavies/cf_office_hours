@@ -10,12 +10,10 @@
  */
 
 // Internal modules
-import { createSupabaseClient } from '../lib/db';
+import { BaseRepository } from "../lib/base-repository";
 
 // Types
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BookingResponse } from '@cf-office-hours/shared';
-import type { Env } from '../types/bindings';
+import type { BookingResponse } from "@cf-office-hours/shared";
 
 /**
  * Data structure for creating a booking.
@@ -52,7 +50,7 @@ export interface MyBookingData {
   mentor_id: string;
   mentee_id: string;
   time_slot_id: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'canceled' | 'expired';
+  status: "pending" | "confirmed" | "completed" | "canceled" | "expired";
   meeting_goal: string;
   materials_urls: string[];
   created_at: string;
@@ -78,13 +76,7 @@ export interface MyBookingData {
   };
 }
 
-export class BookingRepository {
-  private supabase: SupabaseClient;
-
-  constructor(env: Env) {
-    this.supabase = createSupabaseClient(env);
-  }
-
+export class BookingRepository extends BaseRepository {
   /**
    * Fetches time slot details by ID.
    *
@@ -96,14 +88,14 @@ export class BookingRepository {
    */
   async getTimeSlot(slotId: string): Promise<TimeSlotData | null> {
     const { data, error } = await this.supabase
-      .from('time_slots')
-      .select('id, mentor_id, start_time, end_time, is_booked')
-      .eq('id', slotId)
-      .is('deleted_at', null)
+      .from("time_slots")
+      .select("id, mentor_id, start_time, end_time, is_booked")
+      .eq("id", slotId)
+      .is("deleted_at", null)
       .single();
 
     if (error || !data) {
-      console.error('Failed to fetch time slot:', { slotId, error });
+      console.error("Failed to fetch time slot:", { slotId, error });
       return null;
     }
 
@@ -127,25 +119,28 @@ export class BookingRepository {
    * @throws Error if database operation fails
    */
   async createBooking(data: CreateBookingData): Promise<BookingResponse> {
-    const { data: result, error } = await this.supabase.rpc('create_booking_transaction', {
-      p_time_slot_id: data.time_slot_id,
-      p_mentor_id: data.mentor_id,
-      p_mentee_id: data.mentee_id,
-      p_meeting_goal: data.meeting_goal,
-      p_meeting_start_time: data.meeting_start_time,
-      p_meeting_end_time: data.meeting_end_time,
-      p_location: data.location,
-    });
+    const { data: result, error } = await this.supabase.rpc(
+      "create_booking_transaction",
+      {
+        p_time_slot_id: data.time_slot_id,
+        p_mentor_id: data.mentor_id,
+        p_mentee_id: data.mentee_id,
+        p_meeting_goal: data.meeting_goal,
+        p_meeting_start_time: data.meeting_start_time,
+        p_meeting_end_time: data.meeting_end_time,
+        p_location: data.location,
+      },
+    );
 
     if (error) {
-      console.error('Failed to create booking:', { data, error });
+      console.error("Failed to create booking:", { data, error });
       // Re-throw with original error message for service layer to handle
       throw new Error(error.message);
     }
 
     if (!result) {
-      console.error('Booking creation returned null:', { data });
-      throw new Error('Database error: Booking creation returned null');
+      console.error("Booking creation returned null:", { data });
+      throw new Error("Database error: Booking creation returned null");
     }
 
     return result as BookingResponse;
@@ -159,27 +154,31 @@ export class BookingRepository {
    * @param userId - UUID of the user
    * @returns User with email and profile name or null if not found
    */
-  async getUserForEmail(userId: string): Promise<{ email: string; name: string } | null> {
+  async getUserForEmail(
+    userId: string,
+  ): Promise<{ email: string; name: string } | null> {
     const { data, error } = await this.supabase
-      .from('users')
+      .from("users")
       .select(
         `
         email,
         profile:profiles!inner (
           name
         )
-      `
+      `,
       )
-      .eq('id', userId)
+      .eq("id", userId)
       .single();
 
     if (error || !data) {
-      console.error('Failed to fetch user for email:', { userId, error });
+      console.error("Failed to fetch user for email:", { userId, error });
       return null;
     }
 
     // Extract profile name (Supabase may return as array or object)
-    const profile = Array.isArray(data.profile) ? data.profile[0] : data.profile;
+    const profile = Array.isArray(data.profile)
+      ? data.profile[0]
+      : data.profile;
 
     return {
       email: data.email,
@@ -198,13 +197,13 @@ export class BookingRepository {
    * @throws Error if database operation fails
    */
   async getMyBookings(userId: string): Promise<MyBookingData[]> {
-    console.log('[BOOKINGS] Fetching user bookings', {
+    console.log("[BOOKINGS] Fetching user bookings", {
       userId,
       timestamp: new Date().toISOString(),
     });
 
     const { data, error } = await this.supabase
-      .from('bookings')
+      .from("bookings")
       .select(
         `
         id,
@@ -232,13 +231,13 @@ export class BookingRepository {
             name
           )
         )
-      `
+      `,
       )
       .or(`mentor_id.eq.${userId},mentee_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('[BOOKINGS] Failed to fetch user bookings', {
+      console.error("[BOOKINGS] Failed to fetch user bookings", {
         userId,
         error,
         errorCode: error.code,
@@ -251,26 +250,26 @@ export class BookingRepository {
     }
 
     if (!data) {
-      console.log('[BOOKINGS] No bookings found', {
+      console.log("[BOOKINGS] No bookings found", {
         userId,
         timestamp: new Date().toISOString(),
       });
       return [];
     }
 
-    console.log('[BOOKINGS] Bookings fetched successfully', {
+    console.log("[BOOKINGS] Bookings fetched successfully", {
       userId,
       bookingCount: data.length,
       timestamp: new Date().toISOString(),
     });
 
     // Type assertion and data transformation
-    return data.map(booking => ({
+    return data.map((booking) => ({
       id: booking.id,
       mentor_id: booking.mentor_id,
       mentee_id: booking.mentee_id,
       time_slot_id: booking.time_slot_id,
-      status: booking.status as MyBookingData['status'],
+      status: booking.status as MyBookingData["status"],
       meeting_goal: booking.meeting_goal,
       materials_urls: [], // Materials feature not implemented yet (Epic 4)
       created_at: booking.created_at,

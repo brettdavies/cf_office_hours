@@ -156,112 +156,112 @@ export default function ProfilePage() {
 
   return (
     <Card className="max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>View and manage your profile information</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditing ? (
-            // Edit mode
-            <>
+      <CardHeader>
+        <CardTitle>Profile</CardTitle>
+        <CardDescription>View and manage your profile information</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isEditing ? (
+          // Edit mode
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Your name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={e => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Your title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="company">Company</Label>
+              <Input
+                id="company"
+                value={formData.company}
+                onChange={e => setFormData({ ...formData, company: e.target.value })}
+                placeholder="Your company"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={formData.bio}
+                onChange={e => setFormData({ ...formData, bio: e.target.value })}
+                placeholder="Tell us about yourself"
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" value={profile.email} disabled />
+              <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Input id="role" value={profile.role} disabled />
+              <p className="text-xs text-muted-foreground">Role cannot be changed</p>
+            </div>
+          </>
+        ) : (
+          // View mode
+          <>
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <p className="text-sm">{profile.profile.name}</p>
+            </div>
+            {profile.profile.title && (
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Your name"
-                />
+                <Label>Title</Label>
+                <p className="text-sm">{profile.profile.title}</p>
               </div>
+            )}
+            {profile.profile.company && (
               <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Your title"
-                />
+                <Label>Company</Label>
+                <p className="text-sm">{profile.profile.company}</p>
               </div>
+            )}
+            {profile.profile.bio && (
               <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
-                <Input
-                  id="company"
-                  value={formData.company}
-                  onChange={e => setFormData({ ...formData, company: e.target.value })}
-                  placeholder="Your company"
-                />
+                <Label>Bio</Label>
+                <p className="text-sm whitespace-pre-wrap">{profile.profile.bio}</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
-                <Textarea
-                  id="bio"
-                  value={formData.bio}
-                  onChange={e => setFormData({ ...formData, bio: e.target.value })}
-                  placeholder="Tell us about yourself"
-                  rows={4}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" value={profile.email} disabled />
-                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Input id="role" value={profile.role} disabled />
-                <p className="text-xs text-muted-foreground">Role cannot be changed</p>
-              </div>
-            </>
-          ) : (
-            // View mode
-            <>
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <p className="text-sm">{profile.profile.name}</p>
-              </div>
-              {profile.profile.title && (
-                <div className="space-y-2">
-                  <Label>Title</Label>
-                  <p className="text-sm">{profile.profile.title}</p>
-                </div>
-              )}
-              {profile.profile.company && (
-                <div className="space-y-2">
-                  <Label>Company</Label>
-                  <p className="text-sm">{profile.profile.company}</p>
-                </div>
-              )}
-              {profile.profile.bio && (
-                <div className="space-y-2">
-                  <Label>Bio</Label>
-                  <p className="text-sm whitespace-pre-wrap">{profile.profile.bio}</p>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <p className="text-sm">{profile.email}</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <p className="text-sm capitalize">{profile.role}</p>
-              </div>
-            </>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-end gap-2">
-          {isEditing ? (
-            <>
-              <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={isSaving || !formData.name}>
-                {isSaving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </>
-          ) : (
-            <Button onClick={handleEdit}>Edit Profile</Button>
-          )}
-        </CardFooter>
-      </Card>
+            )}
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <p className="text-sm">{profile.email}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <p className="text-sm capitalize">{profile.role}</p>
+            </div>
+          </>
+        )}
+      </CardContent>
+      <CardFooter className="flex justify-end gap-2">
+        {isEditing ? (
+          <>
+            <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving || !formData.name}>
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </>
+        ) : (
+          <Button onClick={handleEdit}>Edit Profile</Button>
+        )}
+      </CardFooter>
+    </Card>
   );
 }

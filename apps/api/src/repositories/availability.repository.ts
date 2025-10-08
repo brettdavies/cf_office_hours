@@ -9,16 +9,14 @@
  */
 
 // Internal modules
-import { createSupabaseClient } from '../lib/db';
+import { BaseRepository } from "../lib/base-repository";
 
 // Types
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AvailabilityBlockResponse,
   GetAvailableSlotsQuery,
   TimeSlotResponse,
-} from '@cf-office-hours/shared';
-import type { Env } from '../types/bindings';
+} from "@cf-office-hours/shared";
 
 /**
  * Data structure for creating availability blocks.
@@ -29,17 +27,11 @@ export interface CreateAvailabilityBlockData {
   end_time: string;
   slot_duration_minutes: number;
   buffer_minutes?: number; // Optional - defaults to 0 if not provided
-  meeting_type: 'online';
+  meeting_type: "online";
   description?: string;
 }
 
-export class AvailabilityRepository {
-  private supabase: SupabaseClient;
-
-  constructor(env: Env) {
-    this.supabase = createSupabaseClient(env);
-  }
-
+export class AvailabilityRepository extends BaseRepository {
   /**
    * Creates a new one-time availability block for a mentor.
    *
@@ -57,17 +49,17 @@ export class AvailabilityRepository {
    */
   async create(
     mentorId: string,
-    data: CreateAvailabilityBlockData
+    data: CreateAvailabilityBlockData,
   ): Promise<AvailabilityBlockResponse> {
     // Step 1: Create availability block
     const { data: block, error } = await this.supabase
-      .from('availability')
+      .from("availability")
       .insert({
         mentor_id: mentorId,
         start_time: data.start_time,
         end_time: data.end_time,
         slot_duration_minutes: data.slot_duration_minutes,
-        location: 'online',
+        location: "online",
         created_by: mentorId,
         updated_by: mentorId,
       })
@@ -75,23 +67,36 @@ export class AvailabilityRepository {
       .single();
 
     if (error || !block) {
-      console.error('Failed to create availability block:', { mentorId, error });
-      throw new Error(`Database error: ${error?.message || 'Failed to create availability block'}`);
+      console.error("Failed to create availability block:", {
+        mentorId,
+        error,
+      });
+      throw new Error(
+        `Database error: ${
+          error?.message || "Failed to create availability block"
+        }`,
+      );
     }
 
     // Step 2: Generate time slots for this availability block
     try {
-      await this.generateTimeSlots(block.id, mentorId, data.start_time, data.end_time, data.slot_duration_minutes);
-      console.log('[AVAILABILITY] Time slots generated successfully', {
+      await this.generateTimeSlots(
+        block.id,
+        mentorId,
+        data.start_time,
+        data.end_time,
+        data.slot_duration_minutes,
+      );
+      console.log("[AVAILABILITY] Time slots generated successfully", {
         blockId: block.id,
         mentorId,
         timestamp: new Date().toISOString(),
       });
     } catch (slotError) {
-      console.error('[ERROR] Failed to generate time slots', {
+      console.error("[ERROR] Failed to generate time slots", {
         blockId: block.id,
         mentorId,
-        error: slotError instanceof Error ? slotError.message : 'Unknown error',
+        error: slotError instanceof Error ? slotError.message : "Unknown error",
       });
       // Note: We don't throw here - the availability block was created successfully
       // The slots can be generated later via a manual process if needed
@@ -116,7 +121,7 @@ export class AvailabilityRepository {
     mentorId: string,
     startTime: string,
     endTime: string,
-    slotDurationMinutes: number
+    slotDurationMinutes: number,
   ): Promise<void> {
     const start = new Date(startTime);
     const end = new Date(endTime);
@@ -126,7 +131,9 @@ export class AvailabilityRepository {
 
     // Generate slots until we reach the end time
     while (currentSlotStart < end) {
-      const currentSlotEnd = new Date(currentSlotStart.getTime() + slotDurationMinutes * 60 * 1000);
+      const currentSlotEnd = new Date(
+        currentSlotStart.getTime() + slotDurationMinutes * 60 * 1000,
+      );
 
       // Only add slot if it fits completely within the availability window
       if (currentSlotEnd <= end) {
@@ -145,21 +152,24 @@ export class AvailabilityRepository {
     }
 
     if (slots.length === 0) {
-      console.warn('[AVAILABILITY] No slots generated - duration too large for time range', {
-        availabilityId,
-        slotDurationMinutes,
-        timeRangeMinutes: (end.getTime() - start.getTime()) / 60000,
-      });
+      console.warn(
+        "[AVAILABILITY] No slots generated - duration too large for time range",
+        {
+          availabilityId,
+          slotDurationMinutes,
+          timeRangeMinutes: (end.getTime() - start.getTime()) / 60000,
+        },
+      );
       return;
     }
 
     // Insert all slots in a single batch operation
     const { error } = await this.supabase
-      .from('time_slots')
+      .from("time_slots")
       .insert(slots);
 
     if (error) {
-      console.error('[ERROR] Failed to insert time slots', {
+      console.error("[ERROR] Failed to insert time slots", {
         availabilityId,
         slotCount: slots.length,
         error,
@@ -167,7 +177,7 @@ export class AvailabilityRepository {
       throw new Error(`Failed to insert time slots: ${error.message}`);
     }
 
-    console.log('[AVAILABILITY] Time slots inserted', {
+    console.log("[AVAILABILITY] Time slots inserted", {
       availabilityId,
       slotCount: slots.length,
       timestamp: new Date().toISOString(),
@@ -185,14 +195,17 @@ export class AvailabilityRepository {
    */
   async findByMentor(mentorId: string): Promise<AvailabilityBlockResponse[]> {
     const { data, error } = await this.supabase
-      .from('availability')
-      .select('*')
-      .eq('mentor_id', mentorId)
-      .is('deleted_at', null)
-      .order('start_time', { ascending: true });
+      .from("availability")
+      .select("*")
+      .eq("mentor_id", mentorId)
+      .is("deleted_at", null)
+      .order("start_time", { ascending: true });
 
     if (error) {
-      console.error('Failed to fetch availability blocks:', { mentorId, error });
+      console.error("Failed to fetch availability blocks:", {
+        mentorId,
+        error,
+      });
       return [];
     }
 
@@ -207,14 +220,14 @@ export class AvailabilityRepository {
    */
   async findById(id: string): Promise<AvailabilityBlockResponse | null> {
     const { data, error } = await this.supabase
-      .from('availability')
-      .select('*')
-      .eq('id', id)
-      .is('deleted_at', null)
+      .from("availability")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
       .single();
 
     if (error) {
-      console.error('Failed to fetch availability block:', { id, error });
+      console.error("Failed to fetch availability block:", { id, error });
       return null;
     }
 
@@ -230,14 +243,16 @@ export class AvailabilityRepository {
    * @param query - Query parameters for filtering slots
    * @returns Array of time slots with nested mentor information
    */
-  async findAvailableSlots(query: GetAvailableSlotsQuery): Promise<TimeSlotResponse[]> {
-    console.log('[AVAILABILITY] Fetching available slots', {
+  async findAvailableSlots(
+    query: GetAvailableSlotsQuery,
+  ): Promise<TimeSlotResponse[]> {
+    console.log("[AVAILABILITY] Fetching available slots", {
       query,
       timestamp: new Date().toISOString(),
     });
 
     let queryBuilder = this.supabase
-      .from('time_slots')
+      .from("time_slots")
       .select(
         `
         id,
@@ -251,23 +266,29 @@ export class AvailabilityRepository {
           id,
           user_profiles!inner(name)
         )
-      `
+      `,
       )
-      .eq('is_booked', false)
-      .is('deleted_at', null)
-      .order('start_time', { ascending: true });
+      .eq("is_booked", false)
+      .is("deleted_at", null)
+      .order("start_time", { ascending: true });
 
     // Apply filters
     if (query.mentor_id) {
-      queryBuilder = queryBuilder.eq('mentor_id', query.mentor_id);
+      queryBuilder = queryBuilder.eq("mentor_id", query.mentor_id);
     }
 
     if (query.start_date) {
-      queryBuilder = queryBuilder.gte('start_time', `${query.start_date}T00:00:00Z`);
+      queryBuilder = queryBuilder.gte(
+        "start_time",
+        `${query.start_date}T00:00:00Z`,
+      );
     }
 
     if (query.end_date) {
-      queryBuilder = queryBuilder.lte('start_time', `${query.end_date}T23:59:59Z`);
+      queryBuilder = queryBuilder.lte(
+        "start_time",
+        `${query.end_date}T23:59:59Z`,
+      );
     }
 
     // Note: meeting_type filter not applicable in current schema (location field is simple text)
@@ -279,19 +300,22 @@ export class AvailabilityRepository {
     const { data, error } = await queryBuilder;
 
     if (error) {
-      console.error('[AVAILABILITY] Failed to fetch available slots', { query, error });
+      console.error("[AVAILABILITY] Failed to fetch available slots", {
+        query,
+        error,
+      });
       throw new Error(`Database error: ${error.message}`);
     }
 
     if (!data) {
-      console.log('[AVAILABILITY] No slots found', {
+      console.log("[AVAILABILITY] No slots found", {
         query,
         timestamp: new Date().toISOString(),
       });
       return [];
     }
 
-    console.log('[AVAILABILITY] Available slots fetched successfully', {
+    console.log("[AVAILABILITY] Available slots fetched successfully", {
       query,
       slotCount: data.length,
       timestamp: new Date().toISOString(),

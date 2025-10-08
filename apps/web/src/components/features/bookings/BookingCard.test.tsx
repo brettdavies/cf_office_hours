@@ -38,7 +38,7 @@ describe('BookingCard', () => {
 
   it('should format date and time correctly', () => {
     const booking = createMockMyBooking({
-      mentee_id: "current-user-id",
+      mentee_id: 'current-user-id',
       time_slot: {
         start_time: '2025-10-15T19:00:00Z',
         end_time: '2025-10-15T19:30:00Z',
@@ -103,9 +103,7 @@ describe('BookingCard', () => {
     const handleClick = vi.fn();
     const booking = createMockMyBooking({ id: 'booking-123' });
 
-    render(
-      <BookingCard booking={booking} currentUserId="current-user-id" onClick={handleClick} />
-    );
+    render(<BookingCard booking={booking} currentUserId="current-user-id" onClick={handleClick} />);
 
     const card = screen.getByRole('button');
     await user.click(card);
@@ -119,9 +117,7 @@ describe('BookingCard', () => {
     const handleClick = vi.fn();
     const booking = createMockMyBooking({ id: 'booking-123' });
 
-    render(
-      <BookingCard booking={booking} currentUserId="current-user-id" onClick={handleClick} />
-    );
+    render(<BookingCard booking={booking} currentUserId="current-user-id" onClick={handleClick} />);
 
     const card = screen.getByRole('button');
     card.focus();
@@ -132,7 +128,7 @@ describe('BookingCard', () => {
 
   it('should display user initials when no avatar URL', () => {
     const booking = createMockMyBooking({
-      mentee_id: "current-user-id",
+      mentee_id: 'current-user-id',
       mentor: {
         id: 'mentor-123',
         profile: {
