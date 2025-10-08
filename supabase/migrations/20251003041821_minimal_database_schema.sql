@@ -58,6 +58,7 @@ CREATE TABLE users (
   updated_at timestamptz DEFAULT now() NOT NULL,
   created_by uuid,
   updated_by uuid,
+  deleted_at timestamptz,
   deleted_by uuid
 );
 
@@ -75,6 +76,7 @@ COMMENT ON TABLE users IS 'v2.4: User authentication and role management. Audit 
 COMMENT ON COLUMN users.airtable_record_id IS 'Stable reference to Airtable record (source of truth for user data)';
 COMMENT ON COLUMN users.created_by IS 'User who created this record (NULL for system-generated or Airtable sync)';
 COMMENT ON COLUMN users.updated_by IS 'User who last updated this record (NULL for system updates)';
+COMMENT ON COLUMN users.deleted_at IS 'Timestamp when this record was soft-deleted (NULL if not deleted)';
 COMMENT ON COLUMN users.deleted_by IS 'User who soft-deleted this record (NULL if not deleted, used in Epic 1+)';
 
 -- ============================================================================
