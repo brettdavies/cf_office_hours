@@ -11,7 +11,7 @@ import { createMockUserWithProfile } from '@/test/fixtures/matching';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
-global.fetch = mockFetch as any;
+global.fetch = mockFetch as typeof fetch;
 
 describe('UserSelector', () => {
   const mockOnChange = vi.fn();
@@ -234,7 +234,7 @@ describe('UserSelector', () => {
       // Never resolves - keeps loading state
     });
 
-    mockFetch.mockReturnValueOnce(promise as any);
+    mockFetch.mockReturnValueOnce(promise as Promise<Response>);
 
     render(<UserSelector value={null} onChange={mockOnChange} />);
 

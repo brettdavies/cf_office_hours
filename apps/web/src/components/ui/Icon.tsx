@@ -1,7 +1,7 @@
 import React, { Suspense, ComponentType } from 'react';
 
 interface IconProps {
-  icon: React.LazyExoticComponent<ComponentType<any>>;
+  icon: React.LazyExoticComponent<ComponentType<{ size?: number | string; className?: string }>>;
   className?: string;
   size?: number | string;
   fallback?: React.ReactNode;

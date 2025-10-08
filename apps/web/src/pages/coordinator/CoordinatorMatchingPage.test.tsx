@@ -114,7 +114,7 @@ describe('CoordinatorMatchingPage', () => {
       isSuccess: true,
       isError: false,
       error: null,
-    } as any);
+    } as ReturnType<typeof useMatchingModule.useFindMatches>);
 
     const wrapper = createWrapper();
     render(<CoordinatorMatchingPage />, { wrapper });
@@ -139,7 +139,7 @@ describe('CoordinatorMatchingPage', () => {
       isSuccess: false,
       isError: false,
       error: null,
-    } as any);
+    } as ReturnType<typeof useMatchingModule.useFindMatches>);
 
     const wrapper = createWrapper();
     render(<CoordinatorMatchingPage />, { wrapper });
@@ -164,7 +164,7 @@ describe('CoordinatorMatchingPage', () => {
       isSuccess: false,
       isError: false,
       error: null,
-    } as any);
+    } as ReturnType<typeof useMatchingModule.useFindMatches>);
 
     const wrapper = createWrapper();
     render(<CoordinatorMatchingPage />, { wrapper });
@@ -253,7 +253,7 @@ describe('CoordinatorMatchingPage', () => {
       isSuccess: false,
       isError: false,
       error: null,
-    } as any);
+    } as ReturnType<typeof useMatchingModule.useFindMatches>);
 
     const wrapper = createWrapper();
     render(<CoordinatorMatchingPage />, { wrapper });
@@ -276,7 +276,7 @@ describe('CoordinatorMatchingPage', () => {
       isSuccess: true,
       isError: false,
       error: null,
-    } as any);
+    } as ReturnType<typeof useMatchingModule.useFindMatches>);
 
     const wrapper = createWrapper();
     render(<CoordinatorMatchingPage />, { wrapper });
@@ -309,7 +309,7 @@ describe('CoordinatorMatchingPage', () => {
       isSuccess: true,
       isError: false,
       error: null,
-    } as any);
+    } as ReturnType<typeof useMatchingModule.useFindMatches>);
 
     const wrapper = createWrapper();
     render(<CoordinatorMatchingPage />, { wrapper });

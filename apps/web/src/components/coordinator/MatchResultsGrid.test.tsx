@@ -9,13 +9,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MatchResultsGrid } from './MatchResultsGrid';
 import { mockMatches, createMockMatchResult } from '@/test/fixtures/matching';
 
+// Types
+import type { paths } from '@shared/types/api.generated';
+
+type MatchResult =
+  paths['/v1/matching/find-matches']['post']['responses']['200']['content']['application/json']['matches'][number];
+
 // Mock MatchCard component
 vi.mock('./MatchCard', () => ({
   MatchCard: ({
     match,
     onExplainClick,
   }: {
-    match: any;
+    match: MatchResult;
     onExplainClick: () => void;
   }) => (
     <div data-testid={`match-card-${match.user.id}`}>
