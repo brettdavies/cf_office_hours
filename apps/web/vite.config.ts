@@ -52,14 +52,25 @@ export default defineConfig({
           // Backend integration
           'backend-vendor': ['@supabase/supabase-js'],
 
-          // Utility libraries
+          // Core utility libraries (small, frequently used)
           'utils-vendor': [
             'date-fns',
             'clsx',
             'class-variance-authority',
-            'tailwind-merge',
-            'lucide-react'
+            'tailwind-merge'
           ],
+
+          // Icon library (large, can be loaded separately)
+          'icons-vendor': ['lucide-react'],
+
+          // State management (application-specific)
+          'state-vendor': ['zustand'],
+
+          // Date picker component (UI-specific)
+          'datepicker-vendor': ['react-day-picker'],
+
+          // Internal shared library
+          'shared-vendor': ['@cf-office-hours/shared'],
 
           // Form handling
           'form-vendor': [
@@ -77,6 +88,6 @@ export default defineConfig({
       },
     },
     // Enable source maps for production debugging (can be removed later)
-    sourcemap: true,
+    sourcemap: false,
   },
 });
