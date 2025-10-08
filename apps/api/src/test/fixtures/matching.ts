@@ -128,24 +128,32 @@ export const createMockUser = (overrides?: Partial<User>): User => {
  * });
  */
 export const createMockUserWithTags = (
-  overrides?: Partial<UserWithTags> & { tags?: TagWithCategory[] }
+  overrides?: Partial<Omit<UserWithTags, 'user_profiles'>> & {
+    tags?: TagWithCategory[];
+    user_profiles?: Partial<UserProfile>;
+  }
 ): UserWithTags => {
   const baseUser = createMockUser(overrides);
   const userId = baseUser.id;
 
+  // Build default profile
+  const defaultProfile: UserProfile = {
+    id: generateId(),
+    user_id: userId,
+    portfolio_company_id: null,
+    stage: 'seed',
+    name: `Test User ${userId}`,
+    title: 'Software Engineer',
+    company: 'Test Company',
+    bio: 'Test bio for matching tests',
+    created_at: baseUser.created_at,
+    updated_at: baseUser.updated_at,
+  };
+
   return {
     ...baseUser,
     user_profiles: {
-      id: generateId(),
-      user_id: userId,
-      portfolio_company_id: null,
-      stage: 'seed',
-      name: `Test User ${userId}`,
-      title: 'Software Engineer',
-      company: 'Test Company',
-      bio: 'Test bio for matching tests',
-      created_at: baseUser.created_at,
-      updated_at: baseUser.updated_at,
+      ...defaultProfile,
       ...overrides?.user_profiles,
     },
     tags: overrides?.tags || [
@@ -250,7 +258,12 @@ export const createMockMatchExplanation = (
 /**
  * Pre-configured scenario: Bronze mentee
  */
-export const createBronzeMentee = (): UserWithTags =>
+export const createBronzeMentee = (
+  overrides?: Partial<Omit<UserWithTags, 'user_profiles'>> & {
+    tags?: TagWithCategory[];
+    user_profiles?: Partial<UserProfile>;
+  }
+): UserWithTags =>
   createMockUserWithTags({
     role: 'mentee',
     reputation_tier: 'bronze',
@@ -258,12 +271,18 @@ export const createBronzeMentee = (): UserWithTags =>
       { slug: 'fintech', category: 'industry' },
       { slug: 'seed', category: 'stage' },
     ],
+    ...overrides,
   });
 
 /**
  * Pre-configured scenario: Silver mentee
  */
-export const createSilverMentee = (): UserWithTags =>
+export const createSilverMentee = (
+  overrides?: Partial<Omit<UserWithTags, 'user_profiles'>> & {
+    tags?: TagWithCategory[];
+    user_profiles?: Partial<UserProfile>;
+  }
+): UserWithTags =>
   createMockUserWithTags({
     role: 'mentee',
     reputation_tier: 'silver',
@@ -272,12 +291,18 @@ export const createSilverMentee = (): UserWithTags =>
       { slug: 'react', category: 'technology' },
       { slug: 'seed', category: 'stage' },
     ],
+    ...overrides,
   });
 
 /**
  * Pre-configured scenario: Gold mentor
  */
-export const createGoldMentor = (): UserWithTags =>
+export const createGoldMentor = (
+  overrides?: Partial<Omit<UserWithTags, 'user_profiles'>> & {
+    tags?: TagWithCategory[];
+    user_profiles?: Partial<UserProfile>;
+  }
+): UserWithTags =>
   createMockUserWithTags({
     role: 'mentor',
     reputation_tier: 'gold',
@@ -286,12 +311,18 @@ export const createGoldMentor = (): UserWithTags =>
       { slug: 'react', category: 'technology' },
       { slug: 'series-a', category: 'stage' },
     ],
+    ...overrides,
   });
 
 /**
  * Pre-configured scenario: Platinum mentor
  */
-export const createPlatinumMentor = (): UserWithTags =>
+export const createPlatinumMentor = (
+  overrides?: Partial<Omit<UserWithTags, 'user_profiles'>> & {
+    tags?: TagWithCategory[];
+    user_profiles?: Partial<UserProfile>;
+  }
+): UserWithTags =>
   createMockUserWithTags({
     role: 'mentor',
     reputation_tier: 'platinum',
@@ -300,6 +331,7 @@ export const createPlatinumMentor = (): UserWithTags =>
       { slug: 'vue', category: 'technology' },
       { slug: 'series-b', category: 'stage' },
     ],
+    ...overrides,
   });
 
 /**

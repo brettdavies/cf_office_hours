@@ -9,39 +9,43 @@
  */
 
 // External dependencies
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Internal modules
-import { TagBasedMatchingEngineV1 } from '../tag-based.engine';
+import { TagBasedMatchingEngineV1 } from "../../../providers/matching/tag-based.engine";
 
 // Test fixtures (MANDATORY - no inline mocks)
 import {
-  createMockUserWithTags,
   createBronzeMentee,
-  createSilverMentee,
-  createGoldMentor,
-  createPlatinumMentor,
-  createMenteeWithCompany,
-  createDormantUser,
   createDeletedUser,
+  createDormantUser,
+  createGoldMentor,
+  createMenteeWithCompany,
+  createMockUserWithTags,
+  createPlatinumMentor,
+  createSilverMentee,
   type TagWithCategory,
-} from '../../../test/fixtures/matching';
+} from "../../../test/fixtures/matching";
 
 /**
  * Helper: Convert string array to TagWithCategory array for tests
  * Auto-categorizes based on tag name patterns
  */
 const toTagsWithCategory = (slugs: string[]): TagWithCategory[] => {
-  return slugs.map(slug => {
+  return slugs.map((slug) => {
     // Auto-categorize based on common patterns
-    let category: 'industry' | 'technology' | 'stage';
-    if (slug.includes('stage') || ['seed', 'pre-seed', 'series-a', 'series-b', 'series-c', 'growth'].includes(slug)) {
-      category = 'stage';
-    } else if (['react', 'vue', 'angular', 'node', 'python'].includes(slug)) {
-      category = 'technology';
+    let category: "industry" | "technology" | "stage";
+    if (
+      slug.includes("stage") ||
+      ["seed", "pre-seed", "series-a", "series-b", "series-c", "growth"]
+        .includes(slug)
+    ) {
+      category = "stage";
+    } else if (["react", "vue", "angular", "node", "python"].includes(slug)) {
+      category = "technology";
     } else {
-      category = 'industry';
+      category = "industry";
     }
     return { slug, category };
   });
@@ -58,7 +62,7 @@ const createMockSupabaseClient = (): SupabaseClient => {
   return mockClient;
 };
 
-describe('TagBasedMatchingEngineV1', () => {
+describe("TagBasedMatchingEngineV1", () => {
   let engine: TagBasedMatchingEngineV1;
   let mockDb: SupabaseClient;
 
@@ -72,13 +76,13 @@ describe('TagBasedMatchingEngineV1', () => {
   // ALGORITHM VERSION
   // ============================================================================
 
-  describe('getAlgorithmVersion', () => {
-    it('should return tag-based-v1', () => {
+  describe("getAlgorithmVersion", () => {
+    it("should return tag-based-v1", () => {
       // Act
       const version = engine.getAlgorithmVersion();
 
       // Assert
-      expect(version).toBe('tag-based-v1');
+      expect(version).toBe("tag-based-v1");
     });
   });
 
@@ -86,11 +90,15 @@ describe('TagBasedMatchingEngineV1', () => {
   // TAG OVERLAP CALCULATION
   // ============================================================================
 
-  describe('calculateTagOverlap', () => {
-    it('should return 60 when tags are identical', () => {
+  describe("calculateTagOverlap", () => {
+    it("should return 60 when tags are identical", () => {
       // Arrange
-      const user1 = createMockUserWithTags({ tags: toTagsWithCategory(['fintech', 'react', 'seed-stage']) });
-      const user2 = createMockUserWithTags({ tags: toTagsWithCategory(['fintech', 'react', 'seed-stage']) });
+      const user1 = createMockUserWithTags({
+        tags: toTagsWithCategory(["fintech", "react", "seed-stage"]),
+      });
+      const user2 = createMockUserWithTags({
+        tags: toTagsWithCategory(["fintech", "react", "seed-stage"]),
+      });
 
       // Act
       const score = (engine as any).calculateTagOverlap(user1.tags, user2.tags);
@@ -99,10 +107,14 @@ describe('TagBasedMatchingEngineV1', () => {
       expect(score).toBe(60);
     });
 
-    it('should return 0 when tags have no overlap', () => {
+    it("should return 0 when tags have no overlap", () => {
       // Arrange
-      const user1 = createMockUserWithTags({ tags: toTagsWithCategory(['fintech', 'react']) });
-      const user2 = createMockUserWithTags({ tags: toTagsWithCategory(['healthcare', 'vue']) });
+      const user1 = createMockUserWithTags({
+        tags: toTagsWithCategory(["fintech", "react"]),
+      });
+      const user2 = createMockUserWithTags({
+        tags: toTagsWithCategory(["healthcare", "vue"]),
+      });
 
       // Act
       const score = (engine as any).calculateTagOverlap(user1.tags, user2.tags);
@@ -111,10 +123,14 @@ describe('TagBasedMatchingEngineV1', () => {
       expect(score).toBe(0);
     });
 
-    it('should return partial score when tags partially overlap', () => {
+    it("should return partial score when tags partially overlap", () => {
       // Arrange
-      const user1 = createMockUserWithTags({ tags: toTagsWithCategory(['fintech', 'react', 'seed-stage']) });
-      const user2 = createMockUserWithTags({ tags: toTagsWithCategory(['fintech', 'vue', 'series-a']) });
+      const user1 = createMockUserWithTags({
+        tags: toTagsWithCategory(["fintech", "react", "seed-stage"]),
+      });
+      const user2 = createMockUserWithTags({
+        tags: toTagsWithCategory(["fintech", "vue", "series-a"]),
+      });
 
       // Act
       const score = (engine as any).calculateTagOverlap(user1.tags, user2.tags);
@@ -126,7 +142,7 @@ describe('TagBasedMatchingEngineV1', () => {
       expect(score).toBe(12);
     });
 
-    it('should return 0 when both users have no tags', () => {
+    it("should return 0 when both users have no tags", () => {
       // Arrange
       const user1 = createMockUserWithTags({ tags: toTagsWithCategory([]) });
       const user2 = createMockUserWithTags({ tags: toTagsWithCategory([]) });
@@ -138,9 +154,11 @@ describe('TagBasedMatchingEngineV1', () => {
       expect(score).toBe(0);
     });
 
-    it('should handle case when one user has no tags', () => {
+    it("should handle case when one user has no tags", () => {
       // Arrange
-      const user1 = createMockUserWithTags({ tags: toTagsWithCategory(['fintech', 'react']) });
+      const user1 = createMockUserWithTags({
+        tags: toTagsWithCategory(["fintech", "react"]),
+      });
       const user2 = createMockUserWithTags({ tags: toTagsWithCategory([]) });
 
       // Act
@@ -155,68 +173,68 @@ describe('TagBasedMatchingEngineV1', () => {
   // STAGE MATCH CALCULATION
   // ============================================================================
 
-  describe('calculateStageMatch', () => {
-    it('should return 20 when stages are identical', () => {
+  describe("calculateStageMatch", () => {
+    it("should return 20 when stages are identical", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
       });
       const user2 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
       });
 
       // Act
       const score = (engine as any).calculateStageMatch(
         user1.user_profiles.stage,
-        user2.user_profiles.stage
+        user2.user_profiles.stage,
       );
 
       // Assert
       expect(score).toBe(20);
     });
 
-    it('should return 10 when stages are adjacent', () => {
+    it("should return 10 when stages are adjacent", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
       });
       const user2 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'series-a' },
+        user_profiles: { portfolio_company_id: null, stage: "series-a" },
       });
 
       // Act
       const score = (engine as any).calculateStageMatch(
         user1.user_profiles.stage,
-        user2.user_profiles.stage
+        user2.user_profiles.stage,
       );
 
       // Assert
       expect(score).toBe(10);
     });
 
-    it('should return 0 when stages differ by more than 1 level', () => {
+    it("should return 0 when stages differ by more than 1 level", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
       });
       const user2 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'series-b' },
+        user_profiles: { portfolio_company_id: null, stage: "series-b" },
       });
 
       // Act
       const score = (engine as any).calculateStageMatch(
         user1.user_profiles.stage,
-        user2.user_profiles.stage
+        user2.user_profiles.stage,
       );
 
       // Assert
       expect(score).toBe(0);
     });
 
-    it('should return 0 when one stage is missing', () => {
+    it("should return 0 when one stage is missing", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
       });
       const user2 = createMockUserWithTags({
         user_profiles: { portfolio_company_id: null, stage: null },
@@ -225,14 +243,14 @@ describe('TagBasedMatchingEngineV1', () => {
       // Act
       const score = (engine as any).calculateStageMatch(
         user1.user_profiles.stage,
-        user2.user_profiles.stage
+        user2.user_profiles.stage,
       );
 
       // Assert
       expect(score).toBe(0);
     });
 
-    it('should return 0 when both stages are missing', () => {
+    it("should return 0 when both stages are missing", () => {
       // Arrange
       const user1 = createMockUserWithTags({
         user_profiles: { portfolio_company_id: null, stage: null },
@@ -244,26 +262,26 @@ describe('TagBasedMatchingEngineV1', () => {
       // Act
       const score = (engine as any).calculateStageMatch(
         user1.user_profiles.stage,
-        user2.user_profiles.stage
+        user2.user_profiles.stage,
       );
 
       // Assert
       expect(score).toBe(0);
     });
 
-    it('should return 0 when stage is invalid', () => {
+    it("should return 0 when stage is invalid", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'invalid-stage' },
+        user_profiles: { portfolio_company_id: null, stage: "invalid-stage" },
       });
       const user2 = createMockUserWithTags({
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
       });
 
       // Act
       const score = (engine as any).calculateStageMatch(
         user1.user_profiles.stage,
-        user2.user_profiles.stage
+        user2.user_profiles.stage,
       );
 
       // Assert
@@ -275,23 +293,23 @@ describe('TagBasedMatchingEngineV1', () => {
   // REPUTATION MATCH CALCULATION
   // ============================================================================
 
-  describe('calculateReputationMatch', () => {
-    it('should return 20 when tiers are identical', () => {
+  describe("calculateReputationMatch", () => {
+    it("should return 20 when tiers are identical", () => {
       // Arrange
       const user1 = createGoldMentor();
-      const user2 = createMockUserWithTags({ reputation_tier: 'gold' });
+      const user2 = createMockUserWithTags({ reputation_tier: "gold" });
 
       // Act
       const score = (engine as any).calculateReputationMatch(
         user1.reputation_tier,
-        user2.reputation_tier
+        user2.reputation_tier,
       );
 
       // Assert
       expect(score).toBe(20);
     });
 
-    it('should return 20 when tier difference is 1', () => {
+    it("should return 20 when tier difference is 1", () => {
       // Arrange
       const user1 = createGoldMentor(); // gold
       const user2 = createSilverMentee(); // silver
@@ -299,14 +317,14 @@ describe('TagBasedMatchingEngineV1', () => {
       // Act
       const score = (engine as any).calculateReputationMatch(
         user1.reputation_tier,
-        user2.reputation_tier
+        user2.reputation_tier,
       );
 
       // Assert
       expect(score).toBe(20);
     });
 
-    it('should return 0 when tier difference is greater than 1', () => {
+    it("should return 0 when tier difference is greater than 1", () => {
       // Arrange
       const user1 = createPlatinumMentor(); // platinum
       const user2 = createBronzeMentee(); // bronze
@@ -314,14 +332,14 @@ describe('TagBasedMatchingEngineV1', () => {
       // Act
       const score = (engine as any).calculateReputationMatch(
         user1.reputation_tier,
-        user2.reputation_tier
+        user2.reputation_tier,
       );
 
       // Assert
       expect(score).toBe(0);
     });
 
-    it('should return 10 when one tier is missing', () => {
+    it("should return 10 when one tier is missing", () => {
       // Arrange
       const user1 = createGoldMentor();
       const user2 = createMockUserWithTags({ reputation_tier: null });
@@ -329,14 +347,14 @@ describe('TagBasedMatchingEngineV1', () => {
       // Act
       const score = (engine as any).calculateReputationMatch(
         user1.reputation_tier,
-        user2.reputation_tier
+        user2.reputation_tier,
       );
 
       // Assert
       expect(score).toBe(10); // Neutral
     });
 
-    it('should return 10 when both tiers are missing', () => {
+    it("should return 10 when both tiers are missing", () => {
       // Arrange
       const user1 = createMockUserWithTags({ reputation_tier: null });
       const user2 = createMockUserWithTags({ reputation_tier: null });
@@ -344,7 +362,7 @@ describe('TagBasedMatchingEngineV1', () => {
       // Act
       const score = (engine as any).calculateReputationMatch(
         user1.reputation_tier,
-        user2.reputation_tier
+        user2.reputation_tier,
       );
 
       // Assert
@@ -356,23 +374,27 @@ describe('TagBasedMatchingEngineV1', () => {
   // MATCH EXPLANATION GENERATION
   // ============================================================================
 
-  describe('generateExplanation', () => {
-    it('should generate strong match explanation when score is high', () => {
+  describe("generateExplanation", () => {
+    it("should generate strong match explanation when score is high", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'react', 'seed-stage']),
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
-        reputation_tier: 'gold',
+        tags: toTagsWithCategory(["fintech", "react", "seed-stage"]),
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
+        reputation_tier: "gold",
       });
       const user2 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'react', 'seed-stage']),
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
-        reputation_tier: 'gold',
+        tags: toTagsWithCategory(["fintech", "react", "seed-stage"]),
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
+        reputation_tier: "gold",
       });
       const score = 100; // Perfect match
 
       // Act
-      const explanation = (engine as any).generateExplanation(user1, user2, score);
+      const explanation = (engine as any).generateExplanation(
+        user1,
+        user2,
+        score,
+      );
 
       // Assert
       expect(explanation).toMatchObject({
@@ -380,28 +402,32 @@ describe('TagBasedMatchingEngineV1', () => {
         reputationCompatible: true,
       });
       expect(explanation.tagOverlap).toHaveLength(3);
-      expect(explanation.summary).toContain('Strong match');
-      expect(explanation.summary).toContain('3 shared tags');
-      expect(explanation.summary).toContain('same startup stage');
-      expect(explanation.summary).toContain('compatible reputation tiers');
+      expect(explanation.summary).toContain("Strong match");
+      expect(explanation.summary).toContain("3 shared tags");
+      expect(explanation.summary).toContain("same startup stage");
+      expect(explanation.summary).toContain("compatible reputation tiers");
     });
 
-    it('should generate weak match explanation when score is low', () => {
+    it("should generate weak match explanation when score is low", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech']),
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
-        reputation_tier: 'bronze',
+        tags: toTagsWithCategory(["fintech"]),
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
+        reputation_tier: "bronze",
       });
       const user2 = createMockUserWithTags({
-        tags: toTagsWithCategory(['healthcare']),
-        user_profiles: { portfolio_company_id: null, stage: 'series-b' },
-        reputation_tier: 'platinum',
+        tags: toTagsWithCategory(["healthcare"]),
+        user_profiles: { portfolio_company_id: null, stage: "series-b" },
+        reputation_tier: "platinum",
       });
       const score = 10; // Weak match
 
       // Act
-      const explanation = (engine as any).generateExplanation(user1, user2, score);
+      const explanation = (engine as any).generateExplanation(
+        user1,
+        user2,
+        score,
+      );
 
       // Assert
       expect(explanation).toMatchObject({
@@ -409,48 +435,71 @@ describe('TagBasedMatchingEngineV1', () => {
         reputationCompatible: false,
       });
       expect(explanation.tagOverlap).toHaveLength(0);
-      expect(explanation.summary).toContain('Weak match');
-      expect(explanation.summary).toContain('no shared tags');
+      expect(explanation.summary).toContain("Weak match");
+      expect(explanation.summary).toContain("no shared tags");
     });
 
-    it('should limit tagOverlap to top 5 shared tags', () => {
+    it("should limit tagOverlap to top 5 shared tags", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        tags: toTagsWithCategory(['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7']),
+        tags: toTagsWithCategory([
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+        ]),
       });
       const user2 = createMockUserWithTags({
-        tags: toTagsWithCategory(['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7']),
+        tags: toTagsWithCategory([
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+        ]),
       });
       const score = 60;
 
       // Act
-      const explanation = (engine as any).generateExplanation(user1, user2, score);
+      const explanation = (engine as any).generateExplanation(
+        user1,
+        user2,
+        score,
+      );
 
       // Assert
       expect(explanation.tagOverlap).toHaveLength(5); // Limited to 5
     });
 
-    it('should categorize tags correctly', () => {
+    it("should categorize tags correctly", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'react', 'seed-stage']),
+        tags: toTagsWithCategory(["fintech", "react", "seed-stage"]),
       });
       const user2 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'react', 'seed-stage']),
+        tags: toTagsWithCategory(["fintech", "react", "seed-stage"]),
       });
       const score = 60;
 
       // Act
-      const explanation = (engine as any).generateExplanation(user1, user2, score);
+      const explanation = (engine as any).generateExplanation(
+        user1,
+        user2,
+        score,
+      );
 
       // Assert
       expect(explanation.tagOverlap).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ tag: 'fintech', category: 'industry' }),
-          expect.objectContaining({ tag: 'react', category: 'technology' }),
-          expect.objectContaining({ tag: 'seed-stage', category: 'stage' }),
-        ])
-
+          expect.objectContaining({ tag: "fintech", category: "industry" }),
+          expect.objectContaining({ tag: "react", category: "technology" }),
+          expect.objectContaining({ tag: "seed-stage", category: "stage" }),
+        ]),
       );
     });
   });
@@ -459,18 +508,18 @@ describe('TagBasedMatchingEngineV1', () => {
   // SCORE CALCULATION
   // ============================================================================
 
-  describe('calculateScore', () => {
-    it('should calculate total score correctly', () => {
+  describe("calculateScore", () => {
+    it("should calculate total score correctly", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'react']),
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
-        reputation_tier: 'gold',
+        tags: toTagsWithCategory(["fintech", "react"]),
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
+        reputation_tier: "gold",
       });
       const user2 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'react']),
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
-        reputation_tier: 'gold',
+        tags: toTagsWithCategory(["fintech", "react"]),
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
+        reputation_tier: "gold",
       });
 
       // Act
@@ -484,17 +533,17 @@ describe('TagBasedMatchingEngineV1', () => {
       expect(score).toBe(100);
     });
 
-    it('should calculate partial match score correctly', () => {
+    it("should calculate partial match score correctly", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'react']),
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
-        reputation_tier: 'gold',
+        tags: toTagsWithCategory(["fintech", "react"]),
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
+        reputation_tier: "gold",
       });
       const user2 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech', 'vue']),
-        user_profiles: { portfolio_company_id: null, stage: 'series-a' },
-        reputation_tier: 'silver',
+        tags: toTagsWithCategory(["fintech", "vue"]),
+        user_profiles: { portfolio_company_id: null, stage: "series-a" },
+        reputation_tier: "silver",
       });
 
       // Act
@@ -508,17 +557,17 @@ describe('TagBasedMatchingEngineV1', () => {
       expect(score).toBe(50);
     });
 
-    it('should return 0 for completely incompatible users', () => {
+    it("should return 0 for completely incompatible users", () => {
       // Arrange
       const user1 = createMockUserWithTags({
-        tags: toTagsWithCategory(['fintech']),
-        user_profiles: { portfolio_company_id: null, stage: 'seed' },
-        reputation_tier: 'bronze',
+        tags: toTagsWithCategory(["fintech"]),
+        user_profiles: { portfolio_company_id: null, stage: "seed" },
+        reputation_tier: "bronze",
       });
       const user2 = createMockUserWithTags({
-        tags: toTagsWithCategory(['healthcare']),
-        user_profiles: { portfolio_company_id: null, stage: 'series-c' },
-        reputation_tier: 'platinum',
+        tags: toTagsWithCategory(["healthcare"]),
+        user_profiles: { portfolio_company_id: null, stage: "series-c" },
+        reputation_tier: "platinum",
       });
 
       // Act
@@ -537,23 +586,23 @@ describe('TagBasedMatchingEngineV1', () => {
   // TAG INHERITANCE (tested via integration tests)
   // ============================================================================
 
-  describe('fetchUserWithTags (tag inheritance)', () => {
-    it('should verify mentee with company fixture has portfolio_company_id', () => {
+  describe("fetchUserWithTags (tag inheritance)", () => {
+    it("should verify mentee with company fixture has portfolio_company_id", () => {
       // Arrange
       const mentee = createMenteeWithCompany();
 
       // Assert - verify fixture is set up correctly for integration tests
       expect(mentee.user_profiles.portfolio_company_id).toBeDefined();
       expect(mentee.user_profiles.portfolio_company_id).not.toBeNull();
-      expect(mentee.role).toBe('mentee');
+      expect(mentee.role).toBe("mentee");
     });
 
-    it('should verify mentor fixture does not have portfolio_company_id', () => {
+    it("should verify mentor fixture does not have portfolio_company_id", () => {
       // Arrange
       const mentor = createGoldMentor();
 
       // Assert - verify fixture is set up correctly
-      expect(mentor.role).toBe('mentor');
+      expect(mentor.role).toBe("mentor");
       // Mentors don't get company tag inheritance regardless of profile
     });
   });
@@ -562,8 +611,8 @@ describe('TagBasedMatchingEngineV1', () => {
   // USER FILTERING
   // ============================================================================
 
-  describe('fetchPotentialMatches (user filtering)', () => {
-    it('should exclude dormant users (>90 days inactive)', () => {
+  describe("fetchPotentialMatches (user filtering)", () => {
+    it("should exclude dormant users (>90 days inactive)", () => {
       // Arrange
       const dormantUser = createDormantUser();
 
@@ -576,13 +625,14 @@ describe('TagBasedMatchingEngineV1', () => {
 
       if (dormantUser.last_activity_at) {
         const daysSinceActivity = Math.floor(
-          (Date.now() - dormantUser.last_activity_at.getTime()) / (1000 * 60 * 60 * 24)
+          (Date.now() - dormantUser.last_activity_at.getTime()) /
+            (1000 * 60 * 60 * 24),
         );
         expect(daysSinceActivity).toBeGreaterThan(90);
       }
     });
 
-    it('should exclude deleted users', () => {
+    it("should exclude deleted users", () => {
       // Arrange
       const deletedUser = createDeletedUser();
 
@@ -596,15 +646,15 @@ describe('TagBasedMatchingEngineV1', () => {
   // ERROR HANDLING
   // ============================================================================
 
-  describe('error handling', () => {
-    it('should throw error when user not found in recalculateMatches', async () => {
+  describe("error handling", () => {
+    it("should throw error when user not found in recalculateMatches", async () => {
       // Arrange
       const mockFrom = vi.fn().mockReturnThis();
       const mockSelect = vi.fn().mockReturnThis();
       const mockEq = vi.fn().mockReturnThis();
       const mockSingle = vi.fn().mockResolvedValueOnce({
         data: null,
-        error: { message: 'User not found' },
+        error: { message: "User not found" },
       });
 
       (mockDb.from as any) = mockFrom;
@@ -619,7 +669,8 @@ describe('TagBasedMatchingEngineV1', () => {
       });
 
       // Act & Assert
-      await expect(engine.recalculateMatches('nonexistent-user')).rejects.toThrow();
+      await expect(engine.recalculateMatches("nonexistent-user")).rejects
+        .toThrow();
     });
   });
 
@@ -627,8 +678,8 @@ describe('TagBasedMatchingEngineV1', () => {
   // BATCH PROCESSING
   // ============================================================================
 
-  describe('recalculateAllMatches (batch processing)', () => {
-    it('should respect limit option', async () => {
+  describe("recalculateAllMatches (batch processing)", () => {
+    it("should respect limit option", async () => {
       // Arrange
       const mockFrom = vi.fn().mockReturnThis();
       const mockSelect = vi.fn().mockReturnThis();
@@ -656,7 +707,7 @@ describe('TagBasedMatchingEngineV1', () => {
       expect(mockLimit).toHaveBeenCalledWith(10);
     });
 
-    it('should handle empty user list gracefully', async () => {
+    it("should handle empty user list gracefully", async () => {
       // Arrange
       const mockFrom = vi.fn().mockReturnThis();
       const mockSelect = vi.fn().mockReturnThis();
@@ -682,36 +733,57 @@ describe('TagBasedMatchingEngineV1', () => {
   // BULK PROCESSING OPTIMIZATIONS (Story 0.23 v1.1)
   // ===========================================================================
 
-  describe('Bulk Processing Optimizations', () => {
-    describe('fetchMultipleUsersWithTags (N+1 elimination)', () => {
-      it('should bulk fetch users with minimal queries', async () => {
+  describe("Bulk Processing Optimizations", () => {
+    describe("fetchMultipleUsersWithTags (N+1 elimination)", () => {
+      it("should bulk fetch users with minimal queries", async () => {
         // Arrange
-        const userIds = ['user-1', 'user-2', 'user-3'];
+        const userIds = ["user-1", "user-2", "user-3"];
 
         const mockUsers = [
-          { id: 'user-1', role: 'mentor', user_profiles: { portfolio_company_id: null, stage: 'seed' } },
-          { id: 'user-2', role: 'mentee', user_profiles: { portfolio_company_id: 'company-1', stage: 'seed' } },
-          { id: 'user-3', role: 'mentor', user_profiles: { portfolio_company_id: null, stage: 'series-a' } },
+          {
+            id: "user-1",
+            role: "mentor",
+            user_profiles: { portfolio_company_id: null, stage: "seed" },
+          },
+          {
+            id: "user-2",
+            role: "mentee",
+            user_profiles: { portfolio_company_id: "company-1", stage: "seed" },
+          },
+          {
+            id: "user-3",
+            role: "mentor",
+            user_profiles: { portfolio_company_id: null, stage: "series-a" },
+          },
         ];
 
         const mockPersonalTags = [
-          { entity_id: 'user-1', taxonomy: { slug: 'fintech', category: 'industry' } },
-          { entity_id: 'user-2', taxonomy: { slug: 'react', category: 'technology' } },
+          {
+            entity_id: "user-1",
+            taxonomy: { slug: "fintech", category: "industry" },
+          },
+          {
+            entity_id: "user-2",
+            taxonomy: { slug: "react", category: "technology" },
+          },
         ];
 
         const mockCompanyTags = [
-          { entity_id: 'company-1', taxonomy: { slug: 'ai', category: 'industry' } },
+          {
+            entity_id: "company-1",
+            taxonomy: { slug: "ai", category: "industry" },
+          },
         ];
 
         let queryCount = 0;
         const mockFrom = vi.fn((table: string) => {
           queryCount++;
-          if (table === 'users') {
+          if (table === "users") {
             return {
               select: vi.fn().mockReturnThis(),
               in: vi.fn().mockResolvedValue({ data: mockUsers, error: null }),
             };
-          } else if (table === 'entity_tags') {
+          } else if (table === "entity_tags") {
             queryCount++;
             if (queryCount === 2) {
               // Personal tags
@@ -719,7 +791,10 @@ describe('TagBasedMatchingEngineV1', () => {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
                 in: vi.fn().mockReturnThis(),
-                is: vi.fn().mockResolvedValue({ data: mockPersonalTags, error: null }),
+                is: vi.fn().mockResolvedValue({
+                  data: mockPersonalTags,
+                  error: null,
+                }),
               };
             } else {
               // Company tags
@@ -727,7 +802,10 @@ describe('TagBasedMatchingEngineV1', () => {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
                 in: vi.fn().mockReturnThis(),
-                is: vi.fn().mockResolvedValue({ data: mockCompanyTags, error: null }),
+                is: vi.fn().mockResolvedValue({
+                  data: mockCompanyTags,
+                  error: null,
+                }),
               };
             }
           }
@@ -737,7 +815,9 @@ describe('TagBasedMatchingEngineV1', () => {
         (mockDb.from as any) = mockFrom;
 
         // Act
-        const result = await (engine as any).fetchMultipleUsersWithTags(userIds);
+        const result = await (engine as any).fetchMultipleUsersWithTags(
+          userIds,
+        );
 
         // Assert
         expect(result).toHaveLength(3);
@@ -745,11 +825,11 @@ describe('TagBasedMatchingEngineV1', () => {
         expect(queryCount).toBeLessThan(10); // Significantly fewer than N+1 approach
 
         // Verify mentee has both personal and company tags
-        const mentee = result.find((u: any) => u.id === 'user-2');
+        const mentee = result.find((u: any) => u.id === "user-2");
         expect(mentee?.tags).toBeDefined();
       });
 
-      it('should handle empty user list', async () => {
+      it("should handle empty user list", async () => {
         // Act
         const result = await (engine as any).fetchMultipleUsersWithTags([]);
 
@@ -757,27 +837,37 @@ describe('TagBasedMatchingEngineV1', () => {
         expect(result).toEqual([]);
       });
 
-      it('should combine personal and company tags for mentees', async () => {
+      it("should combine personal and company tags for mentees", async () => {
         // Arrange
         const mockUsers = [
-          { id: 'mentee-1', role: 'mentee', user_profiles: { portfolio_company_id: 'company-1', stage: 'seed' } },
+          {
+            id: "mentee-1",
+            role: "mentee",
+            user_profiles: { portfolio_company_id: "company-1", stage: "seed" },
+          },
         ];
 
         const mockPersonalTags = [
-          { entity_id: 'mentee-1', taxonomy: { slug: 'react', category: 'technology' } },
+          {
+            entity_id: "mentee-1",
+            taxonomy: { slug: "react", category: "technology" },
+          },
         ];
 
         const mockCompanyTags = [
-          { entity_id: 'company-1', taxonomy: { slug: 'fintech', category: 'industry' } },
+          {
+            entity_id: "company-1",
+            taxonomy: { slug: "fintech", category: "industry" },
+          },
         ];
 
         const mockFrom = vi.fn((table: string) => {
-          if (table === 'users') {
+          if (table === "users") {
             return {
               select: vi.fn().mockReturnThis(),
               in: vi.fn().mockResolvedValue({ data: mockUsers, error: null }),
             };
-          } else if (table === 'entity_tags') {
+          } else if (table === "entity_tags") {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
@@ -785,8 +875,10 @@ describe('TagBasedMatchingEngineV1', () => {
               is: vi.fn((field: string, value: any) => {
                 // Return personal or company tags based on query
                 return Promise.resolve({
-                  data: field === 'deleted_at' ? mockPersonalTags.concat(mockCompanyTags) : [],
-                  error: null
+                  data: field === "deleted_at"
+                    ? mockPersonalTags.concat(mockCompanyTags)
+                    : [],
+                  error: null,
                 });
               }),
             };
@@ -797,30 +889,37 @@ describe('TagBasedMatchingEngineV1', () => {
         (mockDb.from as any) = mockFrom;
 
         // Act
-        const result = await (engine as any).fetchMultipleUsersWithTags(['mentee-1']);
+        const result = await (engine as any).fetchMultipleUsersWithTags([
+          "mentee-1",
+        ]);
 
         // Assert
         expect(result).toHaveLength(1);
-        expect(result[0].role).toBe('mentee');
+        expect(result[0].role).toBe("mentee");
       });
     });
 
-    describe('Chunked Processing in recalculateMatches', () => {
-      it('should process matches in chunks with custom chunk size', async () => {
+    describe("Chunked Processing in recalculateMatches", () => {
+      it("should process matches in chunks with custom chunk size", async () => {
         // Arrange
         const user = createGoldMentor();
-        const potentialMatches = Array.from({ length: 250 }, (_, i) =>
-          createBronzeMentee({ id: `mentee-${i}` })
+        const potentialMatches = Array.from(
+          { length: 250 },
+          (_, i) => createBronzeMentee({ id: `mentee-${i}` }),
         );
 
         // Mock fetchUserWithTags
-        vi.spyOn(engine as any, 'fetchUserWithTags').mockResolvedValue(user);
+        vi.spyOn(engine as any, "fetchUserWithTags").mockResolvedValue(user);
 
         // Mock fetchPotentialMatches to return 250 matches
-        vi.spyOn(engine as any, 'fetchPotentialMatches').mockResolvedValue(potentialMatches);
+        vi.spyOn(engine as any, "fetchPotentialMatches").mockResolvedValue(
+          potentialMatches,
+        );
 
         // Mock writeToCacheAtomic
-        vi.spyOn(engine as any, 'writeToCacheAtomic').mockResolvedValue(undefined);
+        vi.spyOn(engine as any, "writeToCacheAtomic").mockResolvedValue(
+          undefined,
+        );
 
         // Act
         await engine.recalculateMatches(user.id, { chunkSize: 100 });
@@ -831,29 +930,34 @@ describe('TagBasedMatchingEngineV1', () => {
           expect.arrayContaining([
             expect.objectContaining({
               user_id: user.id,
-              algorithm_version: 'tag-based-v1',
+              algorithm_version: "tag-based-v1",
             }),
-          ])
+          ]),
         );
       });
 
-      it('should handle delays between chunks when configured', async () => {
+      it("should handle delays between chunks when configured", async () => {
         // Arrange
         const user = createGoldMentor();
-        const potentialMatches = Array.from({ length: 150 }, (_, i) =>
-          createBronzeMentee({ id: `mentee-${i}` })
+        const potentialMatches = Array.from(
+          { length: 150 },
+          (_, i) => createBronzeMentee({ id: `mentee-${i}` }),
         );
 
-        vi.spyOn(engine as any, 'fetchUserWithTags').mockResolvedValue(user);
-        vi.spyOn(engine as any, 'fetchPotentialMatches').mockResolvedValue(potentialMatches);
-        vi.spyOn(engine as any, 'writeToCacheAtomic').mockResolvedValue(undefined);
+        vi.spyOn(engine as any, "fetchUserWithTags").mockResolvedValue(user);
+        vi.spyOn(engine as any, "fetchPotentialMatches").mockResolvedValue(
+          potentialMatches,
+        );
+        vi.spyOn(engine as any, "writeToCacheAtomic").mockResolvedValue(
+          undefined,
+        );
 
         const startTime = Date.now();
 
         // Act
         await engine.recalculateMatches(user.id, {
           chunkSize: 50,
-          delayBetweenChunks: 20
+          delayBetweenChunks: 20,
         });
 
         const elapsed = Date.now() - startTime;
@@ -864,13 +968,13 @@ describe('TagBasedMatchingEngineV1', () => {
       });
     });
 
-    describe('Enhanced recalculateAllMatches Error Handling', () => {
-      it('should isolate individual user failures', async () => {
+    describe("Enhanced recalculateAllMatches Error Handling", () => {
+      it("should isolate individual user failures", async () => {
         // Arrange
         const mockUsers = [
-          { id: 'user-1' },
-          { id: 'user-2' },
-          { id: 'user-3' },
+          { id: "user-1" },
+          { id: "user-2" },
+          { id: "user-3" },
         ];
 
         const mockFrom = vi.fn().mockReturnThis();
@@ -886,13 +990,15 @@ describe('TagBasedMatchingEngineV1', () => {
 
         // Mock recalculateMatches to fail for user-2 only
         let callCount = 0;
-        vi.spyOn(engine, 'recalculateMatches').mockImplementation(async (userId: string) => {
-          callCount++;
-          if (userId === 'user-2') {
-            throw new Error('User processing failed');
-          }
-          return Promise.resolve();
-        });
+        vi.spyOn(engine, "recalculateMatches").mockImplementation(
+          async (userId: string) => {
+            callCount++;
+            if (userId === "user-2") {
+              throw new Error("User processing failed");
+            }
+            return Promise.resolve();
+          },
+        );
 
         // Act
         await engine.recalculateAllMatches({ batchSize: 10 });
@@ -901,10 +1007,10 @@ describe('TagBasedMatchingEngineV1', () => {
         expect(callCount).toBe(3);
       });
 
-      it('should support modifiedAfter filter for incremental updates', async () => {
+      it("should support modifiedAfter filter for incremental updates", async () => {
         // Arrange
-        const modifiedDate = new Date('2025-10-01');
-        const mockUsers = [{ id: 'user-1' }];
+        const modifiedDate = new Date("2025-10-01");
+        const mockUsers = [{ id: "user-1" }];
 
         let capturedQuery: any = null;
         const mockFrom = vi.fn().mockReturnThis();
@@ -922,18 +1028,24 @@ describe('TagBasedMatchingEngineV1', () => {
         mockSelect.mockReturnValue({ is: mockIs });
         mockIs.mockReturnValue({ gt: mockGt });
 
-        vi.spyOn(engine, 'recalculateMatches').mockResolvedValue(undefined);
+        vi.spyOn(engine, "recalculateMatches").mockResolvedValue(undefined);
 
         // Act
         await engine.recalculateAllMatches({ modifiedAfter: modifiedDate });
 
         // Assert
-        expect(mockGt).toHaveBeenCalledWith('updated_at', modifiedDate.toISOString());
+        expect(mockGt).toHaveBeenCalledWith(
+          "updated_at",
+          modifiedDate.toISOString(),
+        );
       });
 
-      it('should respect configurable delay between batches', async () => {
+      it("should respect configurable delay between batches", async () => {
         // Arrange
-        const mockUsers = Array.from({ length: 60 }, (_, i) => ({ id: `user-${i}` }));
+        const mockUsers = Array.from(
+          { length: 60 },
+          (_, i) => ({ id: `user-${i}` }),
+        );
 
         const mockFrom = vi.fn().mockReturnThis();
         const mockSelect = vi.fn().mockReturnThis();
@@ -946,14 +1058,14 @@ describe('TagBasedMatchingEngineV1', () => {
         mockFrom.mockReturnValue({ select: mockSelect });
         mockSelect.mockReturnValue({ is: mockIs });
 
-        vi.spyOn(engine, 'recalculateMatches').mockResolvedValue(undefined);
+        vi.spyOn(engine, "recalculateMatches").mockResolvedValue(undefined);
 
         const startTime = Date.now();
 
         // Act - Process 60 users in batches of 50 (2 batches) with 50ms delay
         await engine.recalculateAllMatches({
           batchSize: 50,
-          delayBetweenBatches: 50
+          delayBetweenBatches: 50,
         });
 
         const elapsed = Date.now() - startTime;

@@ -144,3 +144,57 @@ export const requireAuth = async (
     );
   }
 };
+
+/**
+ * Role-based authorization middleware.
+ *
+ * Requires specific user role(s) to access the route.
+ * Must be used AFTER requireAuth middleware.
+ *
+ * @param allowedRoles - Single role or array of allowed roles
+ * @returns Middleware function
+ *
+ * @example
+ * ```typescript
+ * // Single role
+ * app.post('/admin/reset', requireAuth, requireRole('coordinator'), handler);
+ *
+ * // Multiple roles
+ * app.get('/matches', requireAuth, requireRole(['mentor', 'coordinator']), handler);
+ * ```
+ */
+export const requireRole = (allowedRoles: 'mentee' | 'mentor' | 'coordinator' | Array<'mentee' | 'mentor' | 'coordinator'>) => {
+  return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
+    const user = c.get('user');
+
+    if (!user) {
+      return c.json(
+        {
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            timestamp: new Date().toISOString(),
+          },
+        },
+        401
+      );
+    }
+
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+
+    if (!roles.includes(user.role)) {
+      return c.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: `Access denied. Required role: ${roles.join(' or ')}`,
+            timestamp: new Date().toISOString(),
+          },
+        },
+        403
+      );
+    }
+
+    return await next();
+  };
+};

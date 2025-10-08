@@ -13,6 +13,7 @@
 export * from './schemas/user';
 export * from './schemas/availability';
 export * from './schemas/booking';
+export * from './schemas/matching';
 
 // Export constants when they are created
 // export * from './constants';
