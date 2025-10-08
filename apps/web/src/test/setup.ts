@@ -10,6 +10,9 @@ afterEach(() => {
   cleanup();
 });
 
+// Set environment variables for tests
+import.meta.env.VITE_API_BASE_URL = 'http://localhost:8787';
+
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

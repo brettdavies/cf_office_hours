@@ -4,86 +4,6 @@
  */
 
 export interface paths {
-    "/v1/auth/check-email": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Check if email is whitelisted for login
-         * @description Validates that an email exists in raw_mentees, raw_mentors, or raw_users tables before allowing magic link send
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        /** Format: email */
-                        email: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Email whitelist status */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            isWhitelisted: boolean;
-                            /** Format: email */
-                            email: string;
-                        };
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                code: string;
-                                message: string;
-                                timestamp: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                code: string;
-                                message: string;
-                                timestamp: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/users/me": {
         parameters: {
             query?: never;
@@ -118,6 +38,8 @@ export interface paths {
                             email: string;
                             /** @enum {string} */
                             role: "mentee" | "mentor" | "coordinator";
+                            /** @enum {string} */
+                            reputation_tier?: "bronze" | "silver" | "gold" | "platinum";
                             /** Format: date-time */
                             created_at: string;
                             /** Format: date-time */
@@ -128,6 +50,8 @@ export interface paths {
                                 /** Format: uuid */
                                 user_id: string;
                                 name: string;
+                                /** Format: uri */
+                                avatar_url?: string | null;
                                 title: string | null;
                                 company: string | null;
                                 bio: string | null;
@@ -136,6 +60,13 @@ export interface paths {
                                 /** Format: date-time */
                                 updated_at: string;
                             };
+                            tags?: {
+                                /** Format: uuid */
+                                taxonomy_id: string;
+                                category: string;
+                                value: string;
+                                display_name: string;
+                            }[];
                         };
                     };
                 };
@@ -150,6 +81,9 @@ export interface paths {
                                 code: string;
                                 message: string;
                                 timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
                             };
                         };
                     };
@@ -165,6 +99,9 @@ export interface paths {
                                 code: string;
                                 message: string;
                                 timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
                             };
                         };
                     };
@@ -207,6 +144,8 @@ export interface paths {
                             email: string;
                             /** @enum {string} */
                             role: "mentee" | "mentor" | "coordinator";
+                            /** @enum {string} */
+                            reputation_tier?: "bronze" | "silver" | "gold" | "platinum";
                             /** Format: date-time */
                             created_at: string;
                             /** Format: date-time */
@@ -217,6 +156,8 @@ export interface paths {
                                 /** Format: uuid */
                                 user_id: string;
                                 name: string;
+                                /** Format: uri */
+                                avatar_url?: string | null;
                                 title: string | null;
                                 company: string | null;
                                 bio: string | null;
@@ -225,6 +166,13 @@ export interface paths {
                                 /** Format: date-time */
                                 updated_at: string;
                             };
+                            tags?: {
+                                /** Format: uuid */
+                                taxonomy_id: string;
+                                category: string;
+                                value: string;
+                                display_name: string;
+                            }[];
                         };
                     };
                 };
@@ -239,6 +187,9 @@ export interface paths {
                                 code: string;
                                 message: string;
                                 timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
                             };
                         };
                     };
@@ -254,6 +205,9 @@ export interface paths {
                                 code: string;
                                 message: string;
                                 timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
                             };
                         };
                     };
@@ -303,6 +257,8 @@ export interface paths {
                             email: string;
                             /** @enum {string} */
                             role: "mentee" | "mentor" | "coordinator";
+                            /** @enum {string} */
+                            reputation_tier?: "bronze" | "silver" | "gold" | "platinum";
                             /** Format: date-time */
                             created_at: string;
                             /** Format: date-time */
@@ -313,6 +269,8 @@ export interface paths {
                                 /** Format: uuid */
                                 user_id: string;
                                 name: string;
+                                /** Format: uri */
+                                avatar_url?: string | null;
                                 title: string | null;
                                 company: string | null;
                                 bio: string | null;
@@ -321,6 +279,13 @@ export interface paths {
                                 /** Format: date-time */
                                 updated_at: string;
                             };
+                            tags?: {
+                                /** Format: uuid */
+                                taxonomy_id: string;
+                                category: string;
+                                value: string;
+                                display_name: string;
+                            }[];
                         }[];
                     };
                 };
@@ -335,6 +300,9 @@ export interface paths {
                                 code: string;
                                 message: string;
                                 timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
                             };
                         };
                     };
@@ -385,6 +353,8 @@ export interface paths {
                             email: string;
                             /** @enum {string} */
                             role: "mentee" | "mentor" | "coordinator";
+                            /** @enum {string} */
+                            reputation_tier?: "bronze" | "silver" | "gold" | "platinum";
                             /** Format: date-time */
                             created_at: string;
                             /** Format: date-time */
@@ -395,6 +365,8 @@ export interface paths {
                                 /** Format: uuid */
                                 user_id: string;
                                 name: string;
+                                /** Format: uri */
+                                avatar_url?: string | null;
                                 title: string | null;
                                 company: string | null;
                                 bio: string | null;
@@ -403,6 +375,13 @@ export interface paths {
                                 /** Format: date-time */
                                 updated_at: string;
                             };
+                            tags?: {
+                                /** Format: uuid */
+                                taxonomy_id: string;
+                                category: string;
+                                value: string;
+                                display_name: string;
+                            }[];
                         };
                     };
                 };
@@ -417,6 +396,9 @@ export interface paths {
                                 code: string;
                                 message: string;
                                 timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
                             };
                         };
                     };
@@ -432,6 +414,9 @@ export interface paths {
                                 code: string;
                                 message: string;
                                 timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
                             };
                         };
                     };
@@ -1087,6 +1072,322 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matching/find-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get cached match recommendations
+         * @description Retrieves pre-calculated match recommendations from user_match_cache. Supports filtering by algorithm version, minimum score, and result limit. Reference: FR15 (Mentor-Mentee Matching), FR16 (Match Explanation)
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        userId: string;
+                        /** @enum {string} */
+                        targetRole: "mentor" | "mentee";
+                        options?: {
+                            /** @default tag-based-v1 */
+                            algorithmVersion: string;
+                            /** @default 5 */
+                            limit: number;
+                            minScore?: number;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Array of cached matches sorted by score DESC */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            matches: {
+                                user: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    airtable_record_id: string | null;
+                                    /** Format: email */
+                                    email: string;
+                                    /** @enum {string} */
+                                    role: "mentee" | "mentor" | "coordinator";
+                                    /** @enum {string} */
+                                    reputation_tier?: "bronze" | "silver" | "gold" | "platinum";
+                                    /** Format: date-time */
+                                    created_at: string;
+                                    /** Format: date-time */
+                                    updated_at: string;
+                                    profile: {
+                                        /** Format: uuid */
+                                        id: string;
+                                        /** Format: uuid */
+                                        user_id: string;
+                                        name: string;
+                                        /** Format: uri */
+                                        avatar_url?: string | null;
+                                        title: string | null;
+                                        company: string | null;
+                                        bio: string | null;
+                                        /** Format: date-time */
+                                        created_at: string;
+                                        /** Format: date-time */
+                                        updated_at: string;
+                                    };
+                                    tags?: {
+                                        /** Format: uuid */
+                                        taxonomy_id: string;
+                                        category: string;
+                                        value: string;
+                                        display_name: string;
+                                    }[];
+                                };
+                                score: number;
+                                explanation: {
+                                    tagOverlap: {
+                                        category: string;
+                                        tag: string;
+                                    }[];
+                                    stageMatch: boolean;
+                                    reputationCompatible: boolean;
+                                    summary: string;
+                                };
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid request - Validation errors */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized - Missing or invalid token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - Non-coordinator role */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description User not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matching/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get cached match explanation
+         * @description Retrieves detailed explanation for a cached match between two users. Performs bidirectional lookup (user1↔user2). Reference: FR16 (Match Explanation)
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        userId1: string;
+                        /** Format: uuid */
+                        userId2: string;
+                        /** @default tag-based-v1 */
+                        algorithmVersion: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Match explanation or null if no cached match found */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            explanation: {
+                                tagOverlap: {
+                                    category: string;
+                                    tag: string;
+                                }[];
+                                stageMatch: boolean;
+                                reputationCompatible: boolean;
+                                summary: string;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description Invalid request - Validation errors */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized - Missing or invalid token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - Non-coordinator role */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No cached match found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
