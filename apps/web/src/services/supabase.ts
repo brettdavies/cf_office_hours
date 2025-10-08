@@ -23,7 +23,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     storage: window.localStorage, // Explicitly use localStorage
     storageKey: 'sb-auth-token', // Custom key
-    flowType: 'pkce', // Use PKCE flow for better security
+    // Note: Using implicit flow (tokens in URL hash) instead of PKCE
+    // PKCE had timing issues where session wasn't available immediately after code exchange
   },
 });
 
@@ -32,7 +33,7 @@ if (import.meta.env.DEV) {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce',
+    flowType: 'implicit',
     storageKey: 'sb-auth-token',
   });
 
