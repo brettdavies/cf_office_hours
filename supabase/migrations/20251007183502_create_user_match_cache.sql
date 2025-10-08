@@ -39,6 +39,13 @@ CREATE INDEX idx_user_match_cache_score ON user_match_cache(user_id, match_score
 CREATE INDEX idx_user_match_cache_algorithm ON user_match_cache(algorithm_version);
 CREATE INDEX idx_user_match_cache_calculated_at ON user_match_cache(calculated_at);
 
+-- Composite indexes for view performance (distinct_users_with_scores)
+CREATE INDEX IF NOT EXISTS idx_user_match_cache_algorithm_user
+  ON user_match_cache(algorithm_version, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_match_cache_algorithm_recommended
+  ON user_match_cache(algorithm_version, recommended_user_id);
+
 -- RLS Policy: Coordinators only
 ALTER TABLE user_match_cache ENABLE ROW LEVEL SECURITY;
 
@@ -53,3 +60,39 @@ CREATE POLICY "Coordinators can view all match cache"
         AND users.role = 'coordinator'
     )
   );
+
+-- View: distinct_users_with_scores
+-- Description: Efficiently returns distinct user IDs with match scores for filtering
+-- This view combines both user_id (mentees) and recommended_user_id (mentors) columns
+CREATE OR REPLACE VIEW distinct_users_with_scores AS
+SELECT DISTINCT
+  algorithm_version,
+  user_id AS id,
+  'user_id' AS column_source
+FROM user_match_cache
+WHERE user_id IS NOT NULL
+
+UNION
+
+SELECT DISTINCT
+  algorithm_version,
+  recommended_user_id AS id,
+  'recommended_user_id' AS column_source
+FROM user_match_cache
+WHERE recommended_user_id IS NOT NULL;
+
+-- Grant access to authenticated users
+GRANT SELECT ON distinct_users_with_scores TO authenticated;
+GRANT SELECT ON distinct_users_with_scores TO anon;
+
+-- View: algorithm_versions
+-- Description: Efficiently returns distinct algorithm versions sorted alphabetically
+-- Used by the algorithms endpoint to populate the dropdown
+CREATE OR REPLACE VIEW algorithm_versions AS
+SELECT DISTINCT algorithm_version
+FROM user_match_cache
+ORDER BY algorithm_version ASC;
+
+-- Grant access to authenticated users
+GRANT SELECT ON algorithm_versions TO authenticated;
+GRANT SELECT ON algorithm_versions TO anon;

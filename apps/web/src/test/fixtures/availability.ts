@@ -112,7 +112,7 @@ export const mockAvailabilityBlocks = {
     id: 'avail-morning',
     start_time: '2025-10-25T10:00:00Z',
     end_time: '2025-10-25T16:00:00Z',
-    slot_duration_minutes: 45,
+    slot_duration_minutes: 30,
     location_custom: 'Office 201',
   }),
 };

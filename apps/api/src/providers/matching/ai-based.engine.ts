@@ -141,7 +141,7 @@ export class AiBasedMatchingEngineV1
       id: user.id,
       email: user.email,
       role: user.role,
-      is_active: user.is_active ?? true,
+      is_active: user.deleted_at === null,
       last_activity_at: user.last_activity_at
         ? new Date(user.last_activity_at)
         : null,

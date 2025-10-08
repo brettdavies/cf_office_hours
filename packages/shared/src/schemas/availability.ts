@@ -29,13 +29,13 @@ export const CreateAvailabilityBlockSchema = z
     start_time: z.string().datetime({ message: 'start_time must be a valid ISO 8601 datetime' }),
     end_time: z.string().datetime({ message: 'end_time must be a valid ISO 8601 datetime' }),
     slot_duration_minutes: z
-      .enum(['15', '20', '30', '60'])
+      .enum(['15', '30', '60'])
       .or(
         z
           .number()
           .int()
-          .refine(val => [15, 20, 30, 60].includes(val), {
-            message: 'slot_duration_minutes must be 15, 20, 30, or 60',
+          .refine(val => [15, 30, 60].includes(val), {
+            message: 'slot_duration_minutes must be 15, 30, or 60',
           })
       )
       .transform(val => (typeof val === 'string' ? parseInt(val, 10) : val)),

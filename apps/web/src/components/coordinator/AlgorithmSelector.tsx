@@ -24,34 +24,58 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-
-interface Algorithm {
-  value: string;
-  label: string;
-  description: string;
-}
+import { useGetAlgorithms } from '@/hooks/useMatching';
+import type { AlgorithmInfo } from '@shared/schemas/matching';
 
 interface AlgorithmSelectorProps {
   value: string;
   onChange: (algorithmVersion: string) => void;
-  algorithms?: Algorithm[];
 }
-
-// Default algorithms (initially just Tag-Based V1, extensible for future algorithms)
-const defaultAlgorithms: Algorithm[] = [
-  {
-    value: 'tag-based-v1',
-    label: 'Tag-Based V1',
-    description: '60% tag overlap + 20% stage match + 20% reputation compatibility',
-  },
-];
 
 export function AlgorithmSelector({
   value,
   onChange,
-  algorithms = defaultAlgorithms,
 }: AlgorithmSelectorProps) {
+  const { data: algorithmsData, isLoading, error } = useGetAlgorithms();
+
+  // Convert API data to component format (already sorted alphabetically by backend)
+  const algorithms = algorithmsData?.algorithms.map((alg: AlgorithmInfo) => ({
+    value: alg.version,
+    label: alg.label,
+    description: alg.description,
+  })) || [];
   const selectedAlgorithm = algorithms.find((a) => a.value === value);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="algorithm-select">Matching Algorithm</Label>
+          <div className="flex items-center justify-center h-10 w-full border border-input bg-background rounded-md">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+            <span className="ml-2 text-sm text-muted-foreground">Loading algorithms...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error || algorithms.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="algorithm-select">Matching Algorithm</Label>
+          <div className="flex items-center justify-center h-10 w-full border border-destructive bg-destructive/10 rounded-md">
+            <span className="text-sm text-destructive">
+              {error ? 'Failed to load algorithms' : 'No algorithms available'}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

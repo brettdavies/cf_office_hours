@@ -8,10 +8,10 @@
  */
 
 // External dependencies
-import { z } from 'zod';
+import { z } from "zod";
 
 // Internal modules
-import { UserResponseSchema } from './user';
+import { UserResponseSchema } from "./user";
 
 /**
  * Schema for match explanation JSONB field.
@@ -27,7 +27,7 @@ export const MatchExplanationSchema = z.object({
     z.object({
       category: z.string(),
       tag: z.string(),
-    })
+    }),
   ),
   stageMatch: z.boolean(),
   reputationCompatible: z.boolean(),
@@ -57,7 +57,7 @@ export const MatchResultSchema = z.object({
  * - minScore: Filter matches below this score (optional)
  */
 export const FindMatchesOptionsSchema = z.object({
-  algorithmVersion: z.string().default('tag-based-v1'),
+  algorithmVersion: z.string().default("tag-based-v1"),
   limit: z.number().int().min(1).max(20).default(5),
   minScore: z.number().min(0).max(100).optional(),
 });
@@ -72,7 +72,7 @@ export const FindMatchesOptionsSchema = z.object({
  */
 export const FindMatchesRequestSchema = z.object({
   userId: z.string().uuid(),
-  targetRole: z.enum(['mentor', 'mentee']),
+  targetRole: z.enum(["mentor", "mentee"]),
   options: FindMatchesOptionsSchema.optional(),
 });
 
@@ -96,7 +96,50 @@ export const FindMatchesResponseSchema = z.object({
 export const ExplainMatchRequestSchema = z.object({
   userId1: z.string().uuid(),
   userId2: z.string().uuid(),
-  algorithmVersion: z.string().default('tag-based-v1'),
+  algorithmVersion: z.string().default("tag-based-v1"),
+});
+
+/**
+ * Schema for algorithm information.
+ *
+ * Provides metadata about available matching algorithms.
+ */
+export const AlgorithmInfoSchema = z.object({
+  version: z.string(),
+  label: z.string(),
+  description: z.string(),
+  scoreRange: z.string(),
+  available: z.boolean(),
+});
+
+/**
+ * Schema for GET /v1/matching/algorithms response.
+ *
+ * Returns list of available matching algorithms with metadata.
+ */
+export const GetAlgorithmsResponseSchema = z.object({
+  algorithms: z.array(AlgorithmInfoSchema),
+});
+
+/**
+ * Schema for user information returned by users-with-scores endpoint.
+ */
+export const UserWithProfileSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  role: z.enum(["mentor", "mentee", "coordinator"]),
+  profile: z.object({
+    name: z.string().nullable(),
+  }).nullable(),
+});
+
+/**
+ * Schema for GET /v1/matching/users-with-scores response.
+ *
+ * Returns list of users who have match scores for a specific algorithm.
+ */
+export const GetUsersWithScoresResponseSchema = z.object({
+  users: z.array(UserWithProfileSchema),
 });
 
 /**
@@ -121,3 +164,9 @@ export type FindMatchesRequest = z.infer<typeof FindMatchesRequestSchema>;
 export type FindMatchesResponse = z.infer<typeof FindMatchesResponseSchema>;
 export type ExplainMatchRequest = z.infer<typeof ExplainMatchRequestSchema>;
 export type ExplainMatchResponse = z.infer<typeof ExplainMatchResponseSchema>;
+export type AlgorithmInfo = z.infer<typeof AlgorithmInfoSchema>;
+export type GetAlgorithmsResponse = z.infer<typeof GetAlgorithmsResponseSchema>;
+export type UserWithProfile = z.infer<typeof UserWithProfileSchema>;
+export type GetUsersWithScoresResponse = z.infer<
+  typeof GetUsersWithScoresResponseSchema
+>;

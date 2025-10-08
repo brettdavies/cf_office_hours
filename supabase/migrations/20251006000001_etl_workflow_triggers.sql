@@ -159,10 +159,11 @@ BEGIN
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     -- Handle different source tables
     IF TG_TABLE_NAME = 'raw_mentees' THEN
-      -- Parse comma-separated tag fields for mentees
-      normalized_industries := split_and_trim(NEW.tags_industries);
-      normalized_technologies := split_and_trim(NEW.tags_technologies);
-      normalized_stages := split_and_trim(NEW.tags_stage);
+      -- Parse comma-separated tag fields for mentees (mentees don't have personal tags)
+      -- They inherit tags from their company through portfolio_company_id relationship
+      normalized_industries := ARRAY[]::TEXT[]; -- Empty array for mentees
+      normalized_technologies := ARRAY[]::TEXT[]; -- Empty array for mentees
+      normalized_stages := ARRAY[]::TEXT[]; -- Empty array for mentees
 
       -- Find portfolio company if specified
       IF NEW.company IS NOT NULL THEN
@@ -282,6 +283,34 @@ BEGIN
         updated_by = NULL
       RETURNING id INTO profile_id;
 
+      -- Create entity_tags for mentors based on their expertise
+      -- Delete existing tags first
+      DELETE FROM entity_tags
+      WHERE entity_type = 'user'
+        AND entity_id = new_user_id;
+
+      -- Add new tags for industries
+      IF array_length(normalized_industries, 1) > 0 THEN
+        INSERT INTO entity_tags (entity_type, entity_id, taxonomy_id, created_by)
+        SELECT 'user', new_user_id, taxonomy.id, NULL
+        FROM taxonomy
+        WHERE taxonomy.value = ANY(ARRAY(SELECT normalize_taxonomy_value(unnest) FROM unnest(normalized_industries)))
+          AND taxonomy.is_approved = true
+        ON CONFLICT (entity_type, entity_id, taxonomy_id) WHERE deleted_at IS NULL
+        DO NOTHING;
+      END IF;
+
+      -- Add new tags for technologies
+      IF array_length(normalized_technologies, 1) > 0 THEN
+        INSERT INTO entity_tags (entity_type, entity_id, taxonomy_id, created_by)
+        SELECT 'user', new_user_id, taxonomy.id, NULL
+        FROM taxonomy
+        WHERE taxonomy.value = ANY(ARRAY(SELECT normalize_taxonomy_value(unnest) FROM unnest(normalized_technologies)))
+          AND taxonomy.is_approved = true
+        ON CONFLICT (entity_type, entity_id, taxonomy_id) WHERE deleted_at IS NULL
+        DO NOTHING;
+      END IF;
+
     ELSIF TG_TABLE_NAME = 'raw_users' THEN
       -- Insert/update coordinator/admin users
       INSERT INTO users (
@@ -397,6 +426,10 @@ BEGIN
     END IF;
 
     IF new_user_id IS NOT NULL THEN
+      -- Soft delete entity_tags for this user
+      UPDATE entity_tags SET deleted_at = NOW(), deleted_by = NULL
+      WHERE entity_type = 'user' AND entity_id = new_user_id;
+
       UPDATE users SET deleted_at = NOW(), deleted_by = NULL WHERE id = new_user_id;
       PERFORM log_etl_processing(TG_TABLE_NAME, TG_OP, OLD.id, new_user_id, 'Deleted user');
     END IF;
@@ -405,5 +438,24 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- Create triggers for raw_mentees, raw_mentors, and raw_users tables
+-- ============================================================================
+
+-- Trigger for raw_mentees table
+CREATE TRIGGER etl_raw_mentees
+  AFTER INSERT OR UPDATE OR DELETE ON raw_mentees
+  FOR EACH ROW EXECUTE FUNCTION process_user_changes();
+
+-- Trigger for raw_mentors table
+CREATE TRIGGER etl_raw_mentors
+  AFTER INSERT OR UPDATE OR DELETE ON raw_mentors
+  FOR EACH ROW EXECUTE FUNCTION process_user_changes();
+
+-- Trigger for raw_users table
+CREATE TRIGGER etl_raw_users
+  AFTER INSERT OR UPDATE OR DELETE ON raw_users
+  FOR EACH ROW EXECUTE FUNCTION process_user_changes();
 
 -- ============================================================================

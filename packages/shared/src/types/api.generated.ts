@@ -1078,6 +1078,168 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matching/algorithms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get available matching algorithms
+         * @description Returns list of available matching algorithms with their descriptions and capabilities. This endpoint queries distinct algorithm versions from the match cache for performance.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of available algorithms */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            algorithms: {
+                                version: string;
+                                label: string;
+                                description: string;
+                                scoreRange: string;
+                                available: boolean;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Unauthorized - Missing or invalid token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - Non-coordinator role */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matching/users-with-scores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get users with match scores for specific algorithm
+         * @description Returns users who have match scores cached for the specified algorithm. Useful for filtering user lists to only show users with available match data.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    algorithmVersion?: string;
+                    role?: "mentor" | "mentee";
+                    limit?: string | number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of users with match scores for the algorithm */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            users: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: email */
+                                email: string;
+                                /** @enum {string} */
+                                role: "mentor" | "mentee" | "coordinator";
+                                profile: {
+                                    name: string | null;
+                                } | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Unauthorized - Missing or invalid token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - Non-coordinator role */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/matching/find-matches": {
         parameters: {
             query?: never;

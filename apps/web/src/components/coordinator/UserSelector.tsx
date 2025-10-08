@@ -6,92 +6,61 @@
  */
 
 // External dependencies
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 // Internal modules
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { UserCard } from './UserCard';
+import { useGetUsersWithScores } from '@/hooks/useMatching';
 
 // Types
 import type { paths } from '@shared/types/api.generated';
 
-type MatchUser =
-  paths['/v1/matching/find-matches']['post']['responses']['200']['content']['application/json']['matches'][number]['user'];
+type MatchUser = paths['/v1/matching/find-matches']['post']['responses']['200']['content']['application/json']['matches'][number]['user'];
 
 interface UserSelectorProps {
   value: string | null;
   onChange: (userId: string, targetRole: 'mentor' | 'mentee') => void;
+  algorithmVersion?: string;
 }
 
-export function UserSelector({ value, onChange }: UserSelectorProps) {
-  const [users, setUsers] = useState<MatchUser[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function UserSelector({ value, onChange, algorithmVersion = 'tag-based-v1' }: UserSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'mentor' | 'mentee'>('all');
 
-  // Fetch users on component mount
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  // Fetch users who have match scores for the specified algorithm
+  const { data: usersData, isLoading, error } = useGetUsersWithScores(
+    algorithmVersion,
+    roleFilter !== 'all' ? roleFilter : undefined
+  );
 
-  const fetchUsers = async () => {
-    setIsLoading(true);
-    setError(null);
+  // Convert API response format to component format
+  const users = usersData?.users.map((user): MatchUser => ({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    profile: {
+      id: `profile_${user.id}`,
+      user_id: user.id,
+      name: user.profile?.name || user.email.split('@')[0], // Fallback to email username
+      avatar_url: null,
+      title: null,
+      company: null,
+      bio: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    reputation_tier: 'bronze' as const,
+    airtable_record_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    tags: [],
+  })) || [];
 
-    if (import.meta.env.DEV) {
-      console.log('[CoordinatorMatching] Fetching users', {
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    try {
-      // Fetch all users (we'll filter client-side for now)
-      // TODO: Update API client to support /v1/users endpoint with role filtering
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/v1/users`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch users: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (import.meta.env.DEV) {
-        console.log('[CoordinatorMatching] Users fetched', {
-          count: data?.length || 0,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      setUsers(data || []);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch users';
-      setError(errorMessage);
-
-      if (import.meta.env.DEV) {
-        console.error('[CoordinatorMatching] Error fetching users:', {
-          error: errorMessage,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Filter users based on search term and role filter
+  // Filter users based on search term only (role is already filtered by API)
   const filteredUsers = users.filter((user) => {
-    // Role filter
-    if (roleFilter !== 'all' && user.role !== roleFilter) {
-      return false;
-    }
-
     // Search filter (by name or email)
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
@@ -136,9 +105,9 @@ export function UserSelector({ value, onChange }: UserSelectorProps) {
             <SelectValue placeholder="Select role" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Users</SelectItem>
-            <SelectItem value="mentor">Mentors Only</SelectItem>
-            <SelectItem value="mentee">Mentees Only</SelectItem>
+            <SelectItem value="all">All Users (with scores for selected algorithm)</SelectItem>
+            <SelectItem value="mentor">Mentors Only (with scores for selected algorithm)</SelectItem>
+            <SelectItem value="mentee">Mentees Only (with scores for selected algorithm)</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -147,9 +116,9 @@ export function UserSelector({ value, onChange }: UserSelectorProps) {
       <div>
         <Label htmlFor="user-select">Select User</Label>
         {isLoading ? (
-          <div className="text-sm text-muted-foreground">Loading users...</div>
+          <div className="text-sm text-muted-foreground">Loading users with scores...</div>
         ) : error ? (
-          <div className="text-sm text-red-500">{error}</div>
+          <div className="text-sm text-red-500">{error.message || 'Failed to load users'}</div>
         ) : (
           <Select value={value || undefined} onValueChange={handleSelect}>
             <SelectTrigger id="user-select" className="w-full">
@@ -169,7 +138,12 @@ export function UserSelector({ value, onChange }: UserSelectorProps) {
               </div>
               <div className="max-h-[300px] overflow-y-auto">
                 {filteredUsers.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground">No users found</div>
+                  <div className="p-2 text-sm text-muted-foreground">
+                    {searchTerm ?
+                      'No users found matching your search' :
+                      'No users with scores for the selected algorithm'
+                    }
+                  </div>
                 ) : (
                   filteredUsers.map((user) => (
                     <SelectItem key={user.id} value={user.id}>

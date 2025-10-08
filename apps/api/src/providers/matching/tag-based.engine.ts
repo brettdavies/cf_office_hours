@@ -223,7 +223,7 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
       id: user.id,
       email: user.email,
       role: user.role,
-      is_active: user.is_active ?? true,
+      is_active: user.deleted_at === null,
       last_activity_at: user.last_activity_at
         ? new Date(user.last_activity_at)
         : null,
@@ -247,6 +247,15 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
    * @returns Match score (0-60)
    */
   protected calculateScore(user1: UserWithTags, user2: UserWithTags): number {
+    // Handle case where users have no tags (common in test data)
+    const user1HasTags = user1.tags.length > 0;
+    const user2HasTags = user2.tags.length > 0;
+
+    if (!user1HasTags && !user2HasTags) {
+      // Both users have no tags - return 0
+      return 0;
+    }
+
     const tagOverlap = this.calculateTagOverlap(user1.tags, user2.tags);
     return Math.round(tagOverlap);
   }
@@ -268,6 +277,17 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     user2: UserWithTags,
     score: number,
   ): MatchExplanation {
+    // Handle case where users have no tags
+    const user1HasTags = user1.tags.length > 0;
+    const user2HasTags = user2.tags.length > 0;
+
+    if (!user1HasTags && !user2HasTags) {
+      return {
+        tagOverlap: [],
+        summary: "No tags available for matching",
+      };
+    }
+
     // Find shared tags (top 5) with categories from database
     const user2Values = user2.tags.map((t) => t.value);
     const sharedTags = user1.tags
@@ -292,6 +312,99 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
       tagOverlap: sharedTags,
       summary,
     };
+  }
+
+  // ============================================================================
+  // OVERRIDE: Recalculate matches with zero-score filtering
+  // ============================================================================
+
+  /**
+   * Recalculate matches for a single user (OVERRIDE to filter zero scores)
+   *
+   * Tag-based matching only stores matches with score > 0 to reduce storage.
+   * Zero scores indicate no tag overlap and provide no value.
+   *
+   * @param userId - User ID to recalculate matches for
+   * @param options - Optional configuration (chunkSize, chunkDelay)
+   */
+  async recalculateMatches(
+    userId: string,
+    options?: { chunkSize?: number; chunkDelay?: number },
+  ): Promise<void> {
+    const chunkSize = options?.chunkSize ?? 100;
+    const chunkDelay = options?.chunkDelay ?? 0;
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[MATCHING] recalculateMatches`, {
+        userId,
+        algorithmVersion: this.ALGORITHM_VERSION,
+      });
+    }
+
+    // Fetch user with tags
+    const user = await this.fetchUserWithTags(userId);
+    if (!user) {
+      if (process.env.NODE_ENV === "development") {
+        console.error(`[MATCHING] User not found`, { userId });
+      }
+      return;
+    }
+
+    // Fetch potential matches for the user's role
+    const potentialMatches = await this.fetchPotentialMatches(userId, user.role);
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("[MATCHING] Fetched potential matches", {
+        userId,
+        potentialMatchCount: potentialMatches.length,
+      });
+    }
+
+    // Process matches in chunks
+    const chunks = this.chunkArray(potentialMatches, chunkSize);
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+
+      if (process.env.NODE_ENV === "development") {
+        console.log("[MATCHING] Processing chunk", {
+          userId,
+          chunkNum: i + 1,
+          totalChunks: chunks.length,
+          chunkSize: chunk.length,
+          totalMatches: potentialMatches.length,
+        });
+      }
+
+      // Calculate scores for this chunk and filter out zero scores
+      const cacheEntries = chunk
+        .map((matchUser) => {
+          const score = this.calculateScore(user, matchUser);
+          const explanation = this.generateExplanation(user, matchUser, score);
+
+          // Correctly assign roles based on user type
+          // user_id should ALWAYS be the mentee (receiving recommendations)
+          // recommended_user_id should ALWAYS be the mentor (being recommended)
+          const menteeId = user.role === "mentee" ? userId : matchUser.id;
+          const mentorId = user.role === "mentor" ? userId : matchUser.id;
+
+          return {
+            user_id: menteeId,
+            recommended_user_id: mentorId,
+            match_score: score,
+            match_explanation: explanation,
+            algorithm_version: this.ALGORITHM_VERSION,
+            calculated_at: new Date(),
+          };
+        })
+        .filter((entry) => entry.match_score > 0); // FILTER: Only store non-zero scores
+
+      // Write chunk to cache (only non-zero scores)
+      await this.writeToCacheAtomic(userId, cacheEntries);
+
+      // Delay between chunks (except last chunk)
+      if (i < chunks.length - 1 && chunkDelay > 0) {
+        await this.delay(chunkDelay);
+      }
+    }
   }
 
   // ============================================================================
@@ -490,7 +603,7 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
         id: user.id,
         email: user.email,
         role: user.role,
-        is_active: user.is_active ?? true,
+        is_active: user.deleted_at === null,
         last_activity_at: user.last_activity_at
           ? new Date(user.last_activity_at)
           : null,

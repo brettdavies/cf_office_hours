@@ -176,23 +176,104 @@ export class MatchingService {
   /**
    * Get recommended mentees for a mentor
    *
-   * Retrieves cached matches from user_match_cache table, sorted by score DESC.
-   * Uses single query with JOIN to avoid N+1 queries.
+   * Retrieves cached matches from user_match_cache table WHERE the mentor
+   * appears as recommended_user_id, sorted by score DESC.
+   * Uses reverse lookup since mentors are in recommended_user_id column.
    *
-   * @param userId - Mentor user ID
+   * @param mentorId - Mentor user ID
    * @param options - Optional filters (algorithmVersion, limit, minScore)
    * @returns Array of mentee matches sorted by score DESC
    * @throws {Error} If database query fails
    *
    * @logging
-   * - [MATCHING] getRecommendedMentees { userId, algorithmVersion, limit, minScore }
-   * - [MATCHING] Found matches { userId, matchCount, avgScore }
+   * - [MATCHING] getRecommendedMentees { mentorId, algorithmVersion, limit, minScore }
+   * - [MATCHING] Found matches { mentorId, matchCount, avgScore }
    */
   async getRecommendedMentees(
-    userId: string,
+    mentorId: string,
     options?: GetRecommendedOptions
   ): Promise<MatchResult[]> {
-    return this.fetchMatches(userId, options, 'getRecommendedMentees');
+    const algorithmVersion = options?.algorithmVersion ?? 'tag-based-v1';
+    const limit = Math.min(options?.limit ?? 5, 20);
+    const minScore = options?.minScore;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[MATCHING] getRecommendedMentees`, {
+        mentorId,
+        algorithmVersion,
+        limit,
+        minScore,
+      });
+    }
+
+    // Reverse lookup: Find mentees (user_id) who have this mentor (recommended_user_id)
+    let query = this.db
+      .from('user_match_cache')
+      .select(
+        `
+        match_score,
+        match_explanation,
+        mentee_user:users!user_match_cache_user_id_fkey(
+          id,
+          airtable_record_id,
+          email,
+          role,
+          created_at,
+          updated_at,
+          profile:user_profiles(
+            id,
+            user_id,
+            name,
+            title,
+            company,
+            bio,
+            created_at,
+            updated_at
+          )
+        )
+      `
+      )
+      .eq('recommended_user_id', mentorId) // Mentor is in recommended_user_id column
+      .eq('algorithm_version', algorithmVersion)
+      .order('match_score', { ascending: false })
+      .limit(limit);
+
+    if (minScore !== undefined) {
+      query = query.gte('match_score', minScore);
+    }
+
+    const { data: matches, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch mentee matches: ${error.message}`);
+    }
+
+    const results: MatchResult[] = (matches || []).map((m: any) => ({
+      user: {
+        id: m.mentee_user.id,
+        airtable_record_id: m.mentee_user.airtable_record_id,
+        email: m.mentee_user.email,
+        role: m.mentee_user.role,
+        created_at: m.mentee_user.created_at,
+        updated_at: m.mentee_user.updated_at,
+        profile: Array.isArray(m.mentee_user.profile)
+          ? m.mentee_user.profile[0]
+          : m.mentee_user.profile,
+      },
+      score: m.match_score,
+      explanation: m.match_explanation,
+    }));
+
+    if (process.env.NODE_ENV === 'development') {
+      const avgScore = results.reduce((sum, r) => sum + r.score, 0) / (results.length || 1);
+      console.log('[MATCHING] Found matches', {
+        mentorId,
+        matchCount: results.length,
+        avgScore: avgScore.toFixed(2),
+      });
+    }
+
+    return results;
   }
 
   /**

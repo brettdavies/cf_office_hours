@@ -17,7 +17,7 @@ import { AlgorithmSelector } from '@/components/coordinator/AlgorithmSelector';
 import { MatchResultsGrid } from '@/components/coordinator/MatchResultsGrid';
 import { MatchExplanationModal } from '@/components/coordinator/MatchExplanationModal';
 import { useAuth } from '@/hooks/useAuth';
-import { useFindMatches } from '@/hooks/useMatching';
+import { useFindMatches, useGetAlgorithms } from '@/hooks/useMatching';
 
 export function CoordinatorMatchingPage() {
   const { user, isLoading } = useAuth();
@@ -29,12 +29,44 @@ export function CoordinatorMatchingPage() {
   const [explainUserId1, setExplainUserId1] = useState<string | null>(null);
   const [explainUserId2, setExplainUserId2] = useState<string | null>(null);
 
+  // Fetch available algorithms
+  const { data: algorithmsData } = useGetAlgorithms();
+
   // Fetch matches using the custom hook
   const { data: matchesData, isLoading: isLoadingMatches } = useFindMatches(
     selectedUserId,
     targetRole,
     algorithmVersion
   );
+
+  // Auto-select algorithm on load
+  useEffect(() => {
+    if (algorithmsData?.algorithms && algorithmsData.algorithms.length > 0) {
+      // If only one algorithm, use it
+      if (algorithmsData.algorithms.length === 1) {
+        setAlgorithmVersion(algorithmsData.algorithms[0].version);
+        if (import.meta.env.DEV) {
+          console.log('[CoordinatorMatching] Auto-selected single algorithm', {
+            version: algorithmsData.algorithms[0].version,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } else {
+        // If multiple algorithms, use first alphabetically
+        const sortedAlgorithms = [...algorithmsData.algorithms].sort((a, b) =>
+          a.version.localeCompare(b.version)
+        );
+        setAlgorithmVersion(sortedAlgorithms[0].version);
+        if (import.meta.env.DEV) {
+          console.log('[CoordinatorMatching] Auto-selected first alphabetical algorithm', {
+            version: sortedAlgorithms[0].version,
+            totalAlgorithms: algorithmsData.algorithms.length,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    }
+  }, [algorithmsData]);
 
   // Dev logging: Page load
   useEffect(() => {
@@ -126,16 +158,20 @@ export function CoordinatorMatchingPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-8">
-            {/* User Selection */}
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Select User</h2>
-              <UserSelector value={selectedUserId} onChange={handleUserChange} />
-            </div>
-
-            {/* Algorithm Selector */}
+            {/* Algorithm Selector - moved to top */}
             <div>
               <h2 className="text-xl font-semibold mb-4">Select Algorithm</h2>
               <AlgorithmSelector value={algorithmVersion} onChange={handleAlgorithmChange} />
+            </div>
+
+            {/* User Selection */}
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Select User</h2>
+              <UserSelector
+                value={selectedUserId}
+                onChange={handleUserChange}
+                algorithmVersion={algorithmVersion}
+              />
             </div>
 
             {/* Match Results */}
