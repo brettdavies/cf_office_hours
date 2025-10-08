@@ -872,7 +872,7 @@ describe("TagBasedMatchingEngineV1", () => {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnThis(),
               in: vi.fn().mockReturnThis(),
-              is: vi.fn((field: string, value: any) => {
+              is: vi.fn((field: string, _value: any) => {
                 // Return personal or company tags based on query
                 return Promise.resolve({
                   data: field === "deleted_at"
@@ -1011,13 +1011,10 @@ describe("TagBasedMatchingEngineV1", () => {
         // Arrange
         const modifiedDate = new Date("2025-10-01");
         const mockUsers = [{ id: "user-1" }];
-
-        let capturedQuery: any = null;
         const mockFrom = vi.fn().mockReturnThis();
         const mockSelect = vi.fn().mockReturnThis();
         const mockIs = vi.fn().mockReturnThis();
-        const mockGt = vi.fn((field: string, value: string) => {
-          capturedQuery = { field, value };
+        const mockGt = vi.fn((_field: string, _value: string) => {
           return {
             then: (resolve: any) => resolve({ data: mockUsers, error: null }),
           };

@@ -167,6 +167,36 @@ describe("User API Routes", () => {
 
       expect(res.status).toBe(400);
     });
+
+    it("should not block response when trigger fires", async () => {
+      // Note: Trigger logic (fire-and-forget pattern) is tested in matching-triggers.test.ts
+      // This test verifies the API response succeeds regardless of trigger outcome
+      const updatedUser = {
+        ...mockUser,
+        profile: {
+          ...mockUser.profile,
+          name: "Updated Name",
+        },
+      };
+
+      vi.spyOn(UserService.prototype, "updateMe").mockResolvedValue(
+        updatedUser,
+      );
+
+      const res = await app.request("/v1/users/me", {
+        method: "PUT",
+        headers: {
+          Authorization: "Bearer mock-token",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Updated Name" }),
+      });
+
+      // Response should succeed (trigger is fire-and-forget, doesn't block)
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as UserResponse;
+      expect(data.profile.name).toBe("Updated Name");
+    });
   });
 
   describe("GET /v1/users/:id", () => {

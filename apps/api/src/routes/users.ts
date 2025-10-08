@@ -14,6 +14,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { requireAuth } from '../middleware/auth';
 import { UserService } from '../services/user.service';
 import { UpdateProfileSchema, UserResponseSchema } from '@cf-office-hours/shared';
+import { handleUserProfileUpdate } from '../events/matching-triggers';
+import { createSupabaseClient } from '../lib/db';
 
 // Types
 import type { Env } from '../types/bindings';
@@ -146,6 +148,21 @@ userRoutes.openapi(updateMeRoute, async c => {
   const body = c.req.valid('json');
   const userService = new UserService(c.env);
   const updated = await userService.updateMe(user.id, body);
+
+  // Trigger match recalculation asynchronously (fire-and-forget)
+  // Only trigger if env is available (not in test environments)
+  if (c.env?.SUPABASE_URL) {
+    const db = createSupabaseClient(c.env);
+    handleUserProfileUpdate(user.id, db).catch(err => {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[MATCHING] Failed to trigger recalculation', {
+          userId: user.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+  }
+
   return c.json(updated, 200);
 });
 
