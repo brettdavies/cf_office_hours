@@ -5,7 +5,7 @@ import type { UserWithProfile } from '@/types/user';
 
 export function useAuth() {
   const { user, session, setUser, setSession, clearAuth } = useAuthStore();
-  const [isInitializing, setIsInitializing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // Start as loading
 
   useEffect(() => {
     if (import.meta.env.DEV) {
