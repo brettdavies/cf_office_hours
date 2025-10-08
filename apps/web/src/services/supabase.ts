@@ -21,6 +21,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
+    storage: window.localStorage, // Explicitly use localStorage
+    storageKey: 'sb-auth-token', // Custom key
+    flowType: 'pkce', // Use PKCE flow for better security
   },
 });
 
@@ -29,5 +32,16 @@ if (import.meta.env.DEV) {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
+    flowType: 'pkce',
+    storageKey: 'sb-auth-token',
   });
+
+  // Test localStorage availability
+  try {
+    localStorage.setItem('test', 'test');
+    localStorage.removeItem('test');
+    console.log('[Supabase] localStorage is available');
+  } catch (e) {
+    console.error('[Supabase] localStorage is NOT available:', e);
+  }
 }
