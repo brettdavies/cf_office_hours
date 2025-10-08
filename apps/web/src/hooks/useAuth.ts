@@ -39,19 +39,24 @@ export function useAuth() {
       }
 
       if (session && session.user) {
-        if (import.meta.env.DEV) {
-          console.log('[AUTH] Setting session from auth state change', {
-            userId: session.user.id,
-            event,
-            timestamp: new Date().toISOString(),
-          });
-        }
+        console.log('[AUTH] Setting session from auth state change', {
+          userId: session.user.id,
+          event,
+          hasAccessToken: !!session.access_token,
+          tokenLength: session.access_token?.length || 0,
+          timestamp: new Date().toISOString(),
+        });
+
         setSession({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
         });
         // Store token in localStorage for API client
         localStorage.setItem('auth_token', session.access_token);
+        console.log('[AUTH] Stored token in localStorage', {
+          key: 'auth_token',
+          hasToken: !!localStorage.getItem('auth_token'),
+        });
         fetchUserProfile(session.access_token);
       } else {
         if (import.meta.env.DEV) {
@@ -75,11 +80,16 @@ export function useAuth() {
   }, [setSession, setUser, clearAuth]);
 
   const fetchUserProfile = async (accessToken: string) => {
-    if (import.meta.env.DEV) {
-      console.log('[PROFILE] Fetching user profile', {
-        tokenPreview: accessToken.substring(0, 20) + '...',
-        timestamp: new Date().toISOString(),
-      });
+    console.log('[PROFILE] Fetching user profile', {
+      hasToken: !!accessToken,
+      tokenLength: accessToken?.length || 0,
+      tokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : 'EMPTY',
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!accessToken) {
+      console.error('[PROFILE] ERROR: accessToken is empty!');
+      return;
     }
 
     try {
