@@ -92,11 +92,12 @@ export interface BulkRecalculationOptions {
 
 /**
  * Match explanation stored in user_match_cache.match_explanation (JSONB)
+ *
+ * Note: Stages are now treated as tags (stored in entity_tags table).
+ * Reputation scoring not yet implemented.
  */
 export interface MatchExplanation {
   tagOverlap: Array<{ category: string; tag: string }>;
-  stageMatch: boolean;
-  reputationCompatible: boolean;
   summary: string;
 }
 
@@ -107,7 +108,7 @@ export interface UserMatchCache {
   id: string;
   user_id: string;
   recommended_user_id: string;
-  match_score: number; // 0-100
+  match_score: number; // 0-60 (tag-based v1)
   match_explanation: MatchExplanation;
   algorithm_version: string;
   calculated_at: Date;

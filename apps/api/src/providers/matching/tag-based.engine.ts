@@ -2,49 +2,45 @@
  * Tag-Based Matching Engine V1
  *
  * Calculates match scores based on:
- * - Tag overlap (60%): Shared industries, technologies, stages
- * - Stage compatibility (20%): Similar startup stage
- * - Reputation compatibility (20%): Tier difference ≤ 1
+ * - Tag overlap only (0-60 points): Shared industries, technologies, stages
  *
  * ARCHITECTURE:
- * - Implements IMatchingEngine interface
+ * - Extends BaseMatchingEngine for common infrastructure
  * - Writes pre-calculated scores to user_match_cache table
  * - Runs in background (event-driven or scheduled)
  * - Algorithm version: 'tag-based-v1'
  *
  * TAG INHERITANCE:
- * - Mentees inherit tags from their portfolio company
  * - Mentors only use personal tags
+ * - Mentees inherit tags from their portfolio company
+ *
+ * FUTURE ENHANCEMENTS:
+ * - Mentors have stage tags
+ * - Reputation scoring not yet implemented
  *
  * @see docs/architecture/matching-cache-architecture.md
  * @see docs/architecture/8-backend-architecture.md Lines 1948-2105
  */
 
 // External dependencies
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Internal modules
-import type { IMatchingEngine, BulkRecalculationOptions, MatchExplanation } from './interface';
+import type { MatchExplanation } from "./interface";
+import { BaseMatchingEngine, type BaseUserData } from "./base.engine";
 
 /**
  * Tag with category from database
  */
 interface TagWithCategory {
-  slug: string;
-  category: 'industry' | 'technology' | 'stage';
+  value: string;
+  category: "industry" | "technology" | "stage";
 }
 
 /**
  * User with tags and profile (enriched for matching calculations)
  */
-interface UserWithTags {
-  id: string;
-  email: string;
-  role: 'mentor' | 'mentee' | 'coordinator';
-  reputation_tier: 'bronze' | 'silver' | 'gold' | 'platinum' | null;
-  is_active: boolean;
-  last_activity_at: Date | null;
-  deleted_at: Date | null;
+interface UserWithTags extends BaseUserData {
   user_profiles: {
     portfolio_company_id: string | null;
     stage: string | null;
@@ -53,344 +49,64 @@ interface UserWithTags {
 }
 
 /**
- * Cache entry for bulk insert
- */
-interface CacheEntry {
-  user_id: string;
-  recommended_user_id: string;
-  match_score: number;
-  match_explanation: MatchExplanation;
-  algorithm_version: string;
-  calculated_at: Date;
-}
-
-/**
  * Tag-based matching engine implementation (Version 1)
  *
- * Calculates match scores using weighted formula:
- * score = (tagOverlap × 0.6) + (stageMatch × 0.2) + (reputationMatch × 0.2)
+ * Calculates match scores using tag overlap only (0-60 points).
+ * Stages are now treated as tags in the entity_tags table.
+ * Reputation scoring not yet implemented.
  *
  * @example
  * const engine = new TagBasedMatchingEngineV1(supabaseClient);
  * await engine.recalculateMatches('user-123'); // Recalculate for one user
  * await engine.recalculateAllMatches({ batchSize: 50 }); // Recalculate for all users
  */
-export class TagBasedMatchingEngineV1 implements IMatchingEngine {
-  private readonly ALGORITHM_VERSION = 'tag-based-v1';
-  private readonly STAGE_ORDER = ['pre-seed', 'seed', 'series-a', 'series-b', 'series-c', 'growth'];
-  private readonly TIER_ORDER = ['bronze', 'silver', 'gold', 'platinum'];
-  private readonly DORMANCY_DAYS = 90;
-  private readonly DEFAULT_BATCH_SIZE = 50; // Reduced from 100 for better memory management
-  private readonly DEFAULT_CHUNK_SIZE = 100; // Matches per chunk to reduce N+1 queries
-  private readonly DEFAULT_CHUNK_DELAY_MS = 10; // Delay between chunks to prevent DB overload
-  private readonly DEFAULT_BATCH_DELAY_MS = 100; // Delay between user batches
+export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
+  protected readonly ALGORITHM_VERSION = "tag-based-v1";
 
-  constructor(private readonly db: SupabaseClient) {}
+  // Tag rarity cache: tag value -> usage count
+  private tagRarityCache: Map<string, number> = new Map();
 
-  /**
-   * Get the algorithm version identifier
-   *
-   * @returns Algorithm version string
-   */
-  getAlgorithmVersion(): string {
-    return this.ALGORITHM_VERSION;
+  constructor(db: SupabaseClient) {
+    super(db);
+    // Initialize rarity cache on construction
+    this.loadTagRarityData();
   }
 
-  /**
-   * Recalculate matches for a specific user with chunked processing
-   * Writes results to user_match_cache table
-   *
-   * Uses chunked processing to prevent memory issues with large match sets.
-   * Bulk fetches tags for each chunk to eliminate N+1 queries.
-   *
-   * @param userId - User ID to recalculate matches for
-   * @param options - Optional chunking configuration
-   *
-   * @logging
-   * - [MATCHING] recalculateMatches { userId, algorithmVersion }
-   * - [MATCHING] Fetched potential matches { userId, potentialMatchCount }
-   * - [MATCHING] Processing chunk { chunkNum, totalChunks, chunkSize }
-   * - [MATCHING] Calculated scores { userId, matchCount, avgScore }
-   * - [MATCHING] Wrote to cache { userId, cachedMatchCount }
-   */
-  async recalculateMatches(
-    userId: string,
-    options?: { chunkSize?: number; delayBetweenChunks?: number }
-  ): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] recalculateMatches`, {
-        userId,
-        algorithmVersion: this.ALGORITHM_VERSION,
-      });
-    }
-
-    // Fetch user with tags
-    const user = await this.fetchUserWithTags(userId);
-
-    if (!user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[MATCHING] User not found`, { userId });
-      }
-      throw new Error(`User not found: ${userId}`);
-    }
-
-    // Determine target role
-    const targetRole = user.role === 'mentor' ? 'mentee' : 'mentor';
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Determined target role`, {
-        userId,
-        userRole: user.role,
-        targetRole,
-      });
-    }
-
-    // Fetch potential matches (already uses bulk fetching internally)
-    const potentialMatches = await this.fetchPotentialMatches(userId, targetRole);
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Fetched potential matches`, {
-        userId,
-        potentialMatchCount: potentialMatches.length,
-      });
-    }
-
-    // Process matches in chunks for memory efficiency
-    const chunkSize = options?.chunkSize || this.DEFAULT_CHUNK_SIZE;
-    const delayMs = options?.delayBetweenChunks || this.DEFAULT_CHUNK_DELAY_MS;
-    const totalChunks = Math.ceil(potentialMatches.length / chunkSize);
-
-    const allCacheEntries: CacheEntry[] = [];
-    let totalScore = 0;
-
-    for (let i = 0; i < potentialMatches.length; i += chunkSize) {
-      const chunkNum = Math.floor(i / chunkSize) + 1;
-      const chunk = potentialMatches.slice(i, i + chunkSize);
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[MATCHING] Processing chunk`, {
-          userId,
-          chunkNum,
-          totalChunks,
-          chunkSize: chunk.length,
-          totalMatches: potentialMatches.length,
-        });
-      }
-
-      // Process chunk in parallel
-      const chunkResults = await Promise.all(
-        chunk.map(match => {
-          const score = this.calculateScore(user, match);
-          const explanation = this.generateExplanation(user, match, score);
-
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`[MATCHING] Calculated score`, {
-              userId,
-              matchUserId: match.id,
-              score,
-              tagOverlap: this.calculateTagOverlap(user.tags, match.tags),
-              stageMatch: this.calculateStageMatch(
-                user.user_profiles.stage,
-                match.user_profiles.stage
-              ),
-              reputationMatch: this.calculateReputationMatch(
-                user.reputation_tier,
-                match.reputation_tier
-              ),
-            });
-          }
-
-          return {
-            user_id: userId,
-            recommended_user_id: match.id,
-            match_score: score,
-            match_explanation: explanation,
-            algorithm_version: this.ALGORITHM_VERSION,
-            calculated_at: new Date(),
-          };
-        })
-      );
-
-      // Accumulate results
-      allCacheEntries.push(...chunkResults);
-      totalScore += chunkResults.reduce((sum, entry) => sum + entry.match_score, 0);
-
-      // Optional delay between chunks to prevent DB overload
-      if (i + chunkSize < potentialMatches.length && delayMs > 0) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-
-    const avgScore = allCacheEntries.length > 0 ? totalScore / allCacheEntries.length : 0;
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Calculated scores`, {
-        userId,
-        matchCount: allCacheEntries.length,
-        avgScore: avgScore.toFixed(2),
-      });
-    }
-
-    // Write to cache (atomic delete + insert)
-    await this.writeToCacheAtomic(userId, allCacheEntries);
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Wrote to cache`, {
-        userId,
-        cachedMatchCount: allCacheEntries.length,
-      });
-    }
-  }
+  // ============================================================================
+  // INITIALIZATION
+  // ============================================================================
 
   /**
-   * Recalculate matches for all users (batch operation with enhanced error handling)
-   * Used for initial population or admin-triggered recalculation
-   *
-   * Features:
-   * - Individual error isolation (one user failure doesn't block batch)
-   * - Success/failure tracking per batch
-   * - Configurable delays between batches
-   * - Supports incremental updates (modifiedAfter filter)
-   *
-   * @param options - Bulk operation options
-   *
-   * @logging
-   * - [MATCHING] recalculateAllMatches { algorithmVersion, options }
-   * - [MATCHING] Processing batch { currentBatch, totalUsers }
-   * - [MATCHING] Batch complete { successCount, failureCount }
-   * - [MATCHING] All batches complete { totalSuccess, totalFailures }
+   * Load tag usage statistics for rarity weighting
+   * This runs once on initialization to cache tag frequencies
    */
-  async recalculateAllMatches(options?: BulkRecalculationOptions): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] recalculateAllMatches`, {
-        algorithmVersion: this.ALGORITHM_VERSION,
-        options,
-      });
-    }
+  private async loadTagRarityData(): Promise<void> {
+    try {
+      const { data, error } = await this.db.rpc("get_tag_usage_counts");
 
-    // Fetch all active users
-    let query = this.db.from('users').select('id').is('deleted_at', null);
-
-    if (options?.limit) {
-      query = query.limit(options.limit);
-    }
-
-    if (options?.modifiedAfter) {
-      query = query.gt('updated_at', options.modifiedAfter.toISOString());
-    }
-
-    const { data: users, error } = await query;
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to fetch users`, { error });
-      }
-      throw new Error(`Failed to fetch users: ${error.message}`);
-    }
-
-    if (!users || users.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[MATCHING] No users to process`, { options });
-      }
-      return;
-    }
-
-    const totalUsers = users.length;
-    const batchSize = options?.batchSize || this.DEFAULT_BATCH_SIZE;
-    const delayBetweenBatches = options?.delayBetweenBatches || this.DEFAULT_BATCH_DELAY_MS;
-    const totalBatches = Math.ceil(totalUsers / batchSize);
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Starting batch processing`, {
-        totalUsers,
-        batchSize,
-        totalBatches,
-        delayBetweenBatches,
-      });
-    }
-
-    const startTime = Date.now();
-    let totalSuccessCount = 0;
-    let totalFailureCount = 0;
-
-    // Process users in batches
-    for (let i = 0; i < totalBatches; i++) {
-      const batchStart = i * batchSize;
-      const batchEnd = Math.min(batchStart + batchSize, totalUsers);
-      const batch = users.slice(batchStart, batchEnd);
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[MATCHING] Processing batch`, {
-          currentBatch: i + 1,
-          totalBatches,
-          batchSize: batch.length,
-          processedCount: batchStart,
-          totalUsers,
+      if (!error && data) {
+        data.forEach((row: { tag_value: string; usage_count: number }) => {
+          this.tagRarityCache.set(row.tag_value, row.usage_count);
         });
-      }
 
-      // Process batch in parallel with individual error isolation
-      const batchPromises = batch.map(async user => {
-        try {
-          await this.recalculateMatches(user.id, {
-            chunkSize: options?.chunkSize,
-            delayBetweenChunks: options?.delayBetweenChunks,
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[MATCHING] Loaded tag rarity data`, {
+            uniqueTags: this.tagRarityCache.size,
           });
-          return { userId: user.id, success: true };
-        } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error(`[MATCHING] Failed to process user ${user.id}:`, error);
-          }
-          return { userId: user.id, success: false, error };
         }
-      });
-
-      const results = await Promise.all(batchPromises);
-
-      // Count successes and failures
-      const successCount = results.filter(r => r.success).length;
-      const failureCount = results.filter(r => !r.success).length;
-      totalSuccessCount += successCount;
-      totalFailureCount += failureCount;
-
-      if (process.env.NODE_ENV === 'development') {
-        const elapsed = Date.now() - startTime;
-        const processed = batchEnd;
-        const avgTimePerUser = elapsed / processed;
-
-        console.log(`[MATCHING] Batch complete`, {
-          batchNumber: i + 1,
-          processedCount: processed,
-          totalUsers,
-          successCount,
-          failureCount,
-          avgTimePerUser: `${avgTimePerUser.toFixed(2)}ms`,
-        });
       }
-
-      // Add configurable delay between batches
-      if (i < totalBatches - 1 && delayBetweenBatches > 0) {
-        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+    } catch (error) {
+      // Fallback: if RPC doesn't exist, use heuristic-based rarity
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[MATCHING] Using heuristic-based rarity (RPC not available)`,
+        );
       }
-    }
-
-    const totalTime = Date.now() - startTime;
-    const avgTimePerUser = totalTime / totalUsers;
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] All batches complete`, {
-        totalUsers,
-        totalSuccessCount,
-        totalFailureCount,
-        successRate: `${((totalSuccessCount / totalUsers) * 100).toFixed(1)}%`,
-        totalTime: `${totalTime}ms`,
-        avgTimePerUser: `${avgTimePerUser.toFixed(2)}ms`,
-      });
     }
   }
 
   // ============================================================================
-  // PRIVATE HELPER METHODS
+  // ABSTRACT METHOD IMPLEMENTATIONS (required by BaseMatchingEngine)
   // ============================================================================
 
   /**
@@ -403,72 +119,79 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
    * - [MATCHING] Fetching user with tags { userId }
    * - [MATCHING] Fetched user tags { userId, personalTagCount, companyTagCount }
    */
-  private async fetchUserWithTags(userId: string): Promise<UserWithTags | null> {
-    if (process.env.NODE_ENV === 'development') {
+  protected async fetchUserWithTags(
+    userId: string,
+  ): Promise<UserWithTags | null> {
+    if (process.env.NODE_ENV === "development") {
       console.log(`[MATCHING] Fetching user with tags`, { userId });
     }
 
     // Fetch user with profile
     const { data: user, error: userError } = await this.db
-      .from('users')
-      .select('*, user_profiles(*)')
-      .eq('id', userId)
+      .from("users")
+      .select("*, user_profiles(*)")
+      .eq("id", userId)
       .single();
 
     if (userError || !user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to fetch user`, { userId, error: userError });
+      if (process.env.NODE_ENV === "development") {
+        console.error(`[MATCHING] Failed to fetch user`, {
+          userId,
+          error: userError,
+        });
       }
       return null;
     }
 
     // Fetch personal tags with category from database
     const { data: personalTagRows, error: tagsError } = await this.db
-      .from('entity_tags')
-      .select('taxonomy(slug, category)')
-      .eq('entity_type', 'user')
-      .eq('entity_id', userId)
-      .is('deleted_at', null);
+      .from("entity_tags")
+      .select("taxonomy_id(value, category)")
+      .eq("entity_type", "user")
+      .eq("entity_id", userId)
+      .is("deleted_at", null);
 
     if (tagsError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to fetch tags`, { userId, error: tagsError });
+      if (process.env.NODE_ENV === "development") {
+        console.error(`[MATCHING] Failed to fetch tags`, {
+          userId,
+          error: tagsError,
+        });
       }
       return null;
     }
 
-    const personalTags: TagWithCategory[] =
-      personalTagRows
-        ?.map(row => {
-          const taxonomy = row.taxonomy as any;
-          return taxonomy?.slug && taxonomy?.category
-            ? { slug: taxonomy.slug, category: taxonomy.category }
-            : null;
-        })
-        .filter((tag): tag is TagWithCategory => tag !== null) || [];
+    const personalTags: TagWithCategory[] = personalTagRows
+      ?.map((row) => {
+        const taxonomy = row.taxonomy_id as any;
+        return taxonomy?.value && taxonomy?.category
+          ? { value: taxonomy.value, category: taxonomy.category }
+          : null;
+      })
+      .filter((tag): tag is TagWithCategory => tag !== null) || [];
 
     // If mentee with portfolio company: fetch company tags with category
     let companyTags: TagWithCategory[] = [];
-    if (user.role === 'mentee' && user.user_profiles?.portfolio_company_id) {
+    if (user.role === "mentee" && user.user_profiles?.portfolio_company_id) {
       const { data: companyTagRows, error: companyTagsError } = await this.db
-        .from('entity_tags')
-        .select('taxonomy(slug, category)')
-        .eq('entity_type', 'portfolio_company')
-        .eq('entity_id', user.user_profiles.portfolio_company_id)
-        .is('deleted_at', null);
+        .from("entity_tags")
+        .select("taxonomy_id(value, category)")
+        .eq("entity_type", "portfolio_company")
+        .eq("entity_id", user.user_profiles.portfolio_company_id)
+        .is("deleted_at", null);
 
       if (!companyTagsError && companyTagRows) {
         companyTags = companyTagRows
-          .map(row => {
-            const taxonomy = row.taxonomy as any;
-            return taxonomy?.slug && taxonomy?.category
-              ? { slug: taxonomy.slug, category: taxonomy.category }
+          .map((row) => {
+            const taxonomy = row.taxonomy_id as any;
+            return taxonomy?.value && taxonomy?.category
+              ? { value: taxonomy.value, category: taxonomy.category }
               : null;
           })
           .filter((tag): tag is TagWithCategory => tag !== null);
       }
 
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         console.log(`[MATCHING] Fetched company tags for mentee`, {
           userId,
           companyId: user.user_profiles.portfolio_company_id,
@@ -477,16 +200,16 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
       }
     }
 
-    // Combine personal + company tags (tag inheritance, deduplicate by slug)
+    // Combine personal + company tags (tag inheritance, deduplicate by value)
     const tagMap = new Map<string, TagWithCategory>();
-    [...personalTags, ...companyTags].forEach(tag => {
-      if (!tagMap.has(tag.slug)) {
-        tagMap.set(tag.slug, tag);
+    [...personalTags, ...companyTags].forEach((tag) => {
+      if (!tagMap.has(tag.value)) {
+        tagMap.set(tag.value, tag);
       }
     });
     const effectiveTags = Array.from(tagMap.values());
 
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       console.log(`[MATCHING] Fetched user tags`, {
         userId,
         role: user.role,
@@ -500,9 +223,10 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
       id: user.id,
       email: user.email,
       role: user.role,
-      reputation_tier: user.reputation_tier,
       is_active: user.is_active ?? true,
-      last_activity_at: user.last_activity_at ? new Date(user.last_activity_at) : null,
+      last_activity_at: user.last_activity_at
+        ? new Date(user.last_activity_at)
+        : null,
       deleted_at: user.deleted_at ? new Date(user.deleted_at) : null,
       user_profiles: {
         portfolio_company_id: user.user_profiles?.portfolio_company_id || null,
@@ -513,15 +237,79 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
   }
 
   /**
+   * Calculate total match score
+   *
+   * Formula: Tag overlap only (0-60 points)
+   * Stages are now treated as tags in entity_tags table.
+   *
+   * @param user1 - First user
+   * @param user2 - Second user
+   * @returns Match score (0-60)
+   */
+  protected calculateScore(user1: UserWithTags, user2: UserWithTags): number {
+    const tagOverlap = this.calculateTagOverlap(user1.tags, user2.tags);
+    return Math.round(tagOverlap);
+  }
+
+  /**
+   * Generate match explanation for display
+   *
+   * Includes:
+   * - Top 5 shared tags with categories from database
+   * - Human-readable summary
+   *
+   * @param user1 - First user
+   * @param user2 - Second user
+   * @param score - Calculated match score
+   * @returns Match explanation object
+   */
+  protected generateExplanation(
+    user1: UserWithTags,
+    user2: UserWithTags,
+    score: number,
+  ): MatchExplanation {
+    // Find shared tags (top 5) with categories from database
+    const user2Values = user2.tags.map((t) => t.value);
+    const sharedTags = user1.tags
+      .filter((tag) => user2Values.includes(tag.value))
+      .slice(0, 5)
+      .map((tag) => ({
+        category: tag.category,
+        tag: tag.value,
+      }));
+
+    // Generate summary based on tag overlap only
+    const strength = score >= 40 ? "Strong" : score >= 20 ? "Moderate" : "Weak";
+    const tagSummary = sharedTags.length > 0
+      ? `${sharedTags.length} shared tags (${
+        sharedTags.map((t) => t.tag).join(", ")
+      })`
+      : "no shared tags";
+
+    const summary = `${strength} match: ${tagSummary}`;
+
+    return {
+      tagOverlap: sharedTags,
+      summary,
+    };
+  }
+
+  // ============================================================================
+  // PERFORMANCE OPTIMIZATIONS (override base class methods)
+  // ============================================================================
+
+  /**
    * Fetch multiple users with tags in bulk (PERFORMANCE OPTIMIZED)
    *
    * Reduces N+1 query problem: 501 queries → 3-4 queries for 500 users
+   * Uses batching to avoid "URI too long" errors with large ID arrays
    *
    * Strategy:
-   * 1. Single query for all users
-   * 2. Single query for all personal tags
-   * 3. Single query for all company tags (mentees only)
-   * 4. Combine data in memory using O(1) lookups
+   * 1. Batch IDs into chunks of 100 to avoid URI length limits
+   * 2. Single query per batch for users
+   * 3. Single query per batch for personal tags
+   * 4. Single query per batch for company tags (mentees only)
+   * 5. Combine data in memory using O(1) lookups
    *
    * @param userIds - Array of user IDs to fetch
    * @returns Array of users with tags
@@ -530,76 +318,98 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
    * - [MATCHING] Bulk fetching users { userCount }
    * - [MATCHING] Bulk fetched users and tags { userCount, personalTagCount, companyTagCount }
    */
-  private async fetchMultipleUsersWithTags(userIds: string[]): Promise<UserWithTags[]> {
+  protected async fetchMultipleUsersWithTags(
+    userIds: string[],
+  ): Promise<UserWithTags[]> {
     if (userIds.length === 0) {
       return [];
     }
 
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       console.log(`[MATCHING] Bulk fetching users`, {
         userCount: userIds.length,
       });
     }
 
-    // Single query for all users
-    const { data: users, error: usersError } = await this.db
-      .from('users')
-      .select('*, user_profiles(*)')
-      .in('id', userIds);
+    // Batch into chunks of 100 to avoid URI length limits
+    const BATCH_SIZE = 100;
+    const allUsers: any[] = [];
+    const allPersonalTagRows: any[] = [];
+    const allCompanyIds: string[] = [];
 
-    if (usersError || !users) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to bulk fetch users`, { error: usersError });
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+      const batch = userIds.slice(i, i + BATCH_SIZE);
+
+      // Batch query for users
+      const { data: users, error: usersError } = await this.db
+        .from("users")
+        .select("*, user_profiles(*)")
+        .in("id", batch);
+
+      if (usersError || !users) {
+        if (process.env.NODE_ENV === "development") {
+          console.error(`[MATCHING] Failed to bulk fetch users batch`, {
+            error: usersError,
+          });
+        }
+        continue;
       }
-      return [];
+
+      allUsers.push(...users);
+
+      // Batch query for personal tags
+      const { data: personalTagRows, error: tagsError } = await this.db
+        .from("entity_tags")
+        .select("entity_id, taxonomy_id(value, category)")
+        .eq("entity_type", "user")
+        .in("entity_id", batch)
+        .is("deleted_at", null);
+
+      if (!tagsError && personalTagRows) {
+        allPersonalTagRows.push(...personalTagRows);
+      }
+
+      // Extract company IDs from this batch
+      const menteeUsers = users.filter((u) => u.role === "mentee");
+      const companyIds = menteeUsers
+        .map((u) => u.user_profiles?.portfolio_company_id)
+        .filter((id): id is string => id !== null && id !== undefined);
+      allCompanyIds.push(...companyIds);
     }
 
-    // Single query for all personal tags
-    const { data: personalTagRows, error: tagsError } = await this.db
-      .from('entity_tags')
-      .select('entity_id, taxonomy(slug, category)')
-      .eq('entity_type', 'user')
-      .in('entity_id', userIds)
-      .is('deleted_at', null);
+    // Fetch company tags in batches
+    const allCompanyTagRows: any[] = [];
+    const uniqueCompanyIds = Array.from(new Set(allCompanyIds));
 
-    if (tagsError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to bulk fetch tags`, { error: tagsError });
-      }
-      return [];
-    }
+    for (let i = 0; i < uniqueCompanyIds.length; i += BATCH_SIZE) {
+      const batch = uniqueCompanyIds.slice(i, i + BATCH_SIZE);
 
-    // Extract mentee users and their portfolio company IDs
-    const menteeUsers = users.filter(u => u.role === 'mentee');
-    const companyIds = menteeUsers
-      .map(u => u.user_profiles?.portfolio_company_id)
-      .filter((id): id is string => id !== null && id !== undefined);
-
-    // Single query for company tags (if any mentees)
-    let companyTagRows: any[] = [];
-    if (companyIds.length > 0) {
       const { data, error: companyTagsError } = await this.db
-        .from('entity_tags')
-        .select('entity_id, taxonomy(slug, category)')
-        .eq('entity_type', 'portfolio_company')
-        .in('entity_id', companyIds)
-        .is('deleted_at', null);
+        .from("entity_tags")
+        .select("entity_id, taxonomy_id(value, category)")
+        .eq("entity_type", "portfolio_company")
+        .in("entity_id", batch)
+        .is("deleted_at", null);
 
       if (!companyTagsError && data) {
-        companyTagRows = data;
+        allCompanyTagRows.push(...data);
       }
     }
 
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       console.log(`[MATCHING] Bulk fetched users and tags`, {
-        userCount: users.length,
-        personalTagCount: personalTagRows?.length || 0,
-        companyTagCount: companyTagRows.length,
+        userCount: allUsers.length,
+        personalTagCount: allPersonalTagRows.length,
+        companyTagCount: allCompanyTagRows.length,
       });
     }
 
     // Combine data in memory
-    return this.combineUserDataWithTags(users, personalTagRows || [], companyTagRows);
+    return this.combineUserDataWithTags(
+      allUsers,
+      allPersonalTagRows,
+      allCompanyTagRows,
+    );
   }
 
   /**
@@ -615,15 +425,15 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
   private combineUserDataWithTags(
     users: any[],
     personalTagRows: any[],
-    companyTagRows: any[]
+    companyTagRows: any[],
   ): UserWithTags[] {
     // Map personal tags by entity_id (user_id)
     const personalTagsByUserId = new Map<string, TagWithCategory[]>();
-    personalTagRows.forEach(row => {
-      const taxonomy = row.taxonomy as any;
-      if (taxonomy?.slug && taxonomy?.category) {
+    personalTagRows.forEach((row) => {
+      const taxonomy = row.taxonomy_id as any;
+      if (taxonomy?.value && taxonomy?.category) {
         const tag: TagWithCategory = {
-          slug: taxonomy.slug,
+          value: taxonomy.value,
           category: taxonomy.category,
         };
         const userId = row.entity_id;
@@ -638,11 +448,11 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
 
     // Map company tags by entity_id (portfolio_company_id)
     const companyTagsByCompanyId = new Map<string, TagWithCategory[]>();
-    companyTagRows.forEach(row => {
-      const taxonomy = row.taxonomy as any;
-      if (taxonomy?.slug && taxonomy?.category) {
+    companyTagRows.forEach((row) => {
+      const taxonomy = row.taxonomy_id as any;
+      if (taxonomy?.value && taxonomy?.category) {
         const tag: TagWithCategory = {
-          slug: taxonomy.slug,
+          value: taxonomy.value,
           category: taxonomy.category,
         };
         const companyId = row.entity_id;
@@ -656,20 +466,22 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
     });
 
     // Combine user data with tags
-    return users.map(user => {
+    return users.map((user) => {
       const personalTags = personalTagsByUserId.get(user.id) || [];
       let companyTags: TagWithCategory[] = [];
 
       // Add company tags for mentees
-      if (user.role === 'mentee' && user.user_profiles?.portfolio_company_id) {
-        companyTags = companyTagsByCompanyId.get(user.user_profiles.portfolio_company_id) || [];
+      if (user.role === "mentee" && user.user_profiles?.portfolio_company_id) {
+        companyTags =
+          companyTagsByCompanyId.get(user.user_profiles.portfolio_company_id) ||
+          [];
       }
 
-      // Combine and deduplicate by slug
+      // Combine and deduplicate by value
       const tagMap = new Map<string, TagWithCategory>();
-      [...personalTags, ...companyTags].forEach(tag => {
-        if (!tagMap.has(tag.slug)) {
-          tagMap.set(tag.slug, tag);
+      [...personalTags, ...companyTags].forEach((tag) => {
+        if (!tagMap.has(tag.value)) {
+          tagMap.set(tag.value, tag);
         }
       });
       const effectiveTags = Array.from(tagMap.values());
@@ -678,12 +490,14 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
         id: user.id,
         email: user.email,
         role: user.role,
-        reputation_tier: user.reputation_tier,
         is_active: user.is_active ?? true,
-        last_activity_at: user.last_activity_at ? new Date(user.last_activity_at) : null,
+        last_activity_at: user.last_activity_at
+          ? new Date(user.last_activity_at)
+          : null,
         deleted_at: user.deleted_at ? new Date(user.deleted_at) : null,
         user_profiles: {
-          portfolio_company_id: user.user_profiles?.portfolio_company_id || null,
+          portfolio_company_id: user.user_profiles?.portfolio_company_id ||
+            null,
           stage: user.user_profiles?.stage || null,
         },
         tags: effectiveTags,
@@ -691,333 +505,131 @@ export class TagBasedMatchingEngineV1 implements IMatchingEngine {
     });
   }
 
-  /**
-   * Fetch potential matches for a user
-   *
-   * Filters:
-   * - Target role (mentor or mentee)
-   * - Active users only
-   * - Non-dormant (active within 90 days)
-   * - Exclude self
-   *
-   * @param userId - User ID to exclude
-   * @param targetRole - Role to match (mentor or mentee)
-   * @returns Array of potential matches with tags
-   *
-   * @logging
-   * - [MATCHING] Fetching potential matches { userId, targetRole }
-   * - [MATCHING] Fetched potential matches { userId, count }
-   */
-  private async fetchPotentialMatches(
-    userId: string,
-    targetRole: 'mentor' | 'mentee'
-  ): Promise<UserWithTags[]> {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Fetching potential matches`, {
-        userId,
-        targetRole,
-      });
-    }
-
-    // Calculate dormancy threshold
-    const dormancyThreshold = new Date();
-    dormancyThreshold.setDate(dormancyThreshold.getDate() - this.DORMANCY_DAYS);
-
-    // Fetch potential matches
-    const { data: users, error } = await this.db
-      .from('users')
-      .select('id')
-      .eq('role', targetRole)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .gte('last_activity_at', dormancyThreshold.toISOString())
-      .neq('id', userId);
-
-    if (error || !users) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to fetch potential matches`, {
-          userId,
-          error,
-        });
-      }
-      return [];
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Fetched potential match IDs`, {
-        userId,
-        count: users.length,
-      });
-    }
-
-    // Bulk fetch all users with tags (eliminates N+1 queries)
-    const userIds = users.map(u => u.id);
-    const matches = await this.fetchMultipleUsersWithTags(userIds);
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Fetched potential matches with tags`, {
-        userId,
-        count: matches.length,
-      });
-    }
-
-    return matches;
-  }
-
-  /**
-   * Calculate total match score
-   *
-   * Formula: (tagOverlap × 0.6) + (stageMatch × 0.2) + (reputationMatch × 0.2)
-   *
-   * @param user1 - First user
-   * @param user2 - Second user
-   * @returns Match score (0-100)
-   */
-  private calculateScore(user1: UserWithTags, user2: UserWithTags): number {
-    const tagOverlap = this.calculateTagOverlap(user1.tags, user2.tags);
-    const stageMatch = this.calculateStageMatch(
-      user1.user_profiles.stage,
-      user2.user_profiles.stage
-    );
-    const reputationMatch = this.calculateReputationMatch(
-      user1.reputation_tier,
-      user2.reputation_tier
-    );
-
-    return Math.round(tagOverlap + stageMatch + reputationMatch);
-  }
+  // ============================================================================
+  // PRIVATE HELPER METHODS (tag-specific logic)
+  // ============================================================================
 
   /**
    * Calculate tag overlap score (0-60 points)
    *
-   * Formula: (sharedTagCount / totalUniqueTags) × 60
+   * Formula: Weighted overlap considering rarity and tag count confidence
+   *
+   * 1. Rarity Weight (TF-IDF style):
+   *    - Common tags (>100 users): weight 1.0
+   *    - Uncommon tags (20-100 users): weight 1.5
+   *    - Rare tags (<20 users): weight 2.0
+   *
+   * 2. Weighted Jaccard Similarity:
+   *    - Sum of rarity weights for shared tags / Sum of rarity weights for all unique tags
+   *
+   * 3. Tag Count Confidence:
+   *    - Penalizes matches with very few tags
+   *    - min(sharedTagCount, 5) / 5 → max confidence at 5+ shared tags
+   *
+   * 4. Diversity Factor:
+   *    - min(tag_count1, tag_count2) / max(tag_count1, tag_count2)
+   *
+   * Final Score = (WeightedJaccard × 0.5 + Confidence × 0.3 + Diversity × 0.2) × 60
+   *
+   * Examples:
+   * - 1/1 common tag: Low score (weak signal, common tag)
+   * - 1/1 rare tag: Medium score (weak signal, but rare)
+   * - 5/10 rare tags: High score (strong signal, rare tags, good diversity)
    *
    * @param tags1 - First user's tags
    * @param tags2 - Second user's tags
    * @returns Tag overlap score (0-60)
    */
-  private calculateTagOverlap(tags1: TagWithCategory[], tags2: TagWithCategory[]): number {
-    const slugs1 = tags1.map(t => t.slug);
-    const slugs2 = tags2.map(t => t.slug);
-
-    const sharedTags = slugs1.filter(slug => slugs2.includes(slug));
-    const uniqueTags = new Set([...slugs1, ...slugs2]);
-
-    if (uniqueTags.size === 0) {
-      return 0;
-    }
-
-    const overlapRatio = sharedTags.length / uniqueTags.size;
-    return Math.round(overlapRatio * 60);
-  }
-
-  /**
-   * Calculate stage compatibility score (0-20 points)
-   *
-   * Returns:
-   * - 20 points if stages match
-   * - 10 points if stages are adjacent
-   * - 0 points if stages differ by >1 level
-   *
-   * @param stage1 - First user's stage
-   * @param stage2 - Second user's stage
-   * @returns Stage match score (0-20)
-   */
-  private calculateStageMatch(stage1: string | null, stage2: string | null): number {
-    if (!stage1 || !stage2) {
-      return 0;
-    }
-
-    const index1 = this.STAGE_ORDER.indexOf(stage1);
-    const index2 = this.STAGE_ORDER.indexOf(stage2);
-
-    if (index1 === -1 || index2 === -1) {
-      return 0;
-    }
-
-    const difference = Math.abs(index1 - index2);
-
-    if (difference === 0) {
-      return 20; // Same stage
-    }
-
-    if (difference === 1) {
-      return 10; // Adjacent stages
-    }
-
-    return 0; // Different stages
-  }
-
-  /**
-   * Calculate reputation compatibility score (0-20 points)
-   *
-   * Returns:
-   * - 20 points if tier difference ≤ 1
-   * - 0 points if tier difference > 1
-   * - 10 points if either tier is missing (neutral)
-   *
-   * @param tier1 - First user's reputation tier
-   * @param tier2 - Second user's reputation tier
-   * @returns Reputation match score (0-20)
-   */
-  private calculateReputationMatch(
-    tier1: 'bronze' | 'silver' | 'gold' | 'platinum' | null,
-    tier2: 'bronze' | 'silver' | 'gold' | 'platinum' | null
+  private calculateTagOverlap(
+    tags1: TagWithCategory[],
+    tags2: TagWithCategory[],
   ): number {
-    if (!tier1 || !tier2) {
-      return 10; // Neutral if missing
+    const values1 = tags1.map((t) => t.value);
+    const values2 = tags2.map((t) => t.value);
+
+    // No tags = no match
+    if (values1.length === 0 || values2.length === 0) {
+      return 0;
     }
 
-    const index1 = this.TIER_ORDER.indexOf(tier1);
-    const index2 = this.TIER_ORDER.indexOf(tier2);
+    const sharedTags = values1.filter((value) => values2.includes(value));
 
-    if (index1 === -1 || index2 === -1) {
-      return 10;
+    // No overlap = no score
+    if (sharedTags.length === 0) {
+      return 0;
     }
 
-    const difference = Math.abs(index1 - index2);
-    return difference <= 1 ? 20 : 0;
-  }
+    // Calculate rarity weights for shared and all unique tags
+    // Note: We approximate rarity here since we don't have real-time usage counts
+    // In production, this would query actual usage statistics
+    const allUniqueTags = new Set([...values1, ...values2]);
 
-  /**
-   * Generate match explanation for display
-   *
-   * Includes:
-   * - Top 5 shared tags with categories from database
-   * - Stage match boolean
-   * - Reputation compatible boolean
-   * - Human-readable summary
-   *
-   * @param user1 - First user
-   * @param user2 - Second user
-   * @param score - Calculated match score
-   * @returns Match explanation object
-   */
-  private generateExplanation(
-    user1: UserWithTags,
-    user2: UserWithTags,
-    score: number
-  ): MatchExplanation {
-    // Find shared tags (top 5) with categories from database
-    const user2Slugs = user2.tags.map(t => t.slug);
-    const sharedTags = user1.tags
-      .filter(tag => user2Slugs.includes(tag.slug))
-      .slice(0, 5)
-      .map(tag => ({
-        category: tag.category,
-        tag: tag.slug,
-      }));
+    // Get rarity weight based on actual usage statistics (or fallback to heuristic)
+    const getRarityWeight = (tag: string): number => {
+      const usageCount = this.tagRarityCache.get(tag);
 
-    // Determine stage and reputation match
-    const stageScore = this.calculateStageMatch(
-      user1.user_profiles.stage,
-      user2.user_profiles.stage
-    );
-    const reputationScore = this.calculateReputationMatch(
-      user1.reputation_tier,
-      user2.reputation_tier
-    );
+      if (usageCount !== undefined) {
+        // Use actual usage data to determine rarity
+        // Rare (<20 users): weight 2.0
+        // Uncommon (20-100 users): weight 1.5
+        // Common (>100 users): weight 1.0
+        if (usageCount < 20) {
+          return 2.0; // Rare tag
+        } else if (usageCount < 100) {
+          return 1.5; // Uncommon tag
+        } else {
+          return 1.0; // Common tag
+        }
+      }
 
-    const stageMatch = stageScore === 20;
-    const reputationCompatible = reputationScore === 20;
+      // Fallback: heuristic-based rarity (when cache not loaded)
+      const commonTags = [
+        "cloud_software_infrastructure",
+        "big_data_analytics",
+        "artificial_intelligence",
+        "healthcare",
+        "software",
+        "saas",
+      ];
 
-    // Generate summary
-    const strength = score >= 60 ? 'Strong' : score >= 30 ? 'Moderate' : 'Weak';
-    const tagSummary =
-      sharedTags.length > 0
-        ? `${sharedTags.length} shared tags (${sharedTags.map(t => t.tag).join(', ')})`
-        : 'no shared tags';
-    const stageSummary = stageMatch ? ', same startup stage' : '';
-    const reputationSummary = reputationCompatible ? ', compatible reputation tiers' : '';
+      if (commonTags.includes(tag)) {
+        return 1.0; // Common tag
+      }
 
-    const summary = `${strength} match: ${tagSummary}${stageSummary}${reputationSummary}`;
+      if (
+        tag.includes("quantum") || tag.includes("crypto") ||
+        tag.includes("cannabis")
+      ) {
+        return 2.0; // Rare tag
+      }
 
-    return {
-      tagOverlap: sharedTags,
-      stageMatch,
-      reputationCompatible,
-      summary,
+      return 1.5; // Uncommon tag (default)
     };
-  }
 
-  /**
-   * Write cache entries atomically (delete old + insert new)
-   *
-   * @param userId - User ID
-   * @param entries - Cache entries to insert
-   *
-   * @logging
-   * - [MATCHING] Deleting old cache entries { userId, algorithmVersion }
-   * - [MATCHING] Deleted old entries { userId, deletedCount }
-   * - [MATCHING] Inserting new cache entries { userId, count }
-   * - [MATCHING] Inserted cache entries { userId, insertedCount }
-   */
-  private async writeToCacheAtomic(userId: string, entries: CacheEntry[]): Promise<void> {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Deleting old cache entries`, {
-        userId,
-        algorithmVersion: this.ALGORITHM_VERSION,
-      });
-    }
+    // Calculate weighted Jaccard similarity
+    const sharedWeight = sharedTags.reduce(
+      (sum, tag) => sum + getRarityWeight(tag),
+      0,
+    );
+    const totalWeight = Array.from(allUniqueTags).reduce(
+      (sum, tag) => sum + getRarityWeight(tag),
+      0,
+    );
+    const weightedJaccard = sharedWeight / totalWeight;
 
-    // Delete old cache entries
-    const { error: deleteError, count: deletedCount } = await this.db
-      .from('user_match_cache')
-      .delete({ count: 'exact' })
-      .eq('user_id', userId)
-      .eq('algorithm_version', this.ALGORITHM_VERSION);
+    // Tag count confidence: penalize very few shared tags
+    // Confidence maxes out at 5 shared tags
+    const confidence = Math.min(sharedTags.length, 5) / 5;
 
-    if (deleteError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to delete old cache entries`, {
-          userId,
-          error: deleteError,
-        });
-      }
-      throw new Error(`Failed to delete old cache entries: ${deleteError.message}`);
-    }
+    // Diversity factor: rewards having more tags overall
+    const minTags = Math.min(values1.length, values2.length);
+    const maxTags = Math.max(values1.length, values2.length);
+    const diversityFactor = minTags / maxTags;
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Deleted old entries`, {
-        userId,
-        deletedCount: deletedCount || 0,
-      });
-    }
+    // Combined score: 50% weighted overlap + 30% confidence + 20% diversity
+    const combinedScore = (weightedJaccard * 0.5) + (confidence * 0.3) +
+      (diversityFactor * 0.2);
 
-    // Insert new cache entries
-    if (entries.length === 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[MATCHING] No cache entries to insert`, { userId });
-      }
-      return;
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Inserting new cache entries`, {
-        userId,
-        count: entries.length,
-      });
-    }
-
-    const { error: insertError, count: insertedCount } = await this.db
-      .from('user_match_cache')
-      .insert(entries, { count: 'exact' });
-
-    if (insertError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`[MATCHING] Failed to insert cache entries`, {
-          userId,
-          error: insertError,
-        });
-      }
-      throw new Error(`Failed to insert cache entries: ${insertError.message}`);
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] Inserted cache entries`, {
-        userId,
-        insertedCount: insertedCount || 0,
-      });
-    }
+    return Math.round(combinedScore * 60);
   }
 }

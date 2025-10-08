@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tail": "wrangler tail",
-    "lint": "eslint src --ext .ts --max-warnings 0"
+    "lint": "eslint src --ext .ts --max-warnings 0",
+    "populate-match-cache": "tsx src/scripts/populate-match-cache.ts"
   },
   "dependencies": {
     "@cf-office-hours/shared": "*",
@@ -29,8 +30,10 @@
     "@cloudflare/workers-types": "^4.20240117.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
+    "dotenv": "^17.2.3",
     "esbuild": "^0.20.0",
     "eslint": "^8.57.0",
+    "tsx": "^4.19.2",
     "vitest": "^3.0.0",
     "wrangler": "^3.78.12"
   }

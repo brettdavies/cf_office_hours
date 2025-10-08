@@ -82,15 +82,13 @@ describe('Matching API Routes', () => {
   const mockMatches: MatchResult[] = [
     {
       user: mockMentorUser,
-      score: 85.5,
+      score: 50,
       explanation: {
         tagOverlap: [
           { category: 'technology', tag: 'react' },
           { category: 'industry', tag: 'fintech' },
         ],
-        stageMatch: true,
-        reputationCompatible: true,
-        summary: 'Strong match: 2 shared tags, same startup stage, compatible reputation tiers',
+        summary: 'Strong match: 2 shared tags (react, fintech)',
       },
     },
     {
@@ -105,12 +103,10 @@ describe('Matching API Routes', () => {
           name: 'Bob Advisor',
         },
       },
-      score: 72.0,
+      score: 30,
       explanation: {
         tagOverlap: [{ category: 'industry', tag: 'fintech' }],
-        stageMatch: true,
-        reputationCompatible: true,
-        summary: 'Good match: 1 shared tag, same startup stage, compatible reputation tiers',
+        summary: 'Moderate match: 1 shared tags (fintech)',
       },
     },
   ];
@@ -143,7 +139,7 @@ describe('Matching API Routes', () => {
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.matches).toHaveLength(2);
-      expect(data.matches[0].score).toBe(85.5);
+      expect(data.matches[0].score).toBe(50); // Match mock data
       expect(data.matches[0].user.id).toBe('mentor-456');
       expect(data.matches[0].explanation.tagOverlap).toHaveLength(2);
     });
@@ -152,12 +148,10 @@ describe('Matching API Routes', () => {
       const menteeMatches: MatchResult[] = [
         {
           user: mockMenteeUser,
-          score: 80.0,
+          score: 30,
           explanation: {
             tagOverlap: [{ category: 'technology', tag: 'react' }],
-            stageMatch: true,
-            reputationCompatible: true,
-            summary: 'Good match: 1 shared tag',
+            summary: 'Moderate match: 1 shared tags (react)',
           },
         },
       ];
@@ -251,9 +245,7 @@ describe('Matching API Routes', () => {
           { category: 'technology', tag: 'react' },
           { category: 'industry', tag: 'fintech' },
         ],
-        stageMatch: true,
-        reputationCompatible: true,
-        summary: 'Strong match: 2 shared tags, same startup stage, compatible reputation tiers',
+        summary: 'Strong match: 2 shared tags (react, fintech)',
       };
 
       vi.spyOn(MatchingService.prototype, 'explainMatch').mockResolvedValue(mockExplanation);

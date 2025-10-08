@@ -11,6 +11,9 @@
  * The script requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.
  */
 
+// Load environment variables
+import 'dotenv/config';
+
 // External dependencies
 import { createClient } from '@supabase/supabase-js';
 

@@ -56,7 +56,7 @@ export interface UserProfile {
  * Tag with category from database
  */
 export interface TagWithCategory {
-  slug: string;
+  value: string;
   category: 'industry' | 'technology' | 'stage';
 }
 
@@ -121,9 +121,9 @@ export const createMockUser = (overrides?: Partial<User>): User => {
  * const mentee = createMockUserWithTags({
  *   role: 'mentee',
  *   tags: [
- *     { slug: 'fintech', category: 'industry' },
- *     { slug: 'react', category: 'technology' },
- *     { slug: 'seed', category: 'stage' }
+ *     { value: 'fintech', category: 'industry' },
+ *     { value: 'react', category: 'technology' },
+ *     { value: 'seed', category: 'stage' }
  *   ]
  * });
  */
@@ -157,9 +157,9 @@ export const createMockUserWithTags = (
       ...overrides?.user_profiles,
     },
     tags: overrides?.tags || [
-      { slug: 'fintech', category: 'industry' },
-      { slug: 'react', category: 'technology' },
-      { slug: 'seed', category: 'stage' },
+      { value: 'fintech', category: 'industry' },
+      { value: 'react', category: 'technology' },
+      { value: 'seed', category: 'stage' },
     ],
   };
 };
@@ -209,15 +209,13 @@ export const createMockMatchCache = (overrides?: Partial<UserMatchCache>): UserM
     id: generateId(),
     user_id: generateId(),
     recommended_user_id: generateId(),
-    match_score: 75.5,
+    match_score: 45,
     match_explanation: {
       tagOverlap: [
         { category: 'technology', tag: 'react' },
         { category: 'industry', tag: 'fintech' },
       ],
-      stageMatch: true,
-      reputationCompatible: true,
-      summary: 'Strong match: 2 shared tags, same startup stage, compatible reputation tiers',
+      summary: 'Strong match: 2 shared tags (react, fintech)',
     },
     algorithm_version: 'tag-based-v1',
     calculated_at: now,
@@ -245,9 +243,7 @@ export const createMockMatchExplanation = (
     { category: 'technology', tag: 'react' },
     { category: 'industry', tag: 'fintech' },
   ],
-  stageMatch: true,
-  reputationCompatible: true,
-  summary: 'Strong match: 2 shared tags, same startup stage, compatible reputation tiers',
+  summary: 'Strong match: 2 shared tags (react, fintech)',
   ...overrides,
 });
 
@@ -268,8 +264,8 @@ export const createBronzeMentee = (
     role: 'mentee',
     reputation_tier: 'bronze',
     tags: [
-      { slug: 'fintech', category: 'industry' },
-      { slug: 'seed', category: 'stage' },
+      { value: 'fintech', category: 'industry' },
+      { value: 'seed', category: 'stage' },
     ],
     ...overrides,
   });
@@ -287,9 +283,9 @@ export const createSilverMentee = (
     role: 'mentee',
     reputation_tier: 'silver',
     tags: [
-      { slug: 'fintech', category: 'industry' },
-      { slug: 'react', category: 'technology' },
-      { slug: 'seed', category: 'stage' },
+      { value: 'fintech', category: 'industry' },
+      { value: 'react', category: 'technology' },
+      { value: 'seed', category: 'stage' },
     ],
     ...overrides,
   });
@@ -307,9 +303,9 @@ export const createGoldMentor = (
     role: 'mentor',
     reputation_tier: 'gold',
     tags: [
-      { slug: 'fintech', category: 'industry' },
-      { slug: 'react', category: 'technology' },
-      { slug: 'series-a', category: 'stage' },
+      { value: 'fintech', category: 'industry' },
+      { value: 'react', category: 'technology' },
+      { value: 'series-a', category: 'stage' },
     ],
     ...overrides,
   });
@@ -327,9 +323,9 @@ export const createPlatinumMentor = (
     role: 'mentor',
     reputation_tier: 'platinum',
     tags: [
-      { slug: 'fintech', category: 'industry' },
-      { slug: 'vue', category: 'technology' },
-      { slug: 'series-b', category: 'stage' },
+      { value: 'fintech', category: 'industry' },
+      { value: 'vue', category: 'technology' },
+      { value: 'series-b', category: 'stage' },
     ],
     ...overrides,
   });
@@ -358,9 +354,9 @@ export const createMenteeWithCompany = (): UserWithTags => {
       updated_at: now,
     },
     tags: [
-      { slug: 'fintech', category: 'industry' },
-      { slug: 'react', category: 'technology' },
-      { slug: 'seed', category: 'stage' },
+      { value: 'fintech', category: 'industry' },
+      { value: 'react', category: 'technology' },
+      { value: 'seed', category: 'stage' },
     ],
   });
 };
@@ -377,7 +373,7 @@ export const createDormantUser = (): UserWithTags => {
     reputation_tier: 'silver',
     is_active: true,
     last_activity_at: dormancyDate,
-    tags: [{ slug: 'fintech', category: 'industry' }],
+    tags: [{ value: 'fintech', category: 'industry' }],
   });
 };
 
@@ -392,8 +388,8 @@ export const createDeletedUser = (): UserWithTags => {
     deleted_at: new Date(now.getTime() - 3600000), // Deleted 1 hour ago
     deleted_by: generateId(),
     tags: [
-      { slug: 'fintech', category: 'industry' },
-      { slug: 'react', category: 'technology' },
+      { value: 'fintech', category: 'industry' },
+      { value: 'react', category: 'technology' },
     ],
   });
 };
