@@ -7,11 +7,15 @@
 
 // External dependencies
 import { format, parseISO } from 'date-fns';
-import { Calendar, Clock } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 
 // Internal modules
 import { Card } from '@/components/ui/card';
 import type { MyBooking } from '@/services/api/bookings';
+
+// Component-specific dynamic imports for better code splitting
+const CalendarIcon = lazy(() => import('lucide-react').then(mod => ({ default: mod.Calendar })));
+const ClockIcon = lazy(() => import('lucide-react').then(mod => ({ default: mod.Clock })));
 
 // Types
 interface BookingCardProps {
@@ -140,11 +144,15 @@ export function BookingCard({ booking, currentUserId, onClick }: BookingCardProp
           {/* Date and Time */}
           <div className="space-y-1 mb-3">
             <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Calendar className="w-4 h-4" />
+              <Suspense fallback={<div className="w-4 h-4 bg-gray-200 animate-pulse rounded" />}>
+                <CalendarIcon className="w-4 h-4" />
+              </Suspense>
               <span>{dateStr}</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Clock className="w-4 h-4" />
+              <Suspense fallback={<div className="w-4 h-4 bg-gray-200 animate-pulse rounded" />}>
+                <ClockIcon className="w-4 h-4" />
+              </Suspense>
               <span>{timeStr}</span>
             </div>
           </div>

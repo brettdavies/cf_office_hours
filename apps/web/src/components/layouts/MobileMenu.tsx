@@ -1,8 +1,11 @@
-import { Menu } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { lazy, Suspense } from 'react';
+
+// Component-specific dynamic import for better code splitting
+const MenuIcon = lazy(() => import('lucide-react').then(mod => ({ default: mod.Menu })));
 
 /**
  * Mobile navigation menu with hamburger icon.
@@ -24,7 +27,9 @@ export function MobileMenu() {
     <Sheet>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="md:hidden">
-          <Menu className="h-5 w-5" />
+          <Suspense fallback={<div className="h-5 w-5 bg-gray-200 animate-pulse rounded" />}>
+            <MenuIcon className="h-5 w-5" />
+          </Suspense>
           <span className="sr-only">Open menu</span>
         </Button>
       </SheetTrigger>

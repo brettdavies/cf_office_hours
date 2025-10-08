@@ -7,15 +7,17 @@
  */
 
 // External dependencies
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { isBefore, parseISO } from 'date-fns';
-import { Calendar } from 'lucide-react';
 
 // Internal modules
 import { BookingCard } from './BookingCard';
 import { BookingCardSkeleton } from './BookingCardSkeleton';
 import { Button } from '@/components/ui/button';
 import type { MyBooking } from '@/services/api/bookings';
+
+// Component-specific dynamic imports for better code splitting
+const CalendarIcon = lazy(() => import('lucide-react').then(mod => ({ default: mod.Calendar })));
 
 // Types
 interface BookingsListProps {
@@ -49,7 +51,9 @@ function EmptyState({ tab, onFindMentors }: { tab: Tab; onFindMentors?: () => vo
 
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <Calendar className="w-16 h-16 text-gray-300 mb-4" />
+      <Suspense fallback={<div className="w-16 h-16 bg-gray-200 animate-pulse rounded mb-4" />}>
+        <CalendarIcon className="w-16 h-16 text-gray-300 mb-4" />
+      </Suspense>
       <h3 className="text-lg font-semibold text-gray-900 mb-2">{message.title}</h3>
       <p className="text-sm text-gray-600 mb-6 max-w-md">{message.description}</p>
       {message.showCTA && onFindMentors && <Button onClick={onFindMentors}>Find Mentors</Button>}

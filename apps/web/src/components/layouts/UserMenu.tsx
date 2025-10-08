@@ -1,4 +1,3 @@
-import { LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -10,6 +9,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { lazy, Suspense } from 'react';
+
+// Component-specific dynamic import for better code splitting
+const LogOutIcon = lazy(() => import('lucide-react').then(mod => ({ default: mod.LogOut })));
 
 /**
  * User menu dropdown with avatar and logout functionality.
@@ -39,7 +42,9 @@ export function UserMenu() {
         <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
+          <Suspense fallback={<div className="mr-2 h-4 w-4 bg-gray-200 animate-pulse rounded" />}>
+            <LogOutIcon className="mr-2 h-4 w-4" />
+          </Suspense>
           <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
