@@ -8,57 +8,49 @@ export default function CallbackPage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log('[AUTH] CallbackPage rendered/updated:', {
-        pathname: location.pathname,
-        search: location.search,
-        hash: location.hash,
-        isLoading,
-        isAuthenticated,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    console.log('[CALLBACK] Page rendered/updated:', {
+      pathname: location.pathname,
+      search: location.search,
+      hash: location.hash,
+      isLoading,
+      isAuthenticated,
+      timestamp: new Date().toISOString(),
+    });
 
     // Check for various auth parameters that Supabase might include
     const hasAuthParams =
       location.hash.includes('access_token') ||
       location.search.includes('code') ||
-      location.search.includes('token'); // Magic link token parameter
+      location.search.includes('token');
 
-    if (import.meta.env.DEV) {
-      console.log('[AUTH] Callback auth params check:', {
-        hasAuthParams,
-        hasAccessToken: location.hash.includes('access_token'),
-        hasCode: location.search.includes('code'),
-        hasToken: location.search.includes('token'),
-        timestamp: new Date().toISOString(),
-      });
-    }
+    console.log('[CALLBACK] Auth params check:', {
+      hasAuthParams,
+      hasAccessToken: location.hash.includes('access_token'),
+      hasCode: location.search.includes('code'),
+      hasToken: location.search.includes('token'),
+      timestamp: new Date().toISOString(),
+    });
 
     // Wait for auth state to be loaded
     if (!isLoading) {
+      console.log('[CALLBACK] Auth loading complete', { isAuthenticated, hasAuthParams });
+
       if (isAuthenticated) {
-        // User is authenticated, redirect to dashboard or intended destination
         const state = location.state as { from?: { pathname: string } } | null;
         const from = state?.from?.pathname || '/dashboard';
-        if (import.meta.env.DEV) {
-          console.log('[AUTH] User authenticated, redirecting to:', {
-            destination: from,
-            timestamp: new Date().toISOString(),
-          });
-        }
+        console.log('[CALLBACK] User authenticated, redirecting to:', {
+          destination: from,
+          timestamp: new Date().toISOString(),
+        });
         navigate(from, { replace: true });
       } else if (!hasAuthParams) {
-        // No auth and no auth params in URL, redirect to login
-        if (import.meta.env.DEV) {
-          console.log('[AUTH] No auth params found, redirecting to login', {
-            timestamp: new Date().toISOString(),
-          });
-        }
+        console.log('[CALLBACK] No auth params found, redirecting to login', {
+          timestamp: new Date().toISOString(),
+        });
         navigate('/auth/login', { replace: true });
-      } else if (import.meta.env.DEV) {
+      } else {
         console.warn(
-          '[AUTH] Premature redirect prevented - auth params present but session not yet established',
+          '[CALLBACK] Waiting for session - auth params present but not authenticated yet',
           {
             hasAuthParams,
             isLoading,
@@ -67,10 +59,8 @@ export default function CallbackPage() {
           }
         );
       }
-      // If !isAuthenticated but hasAuthParams, stay on callback page
-      // The auth state change listener will trigger soon and update isAuthenticated
-    } else if (import.meta.env.DEV) {
-      console.log('[AUTH] Auth is still loading...', {
+    } else {
+      console.log('[CALLBACK] Auth is still loading...', {
         isLoading,
         timestamp: new Date().toISOString(),
       });
