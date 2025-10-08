@@ -40,6 +40,7 @@ export const UserProfileSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),
   name: z.string(),
+  avatar_url: z.string().url().nullable().optional(),
   title: z.string().nullable(),
   company: z.string().nullable(),
   bio: z.string().nullable(),
@@ -48,21 +49,40 @@ export const UserProfileSchema = z.object({
 });
 
 /**
+ * Schema for user tag (from user_tags join table).
+ */
+export const UserTagSchema = z.object({
+  taxonomy_id: z.string().uuid(),
+  category: z.string(),
+  value: z.string(),
+  display_name: z.string(),
+});
+
+/**
+ * Reputation tier enum.
+ * Matches database enum: reputation_tier ('bronze', 'silver', 'gold', 'platinum')
+ */
+export const ReputationTierSchema = z.enum(['bronze', 'silver', 'gold', 'platinum']);
+
+/**
  * Schema for user response with embedded profile.
  *
  * Returned by:
  * - GET /v1/users/me
  * - PUT /v1/users/me
  * - GET /v1/users/:id
+ * - POST /v1/matching/find-matches (in match results)
  */
 export const UserResponseSchema = z.object({
   id: z.string().uuid(),
   airtable_record_id: z.string().nullable(),
   email: z.string().email(),
   role: UserRoleSchema,
+  reputation_tier: ReputationTierSchema.optional(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
   profile: UserProfileSchema,
+  tags: z.array(UserTagSchema).optional(),
 });
 
 /**
@@ -72,6 +92,8 @@ export const UserResponseSchema = z.object({
  * provide runtime validation.
  */
 export type UserRole = z.infer<typeof UserRoleSchema>;
+export type UserTag = z.infer<typeof UserTagSchema>;
+export type ReputationTier = z.infer<typeof ReputationTierSchema>;
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileSchema>;
 export type UserProfileResponse = z.infer<typeof UserProfileSchema>;
 export type UserResponse = z.infer<typeof UserResponseSchema>;
