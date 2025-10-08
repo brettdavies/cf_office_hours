@@ -47,7 +47,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 27 (Stories 0-21 = core skeleton, Stories 22-25 = event-driven matching system, Story 26 = coordinator matching UI)
+**Estimated Stories:** 28 (Stories 0-21 = core skeleton, Stories 22-26 = event-driven matching system, Story 27 = AI-based matching)
 **Dependencies:** None (foundation)
 **Timeline:** Sprint 1-2 (Weeks 1-4) + 1 day for pre-deployment testing + 1 day for production deployment
 **Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
@@ -440,6 +440,25 @@ Epic 8: Admin & Coordinator Tools
     - **Related:** Stories 0.22-0.25 (Matching Engine Foundation), FR13, FR15, FR16, Section 4.5
     - **Dependencies:** Story 0.24 (MatchingService API endpoints)
     - **Note:** UI consumes matching cache infrastructure from Epic 0; algorithm switching demonstrates pluggable architecture
+
+27. **MATCH-AI-001: AI-Based Matching Algorithm**
+    - As a **coordinator**, I want an AI-based matching algorithm that compares mentor expertise with mentee company needs
+    - **Acceptance Criteria:**
+      - `AiBasedMatchingEngineV1` class extends `BaseMatchingEngine<UserWithProfile>`
+      - Algorithm version: `'ai-based-v1'` (0-100 score range)
+      - OpenAI GPT-5 integration: temperature 0.3, 10-second timeout via AbortController
+      - Data requirements: Mentor bio (user_profiles.bio), Mentee company description (portfolio_companies.description)
+      - Graceful degradation: Returns 0 score on missing data or API errors
+      - Rate limiting: 5 matches/chunk, 500ms delay between chunks (API-friendly)
+      - Match explanation with score categorization (Excellent 70+, Good 50-69, Fair 30-49, Weak <30)
+      - Environment: OPENAI_API_KEY secret documented in wrangler.toml
+      - Centralized test fixtures per Section 14.11.2 (11 passing unit tests)
+      - Comprehensive dev-only logging with `[MATCHING:AI]` prefix
+      - Compatible with existing MatchingService (algorithmVersion parameter)
+      - No frontend changes required (coordinator UI already supports algorithm switching)
+    - **Related:** Stories 0.22-0.26 (Matching Engine Foundation), FR13, FR14, Section 4.5
+    - **Dependencies:** Story 0.22 (IMatchingEngine Interface), Story 0.23 (BaseMatchingEngine)
+    - **Note:** Second matching algorithm demonstrating pluggable architecture; PII data sharing with OpenAI requires privacy review before production
 
 ---
 
@@ -1319,15 +1338,15 @@ Epic 8: Admin & Coordinator Tools
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 95 (Epic 0 expanded with event-driven matching system)
-**Critical Path (P0):** Epics 0-4 (27 + 9 + 11 + 10 + 11 = 68 stories)
+**Total Stories:** 96 (Epic 0 expanded with event-driven matching system + AI-based matching)
+**Critical Path (P0):** Epics 0-4 (28 + 9 + 11 + 10 + 11 = 69 stories)
 **High Priority (P1):** Epics 5-7 (7 + 3 + 10 = 20 stories) (Epic 6 reduced: 4 stories moved to Epic 0)
 **Medium Priority (P2):** Epic 8 (7 stories) - Stories 89-95
-**Total:** 68 + 20 + 7 = 95 stories
+**Total:** 69 + 20 + 7 = 96 stories
 
 **Recommended Sprint Breakdown (2-week sprints):**
 
-- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 27 stories (Stories 0-26) → **DEPLOYED END-TO-END WORKING PRODUCT**
+- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 28 stories (Stories 0-27) → **DEPLOYED END-TO-END WORKING PRODUCT**
 - **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories (Stories 28-36)
 - **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories (Stories 37-47)
 - **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories (Stories 48-57)

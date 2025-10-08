@@ -30,3 +30,4 @@ export type { BaseUserData, CacheEntry } from './base.engine';
 
 // Concrete implementations
 export { TagBasedMatchingEngineV1 } from './tag-based.engine';
+export { AiBasedMatchingEngineV1 } from './ai-based.engine';

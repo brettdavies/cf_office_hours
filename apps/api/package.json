@@ -23,6 +23,7 @@
     "date-fns": "^3.2.0",
     "googleapis": "^131.0.0",
     "hono": "^4.0.2",
+    "openai": "^6.2.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

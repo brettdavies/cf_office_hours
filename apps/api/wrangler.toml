@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2025-03-11"
 compatibility_flags = ["nodejs_compat"]
 
+# Secrets (set via: wrangler secret put SECRET_NAME)
+# - SUPABASE_SERVICE_ROLE_KEY: Service role key for Supabase admin operations
+# - OPENAI_API_KEY: OpenAI API key for AI-based matching engine
+
 [dev]
 port = 8787
 
