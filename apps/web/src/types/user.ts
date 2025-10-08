@@ -11,7 +11,8 @@ import type { paths } from '@shared/types/api.generated';
  * User profile with authentication information from /v1/users/me endpoint.
  * This matches the API response structure exactly.
  */
-export type UserWithProfile = paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
+export type UserWithProfile =
+  paths['/v1/users/me']['get']['responses']['200']['content']['application/json'];
 
 /**
  * User role type - extracted from the API schema.

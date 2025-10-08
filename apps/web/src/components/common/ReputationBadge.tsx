@@ -38,11 +38,7 @@ const tierLabels = {
  * @param score - Numerical score to display (optional)
  * @param showScore - Whether to show the numerical score (default: true)
  */
-export function ReputationBadge({
-  tier,
-  score,
-  showScore = true,
-}: ReputationBadgeProps) {
+export function ReputationBadge({ tier, score, showScore = true }: ReputationBadgeProps) {
   return (
     <Badge className={cn('gap-1', tierColors[tier])}>
       <Star size={12} fill="currentColor" />

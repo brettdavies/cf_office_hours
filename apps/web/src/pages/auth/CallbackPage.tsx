@@ -57,12 +57,15 @@ export default function CallbackPage() {
         }
         navigate('/auth/login', { replace: true });
       } else if (import.meta.env.DEV) {
-        console.warn('[AUTH] Premature redirect prevented - auth params present but session not yet established', {
-          hasAuthParams,
-          isLoading,
-          isAuthenticated,
-          timestamp: new Date().toISOString(),
-        });
+        console.warn(
+          '[AUTH] Premature redirect prevented - auth params present but session not yet established',
+          {
+            hasAuthParams,
+            isLoading,
+            isAuthenticated,
+            timestamp: new Date().toISOString(),
+          }
+        );
       }
       // If !isAuthenticated but hasAuthParams, stay on callback page
       // The auth state change listener will trigger soon and update isAuthenticated

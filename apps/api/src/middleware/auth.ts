@@ -163,7 +163,9 @@ export const requireAuth = async (
  * app.get('/matches', requireAuth, requireRole(['mentor', 'coordinator']), handler);
  * ```
  */
-export const requireRole = (allowedRoles: 'mentee' | 'mentor' | 'coordinator' | Array<'mentee' | 'mentor' | 'coordinator'>) => {
+export const requireRole = (
+  allowedRoles: 'mentee' | 'mentor' | 'coordinator' | Array<'mentee' | 'mentor' | 'coordinator'>
+) => {
   return async (c: Context<{ Bindings: Env; Variables: Variables }>, next: Next) => {
     const user = c.get('user');
 

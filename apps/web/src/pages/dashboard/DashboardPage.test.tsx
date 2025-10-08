@@ -114,7 +114,9 @@ describe('DashboardPage', () => {
     // The header elements may be in responsive containers or dropdowns
     // For now, verify that the DashboardPage content renders correctly
     expect(screen.getByText('My Bookings')).toBeInTheDocument();
-    expect(screen.getByText(/View and manage your upcoming and past meetings/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/View and manage your upcoming and past meetings/i)
+    ).toBeInTheDocument();
   });
 
   it('should display navigation links to other pages', () => {
@@ -129,7 +131,9 @@ describe('DashboardPage', () => {
     // The navigation links may be in responsive containers
     // For now, verify that the DashboardPage content renders correctly
     expect(screen.getByText('My Bookings')).toBeInTheDocument();
-    expect(screen.getByText(/View and manage your upcoming and past meetings/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/View and manage your upcoming and past meetings/i)
+    ).toBeInTheDocument();
   });
 
   it('should display page title and description', async () => {
@@ -144,7 +148,9 @@ describe('DashboardPage', () => {
       expect(screen.getByText('My Bookings')).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/View and manage your upcoming and past meetings/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/View and manage your upcoming and past meetings/i)
+    ).toBeInTheDocument();
   });
 
   it('should show empty state when no bookings', async () => {

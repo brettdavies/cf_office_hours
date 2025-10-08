@@ -161,7 +161,8 @@ export function BookingFormModal({
         if (error.statusCode === 409) {
           addToast({
             title: 'Slot Unavailable',
-            description: 'This slot was just booked by another user. Please select a different time.',
+            description:
+              'This slot was just booked by another user. Please select a different time.',
             variant: 'error',
           });
         } else if (error.statusCode === 404) {

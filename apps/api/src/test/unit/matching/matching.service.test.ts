@@ -6,17 +6,14 @@
  */
 
 // External dependencies
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Internal modules
-import { MatchingService } from "../../../services/matching.service";
-import {
-  createMockMatchExplanation,
-  createMockUser,
-} from "../../../test/fixtures/matching";
+import { MatchingService } from '../../../services/matching.service';
+import { createMockMatchExplanation, createMockUser } from '../../../test/fixtures/matching';
 
 // Types
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Creates a mock Supabase client with chainable query builder
@@ -39,7 +36,7 @@ const createMockSupabaseClient = () => {
   return { mockDb, mockQuery };
 };
 
-describe("MatchingService", () => {
+describe('MatchingService', () => {
   let service: MatchingService;
   let mockDb: SupabaseClient;
   let mockQuery: any;
@@ -52,12 +49,12 @@ describe("MatchingService", () => {
     vi.clearAllMocks();
   });
 
-  describe("getRecommendedMentors", () => {
-    it("should return sorted matches from cache", async () => {
-      const userId = "mentee-123";
-      const mockUser1 = createMockUser({ id: "mentor-1", role: "mentor" });
-      const mockUser2 = createMockUser({ id: "mentor-2", role: "mentor" });
-      const mockUser3 = createMockUser({ id: "mentor-3", role: "mentor" });
+  describe('getRecommendedMentors', () => {
+    it('should return sorted matches from cache', async () => {
+      const userId = 'mentee-123';
+      const mockUser1 = createMockUser({ id: 'mentor-1', role: 'mentor' });
+      const mockUser2 = createMockUser({ id: 'mentor-2', role: 'mentor' });
+      const mockUser3 = createMockUser({ id: 'mentor-3', role: 'mentor' });
 
       const mockMatches = [
         {
@@ -66,12 +63,12 @@ describe("MatchingService", () => {
           recommended_user: {
             ...mockUser1,
             profile: {
-              id: "profile-1",
+              id: 'profile-1',
               user_id: mockUser1.id,
-              name: "Mentor One",
-              title: "Senior Engineer",
-              company: "Tech Co",
-              bio: "Experienced mentor",
+              name: 'Mentor One',
+              title: 'Senior Engineer',
+              company: 'Tech Co',
+              bio: 'Experienced mentor',
               created_at: mockUser1.created_at.toISOString(),
               updated_at: mockUser1.updated_at.toISOString(),
             },
@@ -83,12 +80,12 @@ describe("MatchingService", () => {
           recommended_user: {
             ...mockUser2,
             profile: {
-              id: "profile-2",
+              id: 'profile-2',
               user_id: mockUser2.id,
-              name: "Mentor Two",
-              title: "Lead Developer",
-              company: "Startup Inc",
-              bio: "Helpful mentor",
+              name: 'Mentor Two',
+              title: 'Lead Developer',
+              company: 'Startup Inc',
+              bio: 'Helpful mentor',
               created_at: mockUser2.created_at.toISOString(),
               updated_at: mockUser2.updated_at.toISOString(),
             },
@@ -100,12 +97,12 @@ describe("MatchingService", () => {
           recommended_user: {
             ...mockUser3,
             profile: {
-              id: "profile-3",
+              id: 'profile-3',
               user_id: mockUser3.id,
-              name: "Mentor Three",
-              title: "CTO",
-              company: "Big Corp",
-              bio: "Great mentor",
+              name: 'Mentor Three',
+              title: 'CTO',
+              company: 'Big Corp',
+              bio: 'Great mentor',
               created_at: mockUser3.created_at.toISOString(),
               updated_at: mockUser3.updated_at.toISOString(),
             },
@@ -121,8 +118,7 @@ describe("MatchingService", () => {
       // For the main query (not using maybeSingle), mock the final result
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
-        then: async (resolve: any) =>
-          resolve({ data: mockMatches, error: null }),
+        then: async (resolve: any) => resolve({ data: mockMatches, error: null }),
       } as any);
 
       const results = await service.getRecommendedMentors(userId);
@@ -131,12 +127,12 @@ describe("MatchingService", () => {
       expect(results[0].score).toBe(85);
       expect(results[1].score).toBe(72);
       expect(results[2].score).toBe(91);
-      expect(results[0].user.id).toBe("mentor-1");
-      expect(mockDb.from).toHaveBeenCalledWith("user_match_cache");
+      expect(results[0].user.id).toBe('mentor-1');
+      expect(mockDb.from).toHaveBeenCalledWith('user_match_cache');
     });
 
-    it("should respect limit option", async () => {
-      const userId = "mentee-123";
+    it('should respect limit option', async () => {
+      const userId = 'mentee-123';
 
       // Mock empty response
       vi.mocked(mockDb.from).mockReturnValue({
@@ -149,8 +145,8 @@ describe("MatchingService", () => {
       expect(mockQuery.limit).toHaveBeenCalledWith(10);
     });
 
-    it("should cap limit at 20", async () => {
-      const userId = "mentee-123";
+    it('should cap limit at 20', async () => {
+      const userId = 'mentee-123';
 
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
@@ -163,8 +159,8 @@ describe("MatchingService", () => {
       expect(mockQuery.limit).toHaveBeenCalledWith(20);
     });
 
-    it("should respect minScore filter", async () => {
-      const userId = "mentee-123";
+    it('should respect minScore filter', async () => {
+      const userId = 'mentee-123';
 
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
@@ -173,11 +169,11 @@ describe("MatchingService", () => {
 
       await service.getRecommendedMentors(userId, { minScore: 75 });
 
-      expect(mockQuery.gte).toHaveBeenCalledWith("match_score", 75);
+      expect(mockQuery.gte).toHaveBeenCalledWith('match_score', 75);
     });
 
-    it("should respect algorithmVersion filter", async () => {
-      const userId = "mentee-123";
+    it('should respect algorithmVersion filter', async () => {
+      const userId = 'mentee-123';
 
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
@@ -185,14 +181,14 @@ describe("MatchingService", () => {
       } as any);
 
       await service.getRecommendedMentors(userId, {
-        algorithmVersion: "ml-v2",
+        algorithmVersion: 'ml-v2',
       });
 
-      expect(mockQuery.eq).toHaveBeenCalledWith("algorithm_version", "ml-v2");
+      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'ml-v2');
     });
 
-    it("should return empty array if no matches found", async () => {
-      const userId = "mentee-123";
+    it('should return empty array if no matches found', async () => {
+      const userId = 'mentee-123';
 
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
@@ -204,28 +200,28 @@ describe("MatchingService", () => {
       expect(results).toEqual([]);
     });
 
-    it("should throw error on database failure", async () => {
-      const userId = "mentee-123";
+    it('should throw error on database failure', async () => {
+      const userId = 'mentee-123';
 
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
         then: async (resolve: any) =>
           resolve({
             data: null,
-            error: { message: "Database connection failed" },
+            error: { message: 'Database connection failed' },
           }),
       } as any);
 
       await expect(service.getRecommendedMentors(userId)).rejects.toThrow(
-        "Failed to fetch matches",
+        'Failed to fetch matches'
       );
     });
   });
 
-  describe("getRecommendedMentees", () => {
-    it("should return sorted matches from cache", async () => {
-      const userId = "mentor-123";
-      const mockUser1 = createMockUser({ id: "mentee-1", role: "mentee" });
+  describe('getRecommendedMentees', () => {
+    it('should return sorted matches from cache', async () => {
+      const userId = 'mentor-123';
+      const mockUser1 = createMockUser({ id: 'mentee-1', role: 'mentee' });
 
       const mockMatches = [
         {
@@ -234,12 +230,12 @@ describe("MatchingService", () => {
           recommended_user: {
             ...mockUser1,
             profile: {
-              id: "profile-1",
+              id: 'profile-1',
               user_id: mockUser1.id,
-              name: "Mentee One",
-              title: "Junior Dev",
-              company: "Startup",
-              bio: "Eager to learn",
+              name: 'Mentee One',
+              title: 'Junior Dev',
+              company: 'Startup',
+              bio: 'Eager to learn',
               created_at: mockUser1.created_at.toISOString(),
               updated_at: mockUser1.updated_at.toISOString(),
             },
@@ -249,19 +245,18 @@ describe("MatchingService", () => {
 
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
-        then: async (resolve: any) =>
-          resolve({ data: mockMatches, error: null }),
+        then: async (resolve: any) => resolve({ data: mockMatches, error: null }),
       } as any);
 
       const results = await service.getRecommendedMentees(userId);
 
       expect(results).toHaveLength(1);
       expect(results[0].score).toBe(80);
-      expect(results[0].user.role).toBe("mentee");
+      expect(results[0].user.role).toBe('mentee');
     });
 
-    it("should use correct algorithm version default", async () => {
-      const userId = "mentor-123";
+    it('should use correct algorithm version default', async () => {
+      const userId = 'mentor-123';
 
       vi.mocked(mockDb.from).mockReturnValue({
         ...mockQuery,
@@ -270,20 +265,16 @@ describe("MatchingService", () => {
 
       await service.getRecommendedMentees(userId);
 
-      expect(mockQuery.eq).toHaveBeenCalledWith(
-        "algorithm_version",
-        "tag-based-v1",
-      );
+      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'tag-based-v1');
     });
   });
 
-  describe("explainMatch", () => {
-    it("should return explanation for cached match (user1 → user2)", async () => {
-      const userId1 = "mentee-123";
-      const userId2 = "mentor-456";
+  describe('explainMatch', () => {
+    it('should return explanation for cached match (user1 → user2)', async () => {
+      const userId1 = 'mentee-123';
+      const userId2 = 'mentor-456';
       const mockExplanation = createMockMatchExplanation({
-        summary:
-          "Strong match: 5 shared tags, same startup stage, compatible reputation tiers",
+        summary: 'Strong match: 5 shared tags, same startup stage, compatible reputation tiers',
       });
 
       mockQuery.maybeSingle.mockResolvedValue({
@@ -295,15 +286,12 @@ describe("MatchingService", () => {
 
       expect(result).toEqual(mockExplanation);
       expect(mockQuery.or).toHaveBeenCalled();
-      expect(mockQuery.eq).toHaveBeenCalledWith(
-        "algorithm_version",
-        "tag-based-v1",
-      );
+      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'tag-based-v1');
     });
 
-    it("should return null if no cached match found", async () => {
-      const userId1 = "mentee-123";
-      const userId2 = "mentor-456";
+    it('should return null if no cached match found', async () => {
+      const userId1 = 'mentee-123';
+      const userId2 = 'mentor-456';
 
       mockQuery.maybeSingle.mockResolvedValue({ data: null, error: null });
 
@@ -312,9 +300,9 @@ describe("MatchingService", () => {
       expect(result).toBeNull();
     });
 
-    it("should handle bidirectional lookup", async () => {
-      const userId1 = "mentor-456";
-      const userId2 = "mentee-123";
+    it('should handle bidirectional lookup', async () => {
+      const userId1 = 'mentor-456';
+      const userId2 = 'mentee-123';
       const mockExplanation = createMockMatchExplanation();
 
       mockQuery.maybeSingle.mockResolvedValue({
@@ -326,34 +314,32 @@ describe("MatchingService", () => {
 
       expect(result).toEqual(mockExplanation);
       // Should use OR query for bidirectional lookup
-      expect(mockQuery.or).toHaveBeenCalledWith(
-        expect.stringContaining("user_id.eq."),
-      );
+      expect(mockQuery.or).toHaveBeenCalledWith(expect.stringContaining('user_id.eq.'));
     });
 
-    it("should throw error on database failure", async () => {
-      const userId1 = "mentee-123";
-      const userId2 = "mentor-456";
+    it('should throw error on database failure', async () => {
+      const userId1 = 'mentee-123';
+      const userId2 = 'mentor-456';
 
       mockQuery.maybeSingle.mockResolvedValue({
         data: null,
-        error: { message: "Connection timeout" },
+        error: { message: 'Connection timeout' },
       });
 
       await expect(service.explainMatch(userId1, userId2)).rejects.toThrow(
-        "Failed to fetch match explanation",
+        'Failed to fetch match explanation'
       );
     });
 
-    it("should respect custom algorithm version", async () => {
-      const userId1 = "mentee-123";
-      const userId2 = "mentor-456";
+    it('should respect custom algorithm version', async () => {
+      const userId1 = 'mentee-123';
+      const userId2 = 'mentor-456';
 
       mockQuery.maybeSingle.mockResolvedValue({ data: null, error: null });
 
-      await service.explainMatch(userId1, userId2, "ml-v2");
+      await service.explainMatch(userId1, userId2, 'ml-v2');
 
-      expect(mockQuery.eq).toHaveBeenCalledWith("algorithm_version", "ml-v2");
+      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'ml-v2');
     });
   });
 });

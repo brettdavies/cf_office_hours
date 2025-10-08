@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 const mockAddToast = vi.fn();
 
 vi.mock('@/stores/notificationStore', () => ({
-  useNotificationStore: vi.fn((selector) => {
+  useNotificationStore: vi.fn(selector => {
     const state = {
       addToast: mockAddToast,
     };

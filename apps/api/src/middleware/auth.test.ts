@@ -198,7 +198,7 @@ describe('requireAuth middleware', () => {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             limit: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({
+              maybeSingle: vi.fn().mockResolvedValue({
                 data: { email: 'mentee@example.com', role: 'mentee' },
                 error: null,
               }),

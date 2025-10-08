@@ -5,29 +5,29 @@
  */
 
 // External dependencies
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Internal modules
-import app from "../../../index";
-import { BookingService } from "../../../services/booking.service";
-import { createMockBooking } from "../../../test/fixtures/bookings";
-import { AppError } from "../../../lib/errors";
+import app from '../../../index';
+import { BookingService } from '../../../services/booking.service';
+import { createMockBooking } from '../../../test/fixtures/bookings';
+import { AppError } from '../../../lib/errors';
 
 // Types
-import type { BookingResponse } from "@cf-office-hours/shared";
+import type { BookingResponse } from '@cf-office-hours/shared';
 
 // Mock BookingService
-vi.mock("../../../services/booking.service");
+vi.mock('../../../services/booking.service');
 
 // Mock requireAuth middleware to inject a test user
-vi.mock("../../../middleware/auth", () => ({
+vi.mock('../../../middleware/auth', () => ({
   requireAuth: vi.fn(async (c, next) => {
-    const testUser = c.get("testUser") || {
-      id: "test-mentee-123",
-      email: "mentee@example.com",
-      role: "mentee",
+    const testUser = c.get('testUser') || {
+      id: 'test-mentee-123',
+      email: 'mentee@example.com',
+      role: 'mentee',
     };
-    c.set("user", testUser);
+    c.set('user', testUser);
     return await next();
   }),
   requireRole: vi.fn(() =>
@@ -37,63 +37,58 @@ vi.mock("../../../middleware/auth", () => ({
   ),
 }));
 
-describe("Bookings API Routes", () => {
+describe('Bookings API Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("POST /v1/bookings", () => {
+  describe('POST /v1/bookings', () => {
     const validRequest = {
-      time_slot_id: "a1b2c3d4-e5f6-4789-a012-345678901234",
-      meeting_goal:
-        "Discuss product-market fit strategy for early-stage SaaS startup",
+      time_slot_id: 'a1b2c3d4-e5f6-4789-a012-345678901234',
+      meeting_goal: 'Discuss product-market fit strategy for early-stage SaaS startup',
     };
 
-    it("should create booking with valid data and return 201", async () => {
+    it('should create booking with valid data and return 201', async () => {
       const mockBooking = createMockBooking({
-        mentee_id: "test-mentee-123",
-        status: "pending",
+        mentee_id: 'test-mentee-123',
+        status: 'pending',
       });
 
-      vi.spyOn(BookingService.prototype, "createBooking").mockResolvedValue(
-        mockBooking,
-      );
+      vi.spyOn(BookingService.prototype, 'createBooking').mockResolvedValue(mockBooking);
 
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(validRequest),
       });
 
       expect(res.status).toBe(201);
       const data = (await res.json()) as BookingResponse;
-      expect(data.id).toBe("booking-123");
-      expect(data.mentee_id).toBe("test-mentee-123");
-      expect(data.status).toBe("pending");
+      expect(data.id).toBe('booking-123');
+      expect(data.mentee_id).toBe('test-mentee-123');
+      expect(data.status).toBe('pending');
       expect(data.meeting_goal).toBe(validRequest.meeting_goal);
     });
 
-    it("should have status=pending for new bookings (Epic 0)", async () => {
-      const mockBooking = createMockBooking({ status: "pending" });
-      vi.spyOn(BookingService.prototype, "createBooking").mockResolvedValue(
-        mockBooking,
-      );
+    it('should have status=pending for new bookings (Epic 0)', async () => {
+      const mockBooking = createMockBooking({ status: 'pending' });
+      vi.spyOn(BookingService.prototype, 'createBooking').mockResolvedValue(mockBooking);
 
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(validRequest),
       });
 
       expect(res.status).toBe(201);
       const data = (await res.json()) as BookingResponse;
-      expect(data.status).toBe("pending");
+      expect(data.status).toBe('pending');
     });
 
     // NOTE: HTTP-layer validation tests are skipped due to @hono/zod-openapi + Vitest mock limitations.
@@ -109,18 +104,18 @@ describe("Bookings API Routes", () => {
     //
     // Resolution: Schema validation is now comprehensively unit tested. HTTP-layer validation
     // can be verified via E2E tests or manual testing if needed.
-    it.skip("should return 400 with invalid meeting_goal (too short)", async () => {
+    it.skip('should return 400 with invalid meeting_goal (too short)', async () => {
       // Zod validation should catch this before reaching service layer
       const invalidRequest = {
-        time_slot_id: "a1b2c3d4-e5f6-4789-a012-345678901234",
-        meeting_goal: "Short", // Less than 10 characters
+        time_slot_id: 'a1b2c3d4-e5f6-4789-a012-345678901234',
+        meeting_goal: 'Short', // Less than 10 characters
       };
 
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(invalidRequest),
       });
@@ -130,18 +125,18 @@ describe("Bookings API Routes", () => {
       expect(data.error).toBeDefined();
     });
 
-    it.skip("should return 400 with invalid time_slot_id (not UUID)", async () => {
+    it.skip('should return 400 with invalid time_slot_id (not UUID)', async () => {
       // Zod validation should catch this before reaching service layer
       const invalidRequest = {
-        time_slot_id: "not-a-uuid",
-        meeting_goal: "Discuss product strategy for at least ten characters",
+        time_slot_id: 'not-a-uuid',
+        meeting_goal: 'Discuss product strategy for at least ten characters',
       };
 
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(invalidRequest),
       });
@@ -151,18 +146,18 @@ describe("Bookings API Routes", () => {
       expect(data.error).toBeDefined();
     });
 
-    it("should return 404 when time slot not found", async () => {
-      vi.spyOn(BookingService.prototype, "createBooking").mockRejectedValue(
-        new AppError(404, "Time slot not found", "SLOT_NOT_FOUND", {
-          time_slot_id: "nonexistent-slot",
-        }),
+    it('should return 404 when time slot not found', async () => {
+      vi.spyOn(BookingService.prototype, 'createBooking').mockRejectedValue(
+        new AppError(404, 'Time slot not found', 'SLOT_NOT_FOUND', {
+          time_slot_id: 'nonexistent-slot',
+        })
       );
 
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(validRequest),
       });
@@ -171,22 +166,22 @@ describe("Bookings API Routes", () => {
       const data = (await res.json()) as {
         error: { code: string; message: string };
       };
-      expect(data.error.code).toBe("SLOT_NOT_FOUND");
-      expect(data.error.message).toBe("Time slot not found");
+      expect(data.error.code).toBe('SLOT_NOT_FOUND');
+      expect(data.error.message).toBe('Time slot not found');
     });
 
-    it("should return 409 when slot is already booked", async () => {
-      vi.spyOn(BookingService.prototype, "createBooking").mockRejectedValue(
-        new AppError(409, "This slot is already booked", "SLOT_UNAVAILABLE", {
-          time_slot_id: "slot-123",
-        }),
+    it('should return 409 when slot is already booked', async () => {
+      vi.spyOn(BookingService.prototype, 'createBooking').mockRejectedValue(
+        new AppError(409, 'This slot is already booked', 'SLOT_UNAVAILABLE', {
+          time_slot_id: 'slot-123',
+        })
       );
 
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(validRequest),
       });
@@ -195,15 +190,15 @@ describe("Bookings API Routes", () => {
       const data = (await res.json()) as {
         error: { code: string; message: string };
       };
-      expect(data.error.code).toBe("SLOT_UNAVAILABLE");
-      expect(data.error.message).toBe("This slot is already booked");
+      expect(data.error.code).toBe('SLOT_UNAVAILABLE');
+      expect(data.error.message).toBe('This slot is already booked');
     });
 
-    it("should return 401 when missing authentication token", async () => {
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+    it('should return 401 when missing authentication token', async () => {
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(validRequest),
       });
@@ -213,45 +208,42 @@ describe("Bookings API Routes", () => {
       expect(res.status).not.toBe(500);
     });
 
-    it("should return 500 on unexpected database error", async () => {
-      vi.spyOn(BookingService.prototype, "createBooking").mockRejectedValue(
-        new AppError(500, "Failed to create booking", "DATABASE_ERROR"),
+    it('should return 500 on unexpected database error', async () => {
+      vi.spyOn(BookingService.prototype, 'createBooking').mockRejectedValue(
+        new AppError(500, 'Failed to create booking', 'DATABASE_ERROR')
       );
 
-      const res = await app.request("/v1/bookings", {
-        method: "POST",
+      const res = await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(validRequest),
       });
 
       expect(res.status).toBe(500);
       const data = (await res.json()) as { error: { code: string } };
-      expect(data.error.code).toBe("DATABASE_ERROR");
+      expect(data.error.code).toBe('DATABASE_ERROR');
     });
 
     // TODO: Fix body parsing test - request body coming as undefined
-    it.skip("should call service with correct userId from JWT", async () => {
+    it.skip('should call service with correct userId from JWT', async () => {
       const mockBooking = createMockBooking();
       const createBookingSpy = vi
-        .spyOn(BookingService.prototype, "createBooking")
+        .spyOn(BookingService.prototype, 'createBooking')
         .mockResolvedValue(mockBooking);
 
-      await app.request("/v1/bookings", {
-        method: "POST",
+      await app.request('/v1/bookings', {
+        method: 'POST',
         headers: {
-          Authorization: "Bearer mock-token",
-          "Content-Type": "application/json",
+          Authorization: 'Bearer mock-token',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(validRequest),
       });
 
-      expect(createBookingSpy).toHaveBeenCalledWith(
-        "test-mentee-123",
-        validRequest,
-      );
+      expect(createBookingSpy).toHaveBeenCalledWith('test-mentee-123', validRequest);
     });
   });
 });

@@ -5,152 +5,147 @@
  */
 
 // External dependencies
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Internal modules
-import { UserService } from "../../../services/user.service";
-import { UserRepository } from "../../../repositories/user.repository";
-import { AppError } from "../../../lib/errors";
+import { UserService } from '../../../services/user.service';
+import { UserRepository } from '../../../repositories/user.repository';
+import { AppError } from '../../../lib/errors';
 
 // Types
-import type { UserResponse } from "@cf-office-hours/shared";
-import type { Env } from "../../../../types/bindings";
+import type { UserResponse } from '@cf-office-hours/shared';
+import type { Env } from '../../../../types/bindings';
 
 // Mock UserRepository
-vi.mock("../../../repositories/user.repository");
+vi.mock('../../../repositories/user.repository');
 
-describe("UserService", () => {
+describe('UserService', () => {
   let userService: UserService;
   let mockUserRepo: ReturnType<typeof vi.mocked<UserRepository>>;
   const mockEnv = {} as Env;
 
   const mockUser: UserResponse = {
-    id: "user-123",
+    id: 'user-123',
     airtable_record_id: null,
-    email: "test@example.com",
-    role: "mentee",
-    created_at: "2025-01-01T00:00:00Z",
-    updated_at: "2025-01-01T00:00:00Z",
+    email: 'test@example.com',
+    role: 'mentee',
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
     profile: {
-      id: "profile-123",
-      user_id: "user-123",
-      name: "Test User",
-      title: "Software Engineer",
-      company: "Acme Corp",
-      bio: "Test bio",
-      created_at: "2025-01-01T00:00:00Z",
-      updated_at: "2025-01-01T00:00:00Z",
+      id: 'profile-123',
+      user_id: 'user-123',
+      name: 'Test User',
+      title: 'Software Engineer',
+      company: 'Acme Corp',
+      bio: 'Test bio',
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
     },
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     userService = new UserService(mockEnv);
-    mockUserRepo = vi.mocked(userService["userRepo"]);
+    mockUserRepo = vi.mocked(userService['userRepo']);
   });
 
-  describe("getMe", () => {
-    it("should return user profile for valid user ID", async () => {
+  describe('getMe', () => {
+    it('should return user profile for valid user ID', async () => {
       mockUserRepo.getUserWithProfile = vi.fn().mockResolvedValue(mockUser);
 
-      const result = await userService.getMe("user-123");
+      const result = await userService.getMe('user-123');
 
       expect(result).toEqual(mockUser);
-      expect(mockUserRepo.getUserWithProfile).toHaveBeenCalledWith("user-123");
+      expect(mockUserRepo.getUserWithProfile).toHaveBeenCalledWith('user-123');
       expect(mockUserRepo.getUserWithProfile).toHaveBeenCalledTimes(1);
     });
 
-    it("should throw AppError when user not found", async () => {
+    it('should throw AppError when user not found', async () => {
       mockUserRepo.getUserWithProfile = vi.fn().mockResolvedValue(null);
 
-      await expect(userService.getMe("nonexistent")).rejects.toThrow(AppError);
-      await expect(userService.getMe("nonexistent")).rejects.toThrow(
-        "User not found",
-      );
+      await expect(userService.getMe('nonexistent')).rejects.toThrow(AppError);
+      await expect(userService.getMe('nonexistent')).rejects.toThrow('User not found');
 
       try {
-        await userService.getMe("nonexistent");
+        await userService.getMe('nonexistent');
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         if (error instanceof AppError) {
           expect(error.statusCode).toBe(404);
-          expect(error.code).toBe("USER_NOT_FOUND");
+          expect(error.code).toBe('USER_NOT_FOUND');
         }
       }
     });
   });
 
-  describe("updateMe", () => {
-    it("should update user profile successfully", async () => {
+  describe('updateMe', () => {
+    it('should update user profile successfully', async () => {
       const updatedUser = {
         ...mockUser,
         profile: {
           ...mockUser.profile,
-          name: "Updated Name",
-          bio: "Updated bio",
+          name: 'Updated Name',
+          bio: 'Updated bio',
         },
       };
 
       mockUserRepo.updateProfile = vi.fn().mockResolvedValue(updatedUser);
 
-      const result = await userService.updateMe("user-123", {
-        name: "Updated Name",
-        bio: "Updated bio",
+      const result = await userService.updateMe('user-123', {
+        name: 'Updated Name',
+        bio: 'Updated bio',
       });
 
       expect(result).toEqual(updatedUser);
-      expect(result.profile.name).toBe("Updated Name");
-      expect(result.profile.bio).toBe("Updated bio");
-      expect(mockUserRepo.updateProfile).toHaveBeenCalledWith("user-123", {
-        name: "Updated Name",
-        bio: "Updated bio",
+      expect(result.profile.name).toBe('Updated Name');
+      expect(result.profile.bio).toBe('Updated bio');
+      expect(mockUserRepo.updateProfile).toHaveBeenCalledWith('user-123', {
+        name: 'Updated Name',
+        bio: 'Updated bio',
       });
     });
 
-    it("should throw AppError when update fails", async () => {
+    it('should throw AppError when update fails', async () => {
       mockUserRepo.updateProfile = vi.fn().mockResolvedValue(null);
 
-      await expect(userService.updateMe("user-123", { name: "Updated Name" }))
-        .rejects.toThrow(
-          AppError,
-        );
+      await expect(userService.updateMe('user-123', { name: 'Updated Name' })).rejects.toThrow(
+        AppError
+      );
 
       try {
-        await userService.updateMe("user-123", { name: "Updated Name" });
+        await userService.updateMe('user-123', { name: 'Updated Name' });
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         if (error instanceof AppError) {
           expect(error.statusCode).toBe(500);
-          expect(error.code).toBe("UPDATE_FAILED");
+          expect(error.code).toBe('UPDATE_FAILED');
         }
       }
     });
   });
 
-  describe("getPublicProfile", () => {
-    it("should return public profile for any user", async () => {
+  describe('getPublicProfile', () => {
+    it('should return public profile for any user', async () => {
       mockUserRepo.getUserWithProfile = vi.fn().mockResolvedValue(mockUser);
 
-      const result = await userService.getPublicProfile("user-456");
+      const result = await userService.getPublicProfile('user-456');
 
       expect(result).toEqual(mockUser);
-      expect(mockUserRepo.getUserWithProfile).toHaveBeenCalledWith("user-456");
+      expect(mockUserRepo.getUserWithProfile).toHaveBeenCalledWith('user-456');
     });
 
-    it("should throw AppError when user not found", async () => {
+    it('should throw AppError when user not found', async () => {
       mockUserRepo.getUserWithProfile = vi.fn().mockResolvedValue(null);
 
-      await expect(userService.getPublicProfile("nonexistent")).rejects.toThrow(
-        AppError,
-      );
+      await expect(userService.getPublicProfile('nonexistent')).rejects.toThrow(AppError);
 
       try {
-        await userService.getPublicProfile("nonexistent");
+        await userService.getPublicProfile('nonexistent');
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         if (error instanceof AppError) {
           expect(error.statusCode).toBe(404);
-          expect(error.code).toBe("USER_NOT_FOUND");
+          expect(error.code).toBe('USER_NOT_FOUND');
         }
       }
     });

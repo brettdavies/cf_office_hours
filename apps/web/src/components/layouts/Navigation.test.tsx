@@ -43,11 +43,13 @@ describe('Navigation', () => {
   });
 
   it('should render "My Availability" link for mentors', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'mentor-123',
-      email: 'mentor@example.com',
-      role: 'mentor',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'mentor-123',
+        email: 'mentor@example.com',
+        role: 'mentor',
+      })
+    );
 
     renderWithProviders(<Navigation />);
 
@@ -56,11 +58,13 @@ describe('Navigation', () => {
   });
 
   it('should render "Browse Mentors" link for coordinators', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'coordinator-123',
-      email: 'coordinator@example.com',
-      role: 'coordinator',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'coordinator-123',
+        email: 'coordinator@example.com',
+        role: 'coordinator',
+      })
+    );
 
     renderWithProviders(<Navigation />);
 

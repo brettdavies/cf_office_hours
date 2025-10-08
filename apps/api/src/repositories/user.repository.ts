@@ -9,20 +9,15 @@
  */
 
 // Internal modules
-import { createSupabaseClient } from '../lib/db';
+import { BaseRepository } from "../lib/base-repository";
 
 // Types
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { UserResponse, UserProfileResponse } from '@cf-office-hours/shared';
-import type { Env } from '../types/bindings';
+import type {
+  UserProfileResponse,
+  UserResponse,
+} from "@cf-office-hours/shared";
 
-export class UserRepository {
-  private supabase: SupabaseClient;
-
-  constructor(env: Env) {
-    this.supabase = createSupabaseClient(env);
-  }
-
+export class UserRepository extends BaseRepository {
   /**
    * Fetches a user with their profile by user ID.
    *
@@ -33,7 +28,7 @@ export class UserRepository {
    */
   async getUserWithProfile(userId: string): Promise<UserResponse | null> {
     const { data, error } = await this.supabase
-      .from('users')
+      .from("users")
       .select(
         `
         id,
@@ -52,13 +47,13 @@ export class UserRepository {
           created_at,
           updated_at
         )
-      `
+      `,
       )
-      .eq('id', userId)
+      .eq("id", userId)
       .single();
 
     if (error) {
-      console.error('Failed to fetch user:', { userId, error });
+      console.error("Failed to fetch user:", { userId, error });
       return null;
     }
 
@@ -68,7 +63,9 @@ export class UserRepository {
 
     // Transform nested array to single object (Supabase returns profile as array)
     const profileArray = data.profile as unknown as UserProfileResponse[];
-    const profile = Array.isArray(profileArray) ? profileArray[0] : profileArray;
+    const profile = Array.isArray(profileArray)
+      ? profileArray[0]
+      : profileArray;
 
     return {
       ...data,
@@ -84,9 +81,11 @@ export class UserRepository {
    * @param filters - Optional filters (role)
    * @returns Array of users with profiles
    */
-  async listUsers(filters?: { role?: 'mentee' | 'mentor' | 'coordinator' }): Promise<UserResponse[]> {
+  async listUsers(
+    filters?: { role?: "mentee" | "mentor" | "coordinator" },
+  ): Promise<UserResponse[]> {
     let query = this.supabase
-      .from('users')
+      .from("users")
       .select(
         `
         id,
@@ -105,17 +104,17 @@ export class UserRepository {
           created_at,
           updated_at
         )
-      `
+      `,
       );
 
     if (filters?.role) {
-      query = query.eq('role', filters.role);
+      query = query.eq("role", filters.role);
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('Failed to list users:', { filters, error });
+      console.error("Failed to list users:", { filters, error });
       return [];
     }
 
@@ -125,10 +124,12 @@ export class UserRepository {
 
     // Transform nested arrays to single objects
     return data
-      .filter(user => user.profile)
-      .map(user => {
+      .filter((user) => user.profile)
+      .map((user) => {
         const profileArray = user.profile as unknown as UserProfileResponse[];
-        const profile = Array.isArray(profileArray) ? profileArray[0] : profileArray;
+        const profile = Array.isArray(profileArray)
+          ? profileArray[0]
+          : profileArray;
         return {
           ...user,
           profile,
@@ -148,19 +149,21 @@ export class UserRepository {
    */
   async updateProfile(
     userId: string,
-    updates: Partial<Omit<UserProfileResponse, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
+    updates: Partial<
+      Omit<UserProfileResponse, "id" | "user_id" | "created_at" | "updated_at">
+    >,
   ): Promise<UserResponse | null> {
     // Update profile and verify success
     const { error } = await this.supabase
-      .from('user_profiles')
+      .from("user_profiles")
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId);
+      .eq("user_id", userId);
 
     if (error) {
-      console.error('Failed to update profile:', { userId, error });
+      console.error("Failed to update profile:", { userId, error });
       return null;
     }
 

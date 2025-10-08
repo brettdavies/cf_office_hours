@@ -80,11 +80,13 @@ describe('Navigation Integration', () => {
 
   it('should navigate to availability page for mentors', async () => {
     const user = userEvent.setup();
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'mentor-123',
-      email: 'mentor@example.com',
-      role: 'mentor',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'mentor-123',
+        email: 'mentor@example.com',
+        role: 'mentor',
+      })
+    );
 
     renderWithRouter(
       <Routes>

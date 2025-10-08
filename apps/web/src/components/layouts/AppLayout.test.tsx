@@ -21,11 +21,13 @@ vi.mock('@/hooks/useAuth', () => ({
 
 describe('AppLayout', () => {
   it('should render header with navigation', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'user-123',
-      email: 'test@example.com',
-      role: 'mentee',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        role: 'mentee',
+      })
+    );
 
     renderWithProviders(
       <Routes>
@@ -41,11 +43,13 @@ describe('AppLayout', () => {
   });
 
   it('should render child routes in main content area', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'user-123',
-      email: 'test@example.com',
-      role: 'mentee',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        role: 'mentee',
+      })
+    );
 
     renderWithProviders(
       <Routes>
@@ -60,11 +64,13 @@ describe('AppLayout', () => {
   });
 
   it('should have proper layout structure', () => {
-    useAuthStore.getState().setUser(createMockUser({
-      id: 'user-123',
-      email: 'test@example.com',
-      role: 'mentee',
-    }));
+    useAuthStore.getState().setUser(
+      createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        role: 'mentee',
+      })
+    );
 
     const { container } = renderWithProviders(
       <Routes>

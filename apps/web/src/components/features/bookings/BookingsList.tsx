@@ -35,7 +35,7 @@ function EmptyState({ tab, onFindMentors }: { tab: Tab; onFindMentors?: () => vo
   const messages = {
     upcoming: {
       title: 'No upcoming bookings',
-      description: 'You don\'t have any scheduled meetings yet. Find a mentor to get started!',
+      description: "You don't have any scheduled meetings yet. Find a mentor to get started!",
       showCTA: true,
     },
     past: {
@@ -52,9 +52,7 @@ function EmptyState({ tab, onFindMentors }: { tab: Tab; onFindMentors?: () => vo
       <Calendar className="w-16 h-16 text-gray-300 mb-4" />
       <h3 className="text-lg font-semibold text-gray-900 mb-2">{message.title}</h3>
       <p className="text-sm text-gray-600 mb-6 max-w-md">{message.description}</p>
-      {message.showCTA && onFindMentors && (
-        <Button onClick={onFindMentors}>Find Mentors</Button>
-      )}
+      {message.showCTA && onFindMentors && <Button onClick={onFindMentors}>Find Mentors</Button>}
     </div>
   );
 }
@@ -66,12 +64,7 @@ function ErrorDisplay({ error, onRetry }: { error: Error; onRetry: () => void })
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <div className="text-red-500 mb-4">
-        <svg
-          className="w-16 h-16"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -104,9 +97,7 @@ function TabButton({
   return (
     <button
       className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-        active
-          ? 'bg-blue-600 text-white'
-          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+        active ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
       }`}
       onClick={onClick}
       type="button"
@@ -143,8 +134,7 @@ export function BookingsList({
     .sort((a, b) => {
       // Sort ascending (earliest first)
       return (
-        parseISO(a.time_slot.start_time).getTime() -
-        parseISO(b.time_slot.start_time).getTime()
+        parseISO(a.time_slot.start_time).getTime() - parseISO(b.time_slot.start_time).getTime()
       );
     });
 
@@ -156,8 +146,7 @@ export function BookingsList({
     .sort((a, b) => {
       // Sort descending (most recent first)
       return (
-        parseISO(b.time_slot.start_time).getTime() -
-        parseISO(a.time_slot.start_time).getTime()
+        parseISO(b.time_slot.start_time).getTime() - parseISO(a.time_slot.start_time).getTime()
       );
     });
 

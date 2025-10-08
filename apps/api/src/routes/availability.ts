@@ -7,80 +7,72 @@
  */
 
 // External dependencies
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 // Internal modules
-import { requireAuth } from '../middleware/auth';
-import { AvailabilityService } from '../services/availability.service';
+import { requireAuth } from "../middleware/auth";
+import { AvailabilityService } from "../services/availability.service";
 import {
-  CreateAvailabilityBlockSchema,
   AvailabilityBlockResponseSchema,
+  CreateAvailabilityBlockSchema,
+  ErrorResponseSchema,
   GetAvailableSlotsQuerySchema,
   GetAvailableSlotsResponseSchema,
-} from '@cf-office-hours/shared';
+} from "@cf-office-hours/shared";
 
 // Types
-import type { Env } from '../types/bindings';
-import type { Variables } from '../types/context';
+import type { Env } from "../types/bindings";
+import type { Variables } from "../types/context";
 
 // Create OpenAPI-enabled Hono router
-export const availabilityRoutes = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
+export const availabilityRoutes = new OpenAPIHono<
+  { Bindings: Env; Variables: Variables }
+>();
 
 // Apply auth middleware to all routes
-availabilityRoutes.use('*', requireAuth);
-
-/**
- * Shared error response schema for OpenAPI documentation.
- */
-const ErrorResponseSchema = z.object({
-  error: z.object({
-    code: z.string(),
-    message: z.string(),
-    timestamp: z.string(),
-    details: z.record(z.unknown()).optional(),
-  }),
-});
+availabilityRoutes.use("*", requireAuth);
 
 /**
  * GET / - Get availability blocks for authenticated mentor
  */
 const getAvailabilityBlocksRoute = createRoute({
-  method: 'get',
-  path: '/',
-  tags: ['Availability'],
-  summary: 'Get availability blocks for authenticated mentor',
+  method: "get",
+  path: "/",
+  tags: ["Availability"],
+  summary: "Get availability blocks for authenticated mentor",
   description:
-    'Returns all availability blocks for the authenticated mentor. Only mentors can access this endpoint.',
+    "Returns all availability blocks for the authenticated mentor. Only mentors can access this endpoint.",
   security: [{ Bearer: [] }],
   responses: {
     200: {
-      description: 'List of availability blocks',
+      description: "List of availability blocks",
       content: {
-        'application/json': {
+        "application/json": {
           schema: z.array(AvailabilityBlockResponseSchema),
         },
       },
     },
     401: {
-      description: 'Unauthorized - Missing or invalid token',
+      description: "Unauthorized - Missing or invalid token",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     403: {
-      description: 'Forbidden - User is not a mentor',
+      description: "Forbidden - User is not a mentor",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     500: {
-      description: 'Internal Server Error - Failed to fetch availability blocks',
+      description:
+        "Internal Server Error - Failed to fetch availability blocks",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
@@ -88,25 +80,27 @@ const getAvailabilityBlocksRoute = createRoute({
   },
 });
 
-availabilityRoutes.openapi(getAvailabilityBlocksRoute, async c => {
-  const user = c.get('user');
+availabilityRoutes.openapi(getAvailabilityBlocksRoute, async (c) => {
+  const user = c.get("user");
   const availabilityService = new AvailabilityService(c.env);
 
   // Verify user is a mentor
-  if (user.role !== 'mentor') {
+  if (user.role !== "mentor") {
     return c.json(
       {
         error: {
-          code: 'FORBIDDEN',
-          message: 'Only mentors can access this endpoint',
+          code: "FORBIDDEN",
+          message: "Only mentors can access this endpoint",
           timestamp: new Date().toISOString(),
         },
       },
-      403
+      403,
     );
   }
 
-  const blocks = await availabilityService.getAvailabilityBlocksByMentor(user.id);
+  const blocks = await availabilityService.getAvailabilityBlocksByMentor(
+    user.id,
+  );
 
   return c.json(blocks, 200);
 });
@@ -115,61 +109,62 @@ availabilityRoutes.openapi(getAvailabilityBlocksRoute, async c => {
  * POST / - Create availability block (one-time only)
  */
 const createAvailabilityBlockRoute = createRoute({
-  method: 'post',
-  path: '/',
-  tags: ['Availability'],
-  summary: 'Create availability block (one-time only)',
+  method: "post",
+  path: "/",
+  tags: ["Availability"],
+  summary: "Create availability block (one-time only)",
   description:
-    'Creates a new one-time availability block for a mentor. Only mentors can create availability blocks. Recurrence patterns and in-person meeting types are not yet supported.',
+    "Creates a new one-time availability block for a mentor. Only mentors can create availability blocks. Recurrence patterns and in-person meeting types are not yet supported.",
   security: [{ Bearer: [] }],
   request: {
     body: {
       content: {
-        'application/json': {
+        "application/json": {
           schema: CreateAvailabilityBlockSchema,
         },
       },
-      description: 'Availability block data',
+      description: "Availability block data",
       required: true,
     },
   },
   responses: {
     201: {
-      description: 'Availability block created successfully',
+      description: "Availability block created successfully",
       content: {
-        'application/json': {
+        "application/json": {
           schema: AvailabilityBlockResponseSchema,
         },
       },
     },
     400: {
-      description: 'Bad Request - Validation error or invalid meeting type',
+      description: "Bad Request - Validation error or invalid meeting type",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     401: {
-      description: 'Unauthorized - Missing or invalid token',
+      description: "Unauthorized - Missing or invalid token",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     403: {
-      description: 'Forbidden - User is not a mentor',
+      description: "Forbidden - User is not a mentor",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     500: {
-      description: 'Internal Server Error - Failed to create availability block',
+      description:
+        "Internal Server Error - Failed to create availability block",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
@@ -177,11 +172,11 @@ const createAvailabilityBlockRoute = createRoute({
   },
 });
 
-availabilityRoutes.openapi(createAvailabilityBlockRoute, async c => {
-  const user = c.get('user');
-  const body = c.req.valid('json');
+availabilityRoutes.openapi(createAvailabilityBlockRoute, async (c) => {
+  const user = c.get("user");
+  const body = c.req.valid("json");
 
-  console.log('[AVAILABILITY] Creating availability block', {
+  console.log("[AVAILABILITY] Creating availability block", {
     userId: user.id,
     userRole: user.role,
     startTime: body.start_time,
@@ -192,9 +187,13 @@ availabilityRoutes.openapi(createAvailabilityBlockRoute, async c => {
 
   const availabilityService = new AvailabilityService(c.env);
 
-  const block = await availabilityService.createAvailabilityBlock(user.id, user.role, body);
+  const block = await availabilityService.createAvailabilityBlock(
+    user.id,
+    user.role,
+    body,
+  );
 
-  console.log('[AVAILABILITY] Availability block created successfully', {
+  console.log("[AVAILABILITY] Availability block created successfully", {
     blockId: block.id,
     userId: user.id,
     startTime: block.start_time,
@@ -209,37 +208,37 @@ availabilityRoutes.openapi(createAvailabilityBlockRoute, async c => {
  * GET /slots - Get available time slots
  */
 const getAvailableSlotsRoute = createRoute({
-  method: 'get',
-  path: '/slots',
-  tags: ['Availability'],
-  summary: 'Get available time slots',
+  method: "get",
+  path: "/slots",
+  tags: ["Availability"],
+  summary: "Get available time slots",
   description:
-    'Returns available (non-booked) time slots with mentor information. Supports filtering by mentor, date range, and meeting type.',
+    "Returns available (non-booked) time slots with mentor information. Supports filtering by mentor, date range, and meeting type.",
   security: [{ Bearer: [] }],
   request: {
     query: GetAvailableSlotsQuerySchema,
   },
   responses: {
     200: {
-      description: 'List of available time slots',
+      description: "List of available time slots",
       content: {
-        'application/json': {
+        "application/json": {
           schema: GetAvailableSlotsResponseSchema,
         },
       },
     },
     401: {
-      description: 'Unauthorized - Missing or invalid token',
+      description: "Unauthorized - Missing or invalid token",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
     },
     500: {
-      description: 'Internal Server Error - Failed to fetch available slots',
+      description: "Internal Server Error - Failed to fetch available slots",
       content: {
-        'application/json': {
+        "application/json": {
           schema: ErrorResponseSchema,
         },
       },
@@ -247,8 +246,8 @@ const getAvailableSlotsRoute = createRoute({
   },
 });
 
-availabilityRoutes.openapi(getAvailableSlotsRoute, async c => {
-  const query = c.req.valid('query');
+availabilityRoutes.openapi(getAvailableSlotsRoute, async (c) => {
+  const query = c.req.valid("query");
   const availabilityService = new AvailabilityService(c.env);
 
   const response = await availabilityService.getAvailableSlots(query);

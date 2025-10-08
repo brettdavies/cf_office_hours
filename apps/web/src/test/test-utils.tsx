@@ -57,9 +57,7 @@ export const renderWithProviders = (
   const { queryClient, ...renderOptions } = options || {};
 
   return render(ui, {
-    wrapper: ({ children }) => (
-      <AllProviders queryClient={queryClient}>{children}</AllProviders>
-    ),
+    wrapper: ({ children }) => <AllProviders queryClient={queryClient}>{children}</AllProviders>,
     ...renderOptions,
   });
 };
@@ -69,7 +67,10 @@ export const renderWithProviders = (
  */
 export const renderWithRouter = (
   ui: ReactElement,
-  { initialEntries = ['/'], ...options }: { initialEntries?: string[] } & Omit<RenderOptions, 'wrapper'> = {}
+  {
+    initialEntries = ['/'],
+    ...options
+  }: { initialEntries?: string[] } & Omit<RenderOptions, 'wrapper'> = {}
 ) => {
   const queryClient = createTestQueryClient();
 
