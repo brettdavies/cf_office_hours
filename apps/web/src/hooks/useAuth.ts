@@ -14,41 +14,10 @@ export function useAuth() {
       });
     }
 
-    // Get initial session from Supabase
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (import.meta.env.DEV) {
-        console.log('[AUTH] getSession result:', {
-          hasSession: !!session,
-          error,
-          userId: session?.user?.id,
-          timestamp: new Date().toISOString(),
-        });
-      }
+    // Don't call getSession() immediately - it won't have tokens from URL hash yet
+    // Instead, wait for onAuthStateChange which fires after Supabase extracts tokens
 
-      // Mark initialization complete
-      setIsInitializing(false);
-
-      if (session && session.user) {
-        if (import.meta.env.DEV) {
-          console.log('[AUTH] Setting session from getSession', {
-            userId: session.user.id,
-            timestamp: new Date().toISOString(),
-          });
-        }
-        setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        // Store token in localStorage for API client
-        localStorage.setItem('auth_token', session.access_token);
-        // Fetch user profile from API
-        fetchUserProfile(session.access_token);
-      } else if (import.meta.env.DEV) {
-        console.log('[AUTH] No session found in getSession', {
-          timestamp: new Date().toISOString(),
-        });
-      }
-    });
+    let initialSessionHandled = false;
 
     // Listen for auth state changes
     const {
@@ -61,6 +30,12 @@ export function useAuth() {
           userId: session?.user?.id,
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Mark initialization as complete after first event
+      if (!initialSessionHandled) {
+        initialSessionHandled = true;
+        setIsInitializing(false);
       }
 
       if (session && session.user) {
