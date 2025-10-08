@@ -1,6 +1,7 @@
 // External dependencies
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
+import * as jose from 'jose';
 
 // Internal modules
 import { requireAuth } from './auth';
@@ -15,12 +16,29 @@ vi.mock('../lib/db', () => ({
   createSupabaseClient: vi.fn(),
 }));
 
+// Helper function to create a valid JWT token for testing
+async function createTestJWT(userId: string, email: string, secret: string): Promise<string> {
+  const secretKey = new TextEncoder().encode(secret);
+
+  return await new jose.SignJWT({
+    sub: userId,
+    email,
+    role: 'authenticated',
+    aud: 'authenticated',
+    iss: 'http://localhost:54321/auth/v1',
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('1h')
+    .setIssuedAt()
+    .sign(secretKey);
+}
+
 describe('requireAuth middleware', () => {
   let app: Hono<{ Bindings: Env; Variables: Variables }>;
   const mockEnv: Env = {
     SUPABASE_URL: 'http://localhost:54321',
     SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
-    SUPABASE_JWT_SECRET: 'test-jwt-secret',
+    SUPABASE_JWT_SECRET: 'test-jwt-secret-with-at-least-32-characters-long',
   };
 
   beforeEach(() => {
@@ -86,19 +104,9 @@ describe('requireAuth middleware', () => {
   });
 
   it('should return 403 when user is not whitelisted', async () => {
-    const mockUser = {
-      id: 'user-999',
-      email: 'notwhitelisted@example.com',
-      user_metadata: {},
-    };
+    const validToken = await createTestJWT('user-999', 'notwhitelisted@example.com', mockEnv.SUPABASE_JWT_SECRET);
 
     const mockSupabase = {
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: mockUser },
-          error: null,
-        }),
-      },
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -118,7 +126,7 @@ describe('requireAuth middleware', () => {
     const res = await app.request(
       '/protected',
       {
-        headers: { Authorization: 'Bearer valid-token' },
+        headers: { Authorization: `Bearer ${validToken}` },
       },
       mockEnv
     );
@@ -130,19 +138,9 @@ describe('requireAuth middleware', () => {
   });
 
   it('should inject user context when JWT token is valid and user is whitelisted', async () => {
-    const mockUser = {
-      id: 'user-123',
-      email: 'mentor@example.com',
-      user_metadata: {},
-    };
+    const validToken = await createTestJWT('user-123', 'mentor@example.com', mockEnv.SUPABASE_JWT_SECRET);
 
     const mockSupabase = {
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: mockUser },
-          error: null,
-        }),
-      },
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -162,7 +160,7 @@ describe('requireAuth middleware', () => {
     const res = await app.request(
       '/protected',
       {
-        headers: { Authorization: 'Bearer valid-token' },
+        headers: { Authorization: `Bearer ${validToken}` },
       },
       mockEnv
     );
@@ -181,19 +179,9 @@ describe('requireAuth middleware', () => {
   });
 
   it('should set role to mentee if found in email_whitelist with mentee role', async () => {
-    const mockUser = {
-      id: 'user-456',
-      email: 'mentee@example.com',
-      user_metadata: {},
-    };
+    const validToken = await createTestJWT('user-456', 'mentee@example.com', mockEnv.SUPABASE_JWT_SECRET);
 
     const mockSupabase = {
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: mockUser },
-          error: null,
-        }),
-      },
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -213,7 +201,7 @@ describe('requireAuth middleware', () => {
     const res = await app.request(
       '/protected',
       {
-        headers: { Authorization: 'Bearer valid-token' },
+        headers: { Authorization: `Bearer ${validToken}` },
       },
       mockEnv
     );
@@ -224,6 +212,8 @@ describe('requireAuth middleware', () => {
   });
 
   it('should return 500 when Supabase client throws error', async () => {
+    const validToken = await createTestJWT('user-789', 'error@example.com', mockEnv.SUPABASE_JWT_SECRET);
+
     vi.mocked(db.createSupabaseClient).mockImplementation(() => {
       throw new Error('Connection failed');
     });
@@ -231,7 +221,7 @@ describe('requireAuth middleware', () => {
     const res = await app.request(
       '/protected',
       {
-        headers: { Authorization: 'Bearer valid-token' },
+        headers: { Authorization: `Bearer ${validToken}` },
       },
       mockEnv
     );

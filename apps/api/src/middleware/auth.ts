@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 
 // Internal modules
 import { createSupabaseClient } from '../lib/db';
+import { verifySupabaseJWT } from '../lib/jwt';
 
 // Types
 import type { Env } from '../types/bindings';
@@ -53,31 +54,16 @@ export const requireAuth = async (
   const token = authHeader.substring(7); // Remove "Bearer " prefix
 
   try {
-    const supabase = createSupabaseClient(c.env);
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(token);
+    // Verify JWT locally using the JWT secret (faster than network call to Supabase)
+    const claims = await verifySupabaseJWT(token, c.env);
 
-    if (error || !user) {
-      return c.json(
-        {
-          error: {
-            code: 'UNAUTHORIZED',
-            message: 'Invalid or expired token',
-            timestamp: new Date().toISOString(),
-          },
-        },
-        401
-      );
-    }
-
-    // Check if user is whitelisted using email_whitelist view
-    const userEmail = user.email;
+    // Extract user information from JWT claims
+    const userId = claims.sub;
+    const userEmail = claims.email;
 
     if (!userEmail) {
-      console.warn('[AUTH] User has no email', {
-        userId: user.id,
+      console.warn('[AUTH] User has no email in JWT', {
+        userId,
         timestamp: new Date().toISOString(),
       });
 
@@ -93,7 +79,9 @@ export const requireAuth = async (
       );
     }
 
-    // Single query to check whitelist and get role
+    // Check if user is whitelisted using email_whitelist view
+    // Use service role client for database queries (bypasses RLS)
+    const supabase = createSupabaseClient(c.env);
     const { data: whitelistEntry, error: whitelistError } = await supabase
       .from('email_whitelist')
       .select('email, role')
@@ -104,7 +92,7 @@ export const requireAuth = async (
     if (whitelistError || !whitelistEntry) {
       // User authenticated with Supabase but not whitelisted
       console.warn('[AUTH] User not whitelisted', {
-        userId: user.id,
+        userId,
         email: userEmail,
         error: whitelistError?.message,
         timestamp: new Date().toISOString(),
@@ -124,14 +112,29 @@ export const requireAuth = async (
 
     // Inject whitelisted user into context
     c.set('user', {
-      id: user.id,
+      id: userId,
       email: whitelistEntry.email,
       role: whitelistEntry.role as 'mentee' | 'mentor' | 'coordinator',
     });
 
     return await next();
   } catch (err) {
-    console.error('Auth middleware error:', err);
+    console.error('[AUTH] Middleware error:', err);
+
+    // Check if it's a JWT verification error
+    if (err instanceof Error && err.message.includes('JWT verification failed')) {
+      return c.json(
+        {
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Invalid or expired token',
+            timestamp: new Date().toISOString(),
+          },
+        },
+        401
+      );
+    }
+
     return c.json(
       {
         error: {
