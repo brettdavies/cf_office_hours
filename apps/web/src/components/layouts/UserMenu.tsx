@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useLogout } from '@/hooks/useLogout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,13 +20,8 @@ const LogOutIcon = lazy(() => import('lucide-react').then(mod => ({ default: mod
  * Displays user email and provides logout action.
  */
 export function UserMenu() {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/auth/login');
-  };
+  const { data: user } = useCurrentUser();
+  const { logout } = useLogout();
 
   const initials = user?.email?.slice(0, 2).toUpperCase() || 'U';
 
@@ -41,7 +36,7 @@ export function UserMenu() {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
+        <DropdownMenuItem onClick={logout}>
           <Suspense fallback={<div className="mr-2 h-4 w-4 bg-gray-200 animate-pulse rounded" />}>
             <LogOutIcon className="mr-2 h-4 w-4" />
           </Suspense>
