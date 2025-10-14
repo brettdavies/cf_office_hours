@@ -5,6 +5,9 @@
  * CRITICAL: All tests MUST use these centralized factories (Coding Standard 14.11.2).
  */
 
+// Internal dependencies
+import { createMockUserProfile } from './user';
+
 // Types
 import type { paths } from '@shared/types/api.generated';
 
@@ -17,45 +20,44 @@ type MatchExplanation = NonNullable<
 >;
 
 /**
- * Creates a mock user with profile and sensible defaults.
+ * Creates a mock user with profile for matching context.
+ * Uses base createMockUserProfile and adds matching-specific fields (reputation_tier, tags).
+ *
+ * @param overrides - Partial object to override default values
+ * @returns MatchUser object with reputation and tags
+ *
+ * @example
+ * const mentor = createMockUserWithProfile({ role: 'mentor' });
  */
 export const createMockUserWithProfile = (
   overrides?: Partial<MatchUser>
-): MatchUser => ({
-  id: 'user-123',
-  airtable_record_id: null,
-  email: 'user@example.com',
-  role: 'mentor',
-  reputation_tier: 'gold',
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
-  profile: {
-    id: 'profile-123',
-    user_id: 'user-123',
-    name: 'Jane Mentor',
-    avatar_url: null,
-    title: 'Senior Engineer',
-    company: 'Tech Corp',
-    bio: 'Experienced mentor',
-    created_at: '2025-01-01T00:00:00Z',
-    updated_at: '2025-01-01T00:00:00Z',
-  },
-  tags: [
-    {
-      taxonomy_id: 'tag-1',
-      category: 'industry',
-      value: 'fintech',
-      display_name: 'FinTech',
-    },
-    {
-      taxonomy_id: 'tag-2',
-      category: 'technology',
-      value: 'react',
-      display_name: 'React',
-    },
-  ],
-  ...overrides,
-});
+): MatchUser => {
+  // Use base user fixture with only matching-specific role override
+  const baseUser = createMockUserProfile({
+    role: 'mentor',
+  });
+
+  // Add matching-specific fields (reputation_tier, tags)
+  return {
+    ...baseUser,
+    reputation_tier: 'gold',
+    tags: [
+      {
+        taxonomy_id: 'tag-1',
+        category: 'industry',
+        value: 'fintech',
+        display_name: 'FinTech',
+      },
+      {
+        taxonomy_id: 'tag-2',
+        category: 'technology',
+        value: 'react',
+        display_name: 'React',
+      },
+    ],
+    ...overrides,
+  } as MatchUser;
+};
 
 /**
  * Creates a mock match explanation with sensible defaults.
@@ -82,18 +84,12 @@ export const createMockMatchResult = (overrides?: Partial<MatchResult>): MatchRe
   return {
     user: createMockUserWithProfile({
       id: uniqueId,
-      email: 'match@example.com',
       role: 'mentee',
       profile: {
+        ...createMockUserProfile().profile,
         id: `match-profile-${uniqueId}`,
         user_id: uniqueId,
         name: 'John Mentee',
-        avatar_url: null,
-        title: 'Junior Developer',
-        company: 'Startup Inc',
-        bio: 'Looking for guidance',
-        created_at: '2025-01-01T00:00:00Z',
-        updated_at: '2025-01-01T00:00:00Z',
       },
     }),
     score: 85,

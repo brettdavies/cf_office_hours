@@ -8,8 +8,10 @@
 import { render, RenderOptions } from '@testing-library/react';
 import { ReactElement, ReactNode } from 'react';
 import { BrowserRouter, MemoryRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { UserWithProfile, UserRole } from '@/types/user';
+import { QueryClient, QueryClientProvider, UseQueryResult } from '@tanstack/react-query';
+import { AuthProvider } from '@/contexts/AuthContext';
+import type { UserWithProfile } from '@/types/user';
+import { vi } from 'vitest';
 
 /**
  * Creates a new QueryClient for testing with appropriate defaults
@@ -40,7 +42,9 @@ function AllProviders({ children, queryClient }: AllProvidersProps) {
 
   return (
     <QueryClientProvider client={client}>
-      <BrowserRouter>{children}</BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>{children}</BrowserRouter>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
@@ -77,7 +81,9 @@ export const renderWithRouter = (
   return render(ui, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+        <AuthProvider>
+          <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+        </AuthProvider>
       </QueryClientProvider>
     ),
     ...options,
@@ -85,25 +91,73 @@ export const renderWithRouter = (
 };
 
 /**
- * Type-safe mock user factory for tests
+ * Creates a mock React Query result for useCurrentUser hook.
+ * Provides sensible defaults for all required UseQueryResult fields.
+ *
+ * @param overrides - Partial overrides for the query result
+ * @returns Complete UseQueryResult mock for useCurrentUser
+ *
+ * @example
+ * // Mock loading state
+ * vi.mocked(useCurrentUser).mockReturnValue(
+ *   createMockUseCurrentUserResult({ isLoading: true })
+ * );
+ *
+ * @example
+ * // Mock with user data
+ * vi.mocked(useCurrentUser).mockReturnValue(
+ *   createMockUseCurrentUserResult({
+ *     data: createMockUserProfile({ role: 'mentor' })
+ *   })
+ * );
  */
-export const createMockUser = (
-  overrides: Partial<UserWithProfile> & { role?: UserRole } = {}
-): UserWithProfile => ({
-  id: overrides.id || 'test-user-id',
-  airtable_record_id: overrides.airtable_record_id || null,
-  email: overrides.email || 'test@example.com',
-  role: overrides.role || 'mentee',
-  created_at: overrides.created_at || new Date().toISOString(),
-  updated_at: overrides.updated_at || new Date().toISOString(),
-  profile: overrides.profile || {
-    id: 'test-profile-id',
-    user_id: overrides.id || 'test-user-id',
-    name: 'Test User',
-    title: null,
-    company: null,
-    bio: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-});
+/**
+ * Creates a mock React Query result for useCurrentUser hook.
+ *
+ * NOTE: This returns `UseQueryResult<UserWithProfile, Error>` (without undefined) to match
+ * what vi.mocked() expects, even though the actual hook returns `UserWithProfile | undefined`.
+ * This is a pragmatic workaround for TypeScript's strict checking of mock types.
+ * The actual runtime behavior is correct since we always provide proper data or undefined.
+ */
+export const createMockUseCurrentUserResult = (
+  overrides?: Partial<UseQueryResult<UserWithProfile | undefined, Error>>
+): UseQueryResult<UserWithProfile, Error> => {
+  const result = {
+    data: undefined as unknown as UserWithProfile,
+    error: null,
+    isLoading: false,
+    isError: false,
+    isSuccess: true,
+    status: 'success' as const,
+    fetchStatus: 'idle' as const,
+    refetch: vi.fn() as unknown as () => Promise<UseQueryResult<UserWithProfile, Error>>,
+    dataUpdatedAt: Date.now(),
+    errorUpdatedAt: 0,
+    failureCount: 0,
+    failureReason: null,
+    errorUpdateCount: 0,
+    isFetched: true,
+    isFetchedAfterMount: true,
+    isFetching: false,
+    isPaused: false,
+    isPending: false,
+    isPlaceholderData: false,
+    isRefetchError: false,
+    isRefetching: false,
+    isStale: false,
+    isLoadingError: false,
+    promise: Promise.resolve(undefined as unknown as UserWithProfile),
+    ...overrides,
+  };
+  return result as UseQueryResult<UserWithProfile, Error>;
+};
+
+/**
+ * IMPORTANT: Mock user factories have been moved to domain-specific fixture files
+ * per coding standard 14.11.2:
+ *
+ * - For auth/profile tests: import { createMockUserProfile } from '@/test/fixtures/user'
+ * - For matching tests: import { createMockUserWithProfile } from '@/test/fixtures/matching'
+ *
+ * Do NOT create inline mock objects - always use centralized factories.
+ */
