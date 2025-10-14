@@ -1,59 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderWithProviders, createMockUseCurrentUserResult } from '@/test/test-utils';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MobileMenu } from './MobileMenu';
-import { renderWithProviders, createMockUser } from '@/test/test-utils';
-import { useAuthStore } from '@/stores/authStore';
+import { createMockUserProfile } from '@/test/fixtures/user';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
-// Mock useAuth hook
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => {
-    const { user } = useAuthStore.getState();
-    return {
-      user,
-      session: user ? { access_token: 'test-token', refresh_token: 'test-refresh' } : null,
-      isLoading: false,
-      isAuthenticated: !!user,
-      signOut: vi.fn(),
-    };
-  },
-}));
+// Mock useCurrentUser hook
+vi.mock('@/hooks/useCurrentUser');
 
 describe('MobileMenu', () => {
   beforeEach(() => {
-    // Clear auth store before each test
-    useAuthStore.getState().clearAuth();
+    vi.resetAllMocks();
   });
 
-  it('should render hamburger menu button', () => {
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'mentee',
-      })
-    );
+  it('should render hamburger menu button', async () => {
+    vi.mocked(useCurrentUser).mockReturnValue(createMockUseCurrentUserResult());
 
     renderWithProviders(<MobileMenu />);
 
-    const menuButton = screen.getByRole('button', { name: /open menu/i });
-    expect(menuButton).toBeInTheDocument();
+    // Wait for lazy-loaded icon to render
+    await waitFor(() => {
+      const menuButton = screen.getByRole('button', { name: /open menu/i });
+      expect(menuButton).toBeInTheDocument();
+    });
   });
 
   it('should show navigation links when opened', async () => {
     const user = userEvent.setup();
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'mentee',
-      })
-    );
+
+    vi.mocked(useCurrentUser).mockReturnValue(createMockUseCurrentUserResult());
 
     renderWithProviders(<MobileMenu />);
 
-    // Click hamburger menu
-    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    // Wait for lazy-loaded icon and click hamburger menu
+    const menuButton = await screen.findByRole('button', { name: /open menu/i });
     await user.click(menuButton);
 
     // Navigation links should be visible
@@ -66,18 +47,21 @@ describe('MobileMenu', () => {
 
   it('should show "My Availability" for mentors', async () => {
     const user = userEvent.setup();
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'mentor-123',
-        email: 'mentor@example.com',
-        role: 'mentor',
+
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'mentor-123',
+          email: 'mentor@example.com',
+          role: 'mentor',
+        }),
       })
     );
 
     renderWithProviders(<MobileMenu />);
 
-    // Click hamburger menu
-    const menuButton = screen.getByRole('button', { name: /open menu/i });
+    // Wait for lazy-loaded icon and click hamburger menu
+    const menuButton = await screen.findByRole('button', { name: /open menu/i });
     await user.click(menuButton);
 
     // Should show My Availability instead of Browse Mentors

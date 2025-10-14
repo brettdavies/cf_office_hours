@@ -1,5 +1,5 @@
 // External dependencies
-import { useAuth } from '@/hooks/useAuth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // Internal modules
 import { BookingsList } from '@/components/features/bookings/BookingsList';
@@ -13,7 +13,7 @@ import { useMyBookingsRealtime } from '@/hooks/useRealtime';
  * upcoming and past tabs with real-time updates.
  */
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { data: user } = useCurrentUser();
   const { bookings, isLoading, error, refetch } = useMyBookings();
 
   // Enable real-time updates for bookings

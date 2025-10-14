@@ -10,7 +10,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 // Internal modules
 import { useToast } from "@/hooks/use-toast";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 // Types
 import type { paths } from "@shared/types/api.generated";
@@ -66,7 +66,7 @@ export function useFindMatches(
   limit: number = 20,
 ) {
   const { toast } = useToast();
-  const session = useAuthStore((state) => state.session);
+  const { session } = useAuthContext();
 
   return useQuery({
     queryKey: ["matches", userId, targetRole, algorithmVersion, limit],
@@ -163,7 +163,7 @@ export function useFindMatches(
  */
 export function useExplainMatch() {
   const { toast } = useToast();
-  const session = useAuthStore((state) => state.session);
+  const { session } = useAuthContext();
 
   return useMutation({
     mutationFn: async ({
@@ -255,7 +255,7 @@ export function useExplainMatch() {
  */
 export function useGetAlgorithms() {
   const { toast } = useToast();
-  const session = useAuthStore((state) => state.session);
+  const { session } = useAuthContext();
 
   return useQuery({
     queryKey: ["algorithms"],
@@ -338,7 +338,7 @@ export function useGetUsersWithScores(
   role?: "mentor" | "mentee",
 ) {
   const { toast } = useToast();
-  const session = useAuthStore((state) => state.session);
+  const { session } = useAuthContext();
 
   return useQuery({
     queryKey: ["users-with-scores", algorithmVersion, role],

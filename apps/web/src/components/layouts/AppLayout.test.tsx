@@ -1,31 +1,27 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderWithProviders, createMockUseCurrentUserResult } from '@/test/test-utils';
 import { screen } from '@testing-library/react';
 import { Routes, Route } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
-import { renderWithProviders, createMockUser } from '@/test/test-utils';
-import { useAuthStore } from '@/stores/authStore';
+import { createMockUserProfile } from '@/test/fixtures/user';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
-// Mock useAuth hook
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => {
-    const { user } = useAuthStore.getState();
-    return {
-      user,
-      session: user ? { access_token: 'test-token', refresh_token: 'test-refresh' } : null,
-      isLoading: false,
-      isAuthenticated: !!user,
-      signOut: vi.fn(),
-    };
-  },
-}));
+// Mock useCurrentUser hook
+vi.mock('@/hooks/useCurrentUser');
 
 describe('AppLayout', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
   it('should render header with navigation', () => {
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'mentee',
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'user-123',
+          email: 'test@example.com',
+          role: 'mentee',
+        }),
       })
     );
 
@@ -43,11 +39,13 @@ describe('AppLayout', () => {
   });
 
   it('should render child routes in main content area', () => {
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'mentee',
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'user-123',
+          email: 'test@example.com',
+          role: 'mentee',
+        }),
       })
     );
 
@@ -64,11 +62,13 @@ describe('AppLayout', () => {
   });
 
   it('should have proper layout structure', () => {
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'user-123',
-        email: 'test@example.com',
-        role: 'mentee',
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'user-123',
+          email: 'test@example.com',
+          role: 'mentee',
+        }),
       })
     );
 

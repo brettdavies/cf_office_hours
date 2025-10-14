@@ -1,40 +1,59 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import { Navigation } from './Navigation';
-import { renderWithProviders, createMockUser } from '@/test/test-utils';
-import { useAuthStore } from '@/stores/authStore';
+import { createMockUserProfile } from '@/test/fixtures/user';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { renderWithProviders, createMockUseCurrentUserResult } from '@/test/test-utils';
 
-// Mock useAuth hook
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => {
-    const { user } = useAuthStore.getState();
-    return {
-      user,
-      session: user ? { access_token: 'test-token', refresh_token: 'test-refresh' } : null,
+// Mock AuthContext
+vi.mock('@/contexts/AuthContext', async () => {
+  const actual = await vi.importActual('@/contexts/AuthContext');
+  return {
+    ...actual,
+    useAuthContext: () => ({
+      session: {
+        user: {
+          id: 'test-user-id',
+          email: 'test@example.com',
+        },
+        access_token: 'test-token',
+      },
+      user: null,
       isLoading: false,
-      isAuthenticated: !!user,
-      signOut: vi.fn(),
-    };
-  },
-}));
+      isAuthenticated: true,
+    }),
+  };
+});
+
+// Mock useCurrentUser hook after other mocks
+vi.mock('@/hooks/useCurrentUser');
 
 describe('Navigation', () => {
   beforeEach(() => {
-    // Clear auth store before each test
-    useAuthStore.getState().clearAuth();
+    vi.resetAllMocks();
   });
 
   it('should render all common navigation links', () => {
-    useAuthStore.getState().setUser(createMockUser({ role: 'mentee' }));
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({ role: 'mentee' }),
+      })
+    );
 
     renderWithProviders(<Navigation />);
 
+    // First check if the navigation element exists
+    expect(screen.getByTestId('navigation')).toBeInTheDocument();
+    expect(screen.getByText('Home')).toBeInTheDocument();
     expect(screen.getByText('My Profile')).toBeInTheDocument();
-    expect(screen.getByText('My Bookings')).toBeInTheDocument();
   });
 
   it('should render "Browse Mentors" link for mentees', () => {
-    useAuthStore.getState().setUser(createMockUser({ role: 'mentee' }));
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({ role: 'mentee' }),
+      })
+    );
 
     renderWithProviders(<Navigation />);
 
@@ -43,11 +62,13 @@ describe('Navigation', () => {
   });
 
   it('should render "My Availability" link for mentors', () => {
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'mentor-123',
-        email: 'mentor@example.com',
-        role: 'mentor',
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'mentor-123',
+          email: 'mentor@example.com',
+          role: 'mentor',
+        }),
       })
     );
 
@@ -57,32 +78,38 @@ describe('Navigation', () => {
     expect(screen.queryByText('Browse Mentors')).not.toBeInTheDocument();
   });
 
-  it('should render "Browse Mentors" link for coordinators', () => {
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'coordinator-123',
-        email: 'coordinator@example.com',
-        role: 'coordinator',
+  it('should render "Find Matches" link for coordinators', () => {
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'coordinator-123',
+          email: 'coordinator@example.com',
+          role: 'coordinator',
+        }),
       })
     );
 
     renderWithProviders(<Navigation />);
 
-    expect(screen.getByText('Browse Mentors')).toBeInTheDocument();
+    expect(screen.getByText('Find Matches')).toBeInTheDocument();
     expect(screen.queryByText('My Availability')).not.toBeInTheDocument();
   });
 
   it('should have correct href attributes', () => {
-    useAuthStore.getState().setUser(createMockUser({ role: 'mentee' }));
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({ role: 'mentee' }),
+      })
+    );
 
     renderWithProviders(<Navigation />);
 
+    const homeLink = screen.getByText('Home').closest('a');
     const profileLink = screen.getByText('My Profile').closest('a');
-    const bookingsLink = screen.getByText('My Bookings').closest('a');
     const mentorsLink = screen.getByText('Browse Mentors').closest('a');
 
+    expect(homeLink).toHaveAttribute('href', '/dashboard');
     expect(profileLink).toHaveAttribute('href', '/profile');
-    expect(bookingsLink).toHaveAttribute('href', '/dashboard');
     expect(mentorsLink).toHaveAttribute('href', '/mentors');
   });
 });

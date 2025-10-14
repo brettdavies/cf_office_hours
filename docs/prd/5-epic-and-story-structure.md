@@ -47,7 +47,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 0: Walking Skeleton (LOCAL END-TO-END MVP)**
 **Goal:** Deliver minimal but complete booking flow: authentication → profile → availability → booking
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 28 (Stories 0-21 = core skeleton, Stories 22-26 = event-driven matching system, Story 27 = AI-based matching)
+**Estimated Stories:** 31 (Stories 0-21 = core skeleton, Stories 22-26 = event-driven matching system, Story 27 = AI-based matching, Stories 28-30 = auth system improvements)
 **Dependencies:** None (foundation)
 **Timeline:** Sprint 1-2 (Weeks 1-4) + 1 day for pre-deployment testing + 1 day for production deployment
 **Development Environment:** 100% LOCAL (local Supabase + local Wrangler dev server)
@@ -460,12 +460,53 @@ Epic 8: Admin & Coordinator Tools
     - **Dependencies:** Story 0.22 (IMatchingEngine Interface), Story 0.23 (BaseMatchingEngine)
     - **Note:** Second matching algorithm demonstrating pluggable architecture; PII data sharing with OpenAI requires privacy review before production
 
+28. **AUTH-REFACTOR-001: Centralized Authentication State Management**
+   - **Goal:** Refactor auth from per-component hooks to centralized React Context with request deduplication
+   - **Priority:** P0 (Performance & Architecture)
+   - **Context:** Eliminate duplicate API calls (9 Supabase + 8 internal per page load) by centralizing auth state
+   - **Key Changes:**
+     - Create AuthContext provider with single auth state listener
+     - Implement useCurrentUser React Query hook for user profile
+     - Add request deduplication in api-client
+     - Migrate 8 components to new auth pattern
+     - Update all tests with new mocking patterns
+   - **Status:** Ready for Review
+   - **Dependencies:** None (improves existing auth system)
+   - **Files:** `docs/stories/0.28.story.md`
+
+29. **TEST-INFRA-001: Centralized Test Fixtures and React Query Helpers**
+   - **Goal:** Implement domain-driven test fixture pattern with factory functions
+   - **Priority:** P0 (Testing Infrastructure)
+   - **Context:** Replace inline mock objects with centralized factories for maintainability
+   - **Key Changes:**
+     - Create user fixture factory in test/fixtures/user.ts
+     - Implement createMockUserProfile() with partial overrides
+     - Add createMockUseCurrentUserResult() React Query helper
+     - Provide pre-configured mock profiles (mentee, mentor, minimal)
+     - Document fixture pattern in test-utils
+   - **Status:** Ready for Review
+   - **Dependencies:** Story 0.28 (uses new auth hooks)
+   - **Files:** `docs/stories/0.29.story.md`
+
+30. **AUTH-UX-001: Dedicated Logout Hook Abstraction**
+   - **Goal:** Create centralized useLogout hook for cleaner component code
+   - **Priority:** P0 (Developer Experience)
+   - **Context:** Extract logout logic from inline implementation to reusable hook
+   - **Key Changes:**
+     - Create useLogout hook with cleanup operations
+     - Handle React Query cache clear, localStorage cleanup, Supabase signOut
+     - Migrate UserMenu component to use hook
+     - Simplify component code and improve testability
+   - **Status:** Ready for Review
+   - **Dependencies:** Story 0.28 (uses AuthContext)
+   - **Files:** `docs/stories/0.30.story.md`
+
 ---
 
 ### **Epic 1: Infrastructure Depth**
 **Goal:** Add production-grade infrastructure features to the working skeleton
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 9 (Stories 28-36)
+**Estimated Stories:** 9 (Stories 31-39)
 **Dependencies:** Epic 0
 **Timeline:** Sprint 3 (Weeks 5-6)
 
@@ -584,7 +625,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 2: Authentication & Profile Depth**
 **Goal:** Add OAuth authentication, rich profile features, and user management
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 11 (Stories 37-47)
+**Estimated Stories:** 11 (Stories 40-50)
 **Dependencies:** Epic 1
 **Timeline:** Sprint 4 (Weeks 7-8)
 
@@ -705,7 +746,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 3: Calendar Integration**
 **Goal:** Integrate Google Calendar and Microsoft Outlook, replace manual location entry with calendar-based scheduling
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 10 (Stories 48-57)
+**Estimated Stories:** 10 (Stories 51-60)
 **Dependencies:** Epic 2
 **Timeline:** Sprint 5 (Weeks 9-10)
 
@@ -817,7 +858,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 4: Availability & Booking Depth**
 **Goal:** Add advanced availability features (recurrence patterns, preset locations), booking management, and real-time updates
 **Priority:** P0 (Blocking)
-**Estimated Stories:** 11 (Stories 58-68)
+**Estimated Stories:** 11 (Stories 61-71)
 **Dependencies:** Epic 3
 **Timeline:** Sprint 6 (Weeks 11-12)
 
@@ -943,7 +984,7 @@ Epic 8: Admin & Coordinator Tools
 ### **Epic 5: Airtable Integration**
 **Goal:** Replace mock data with live Airtable sync for all four data sources
 **Priority:** P1 (High)
-**Estimated Stories:** 7 (Stories 69-75)
+**Estimated Stories:** 7 (Stories 72-78)
 **Dependencies:** Epic 1 (schema must be ready)
 **Timeline:** Sprint 7 (Weeks 13-14)
 
@@ -1338,23 +1379,23 @@ Epic 8: Admin & Coordinator Tools
 
 ## 5.3 Story Estimation & Prioritization
 
-**Total Stories:** 96 (Epic 0 expanded with event-driven matching system + AI-based matching)
-**Critical Path (P0):** Epics 0-4 (28 + 9 + 11 + 10 + 11 = 69 stories)
+**Total Stories:** 99 (Epic 0 expanded with event-driven matching system + AI-based matching + auth system improvements)
+**Critical Path (P0):** Epics 0-4 (31 + 9 + 11 + 10 + 11 = 72 stories)
 **High Priority (P1):** Epics 5-7 (7 + 3 + 10 = 20 stories) (Epic 6 reduced: 4 stories moved to Epic 0)
-**Medium Priority (P2):** Epic 8 (7 stories) - Stories 89-95
-**Total:** 69 + 20 + 7 = 96 stories
+**Medium Priority (P2):** Epic 8 (7 stories) - Stories 92-98
+**Total:** 72 + 20 + 7 = 99 stories
 
 **Recommended Sprint Breakdown (2-week sprints):**
 
-- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 28 stories (Stories 0-27) → **DEPLOYED END-TO-END WORKING PRODUCT**
-- **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories (Stories 28-36)
-- **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories (Stories 37-47)
-- **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories (Stories 48-57)
-- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 11 stories (Stories 58-68, includes booking confirmation flow)
-- **Sprint 7:** Epic 5 (Airtable Integration) - 7 stories (Stories 69-75, mentors, portfolio companies, industries, technologies)
-- **Sprint 8:** Epic 6 (Matching & Discovery) - 3 stories (Stories 76-78, core engine in Epic 0)
-- **Sprint 9:** Epic 7 (Reputation & Ratings) - 10 stories (Stories 79-88)
-- **Sprint 9.5:** Epic 8 (Admin & Coordinator Tools) - 7 stories (Stories 89-95)
+- **Sprint 1-2:** Epic 0 (Walking Skeleton) - 31 stories (Stories 0-30) → **DEPLOYED END-TO-END WORKING PRODUCT**
+- **Sprint 3:** Epic 1 (Infrastructure Depth) - 9 stories (Stories 31-39)
+- **Sprint 4:** Epic 2 (Authentication & Profile Depth) - 11 stories (Stories 40-50)
+- **Sprint 5:** Epic 3 (Calendar Integration) - 10 stories (Stories 51-60)
+- **Sprint 6:** Epic 4 (Availability & Booking Depth) - 11 stories (Stories 61-71, includes booking confirmation flow)
+- **Sprint 7:** Epic 5 (Airtable Integration) - 7 stories (Stories 72-78, mentors, portfolio companies, industries, technologies)
+- **Sprint 8:** Epic 6 (Matching & Discovery) - 3 stories (Stories 79-81, core engine in Epic 0)
+- **Sprint 9:** Epic 7 (Reputation & Ratings) - 10 stories (Stories 82-91)
+- **Sprint 9.5:** Epic 8 (Admin & Coordinator Tools) - 7 stories (Stories 92-98)
 
 **Estimated Timeline:** 19 weeks (9.5 sprints)
 

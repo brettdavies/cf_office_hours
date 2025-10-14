@@ -1,8 +1,8 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export function ProtectedRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuthContext();
   const location = useLocation();
 
   if (isLoading) {

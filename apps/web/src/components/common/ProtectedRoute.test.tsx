@@ -1,62 +1,60 @@
-import { render, screen } from '@testing-library/react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React from 'react';
+import { screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
-import { useAuth } from '@/hooks/useAuth';
-import { createMockUser } from '@/test/test-utils';
+import { renderWithRouter } from '@/test/test-utils';
 
-// Mock useAuth hook
-vi.mock('@/hooks/useAuth');
+// Mock useAuthContext hook
+const mockUseAuthContext = vi.fn();
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuthContext: () => mockUseAuthContext(),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
 
 // Mock child component
 const TestChild = () => <div>Protected Content</div>;
 
 describe('ProtectedRoute', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    mockUseAuthContext.mockReset();
   });
 
   it('should show loading spinner when auth is loading', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
+    mockUseAuthContext.mockReturnValue({
       session: null,
       isLoading: true,
       isAuthenticated: false,
-      signOut: vi.fn(),
     });
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<TestChild />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+    renderWithRouter(
+      <Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<TestChild />} />
+        </Route>
+      </Routes>
     );
 
-    expect(screen.getByText(/loading\.\.\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Loading\.\.\./i)).toBeInTheDocument();
     expect(screen.queryByText(/protected content/i)).not.toBeInTheDocument();
   });
 
   it('should redirect to login when not authenticated', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
+    mockUseAuthContext.mockReturnValue({
       session: null,
       isLoading: false,
       isAuthenticated: false,
-      signOut: vi.fn(),
     });
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<TestChild />} />
-          </Route>
-          <Route path="/auth/login" element={<div>Login Page</div>} />
-        </Routes>
-      </MemoryRouter>
+    renderWithRouter(
+      <Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<TestChild />} />
+        </Route>
+        <Route path="/auth/login" element={<div>Login Page</div>} />
+      </Routes>
     );
 
     expect(screen.getByText(/login page/i)).toBeInTheDocument();
@@ -64,45 +62,37 @@ describe('ProtectedRoute', () => {
   });
 
   it('should render children when authenticated', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: createMockUser({ id: '123', email: 'test@example.com' }),
-      session: { access_token: 'token', refresh_token: 'refresh' },
+    mockUseAuthContext.mockReturnValue({
+      session: { access_token: 'token', refresh_token: 'refresh' } as any,
       isLoading: false,
       isAuthenticated: true,
-      signOut: vi.fn(),
     });
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<TestChild />} />
-          </Route>
-          <Route path="/auth/login" element={<div>Login Page</div>} />
-        </Routes>
-      </MemoryRouter>
+    renderWithRouter(
+      <Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<TestChild />} />
+        </Route>
+        <Route path="/auth/login" element={<div>Login Page</div>} />
+      </Routes>
     );
 
     expect(screen.getByText(/protected content/i)).toBeInTheDocument();
   });
 
   it('should not render children when loading', () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
+    mockUseAuthContext.mockReturnValue({
       session: null,
       isLoading: true,
       isAuthenticated: false,
-      signOut: vi.fn(),
     });
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<TestChild />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+    renderWithRouter(
+      <Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<TestChild />} />
+        </Route>
+      </Routes>
     );
 
     expect(screen.queryByText(/protected content/i)).not.toBeInTheDocument();
@@ -110,45 +100,37 @@ describe('ProtectedRoute', () => {
 
   it('should handle transition from loading to authenticated', () => {
     // Initially loading
-    vi.mocked(useAuth).mockReturnValue({
-      user: null,
+    mockUseAuthContext.mockReturnValue({
       session: null,
       isLoading: true,
       isAuthenticated: false,
-      signOut: vi.fn(),
     });
 
-    const { rerender } = render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<TestChild />} />
-          </Route>
-          <Route path="/auth/login" element={<div>Login Page</div>} />
-        </Routes>
-      </MemoryRouter>
+    const { rerender } = renderWithRouter(
+      <Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<TestChild />} />
+        </Route>
+        <Route path="/auth/login" element={<div>Login Page</div>} />
+      </Routes>
     );
 
-    expect(screen.getByText(/loading\.\.\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Loading\.\.\./i)).toBeInTheDocument();
 
     // Then authenticated
-    vi.mocked(useAuth).mockReturnValue({
-      user: createMockUser({ id: '123', email: 'test@example.com' }),
-      session: { access_token: 'token', refresh_token: 'refresh' },
+    mockUseAuthContext.mockReturnValue({
+      session: { access_token: 'token', refresh_token: 'refresh' } as any,
       isLoading: false,
       isAuthenticated: true,
-      signOut: vi.fn(),
     });
 
     rerender(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<TestChild />} />
-          </Route>
-          <Route path="/auth/login" element={<div>Login Page</div>} />
-        </Routes>
-      </MemoryRouter>
+      <Routes>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<TestChild />} />
+        </Route>
+        <Route path="/auth/login" element={<div>Login Page</div>} />
+      </Routes>
     );
 
     expect(screen.getByText(/protected content/i)).toBeInTheDocument();

@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export default function CallbackPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuthContext();
 
   useEffect(() => {
     console.log('[CALLBACK] Page rendered/updated:', {

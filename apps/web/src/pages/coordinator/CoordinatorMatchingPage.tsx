@@ -16,11 +16,11 @@ import { UserSelector } from '@/components/coordinator/UserSelector';
 import { AlgorithmSelector } from '@/components/coordinator/AlgorithmSelector';
 import { MatchResultsGrid } from '@/components/coordinator/MatchResultsGrid';
 import { MatchExplanationModal } from '@/components/coordinator/MatchExplanationModal';
-import { useAuth } from '@/hooks/useAuth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useFindMatches, useGetAlgorithms } from '@/hooks/useMatching';
 
 export function CoordinatorMatchingPage() {
-  const { user, isLoading } = useAuth();
+  const { data: user, isLoading } = useCurrentUser();
   const navigate = useNavigate();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [targetRole, setTargetRole] = useState<'mentor' | 'mentee'>('mentee');

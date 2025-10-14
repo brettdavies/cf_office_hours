@@ -1,31 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderWithProviders, createMockUseCurrentUserResult } from '@/test/test-utils';
 import { screen } from '@testing-library/react';
 import { Header } from './Header';
-import { renderWithProviders, createMockUser } from '@/test/test-utils';
-import { useAuthStore } from '@/stores/authStore';
+import { createMockUserProfile } from '@/test/fixtures/user';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
-// Mock useAuth hook
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => {
-    const { user } = useAuthStore.getState();
-    return {
-      user,
-      session: user ? { access_token: 'test-token', refresh_token: 'test-refresh' } : null,
-      isLoading: false,
-      isAuthenticated: !!user,
-      signOut: vi.fn(),
-    };
-  },
-}));
+// Mock useCurrentUser hook
+vi.mock('@/hooks/useCurrentUser');
 
 describe('Header', () => {
   beforeEach(() => {
-    // Clear auth store before each test
-    useAuthStore.getState().clearAuth();
+    vi.resetAllMocks();
   });
 
   it('should render application branding', () => {
-    useAuthStore.getState().setUser(createMockUser());
+    vi.mocked(useCurrentUser).mockReturnValue(createMockUseCurrentUserResult());
 
     renderWithProviders(<Header />);
 
@@ -33,16 +22,20 @@ describe('Header', () => {
   });
 
   it('should render navigation links', () => {
-    useAuthStore.getState().setUser(createMockUser());
+    vi.mocked(useCurrentUser).mockReturnValue(createMockUseCurrentUserResult());
 
     renderWithProviders(<Header />);
 
     expect(screen.getByText('My Profile')).toBeInTheDocument();
-    expect(screen.getByText('My Bookings')).toBeInTheDocument();
+    expect(screen.getByText('Home')).toBeInTheDocument();
   });
 
   it('should render "Browse Mentors" for mentees', () => {
-    useAuthStore.getState().setUser(createMockUser({ role: 'mentee' }));
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({ role: 'mentee' }),
+      })
+    );
 
     renderWithProviders(<Header />);
 
@@ -51,11 +44,13 @@ describe('Header', () => {
   });
 
   it('should render "My Availability" for mentors', () => {
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'mentor-123',
-        email: 'mentor@example.com',
-        role: 'mentor',
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'mentor-123',
+          email: 'mentor@example.com',
+          role: 'mentor',
+        }),
       })
     );
 
@@ -65,12 +60,16 @@ describe('Header', () => {
     expect(screen.queryByText('Browse Mentors')).not.toBeInTheDocument();
   });
 
-  it('should render user menu', () => {
-    useAuthStore.getState().setUser(createMockUser());
+  it('should render user menu', async () => {
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile(),
+      })
+    );
 
     renderWithProviders(<Header />);
 
-    // Avatar initials should be present
-    expect(screen.getByText('TE')).toBeInTheDocument();
+    // Avatar initials should be present (first 2 letters of email)
+    await screen.findByText('TE');
   });
 });

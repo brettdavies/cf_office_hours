@@ -13,22 +13,12 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Routes, Route } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
-import { renderWithRouter, createMockUser } from '@/test/test-utils';
-import { useAuthStore } from '@/stores/authStore';
+import { createMockUserProfile } from '@/test/fixtures/user';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { createMockUseCurrentUserResult, renderWithRouter } from '@/test/test-utils';
 
-// Mock useAuth hook
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => {
-    const { user } = useAuthStore.getState();
-    return {
-      user,
-      session: user ? { access_token: 'test-token', refresh_token: 'test-refresh' } : null,
-      isLoading: false,
-      isAuthenticated: !!user,
-      signOut: vi.fn(),
-    };
-  },
-}));
+// Mock useCurrentUser hook
+vi.mock('@/hooks/useCurrentUser');
 
 // Simple page components for testing
 const ProfilePage = () => <div>Profile Page</div>;
@@ -38,12 +28,18 @@ const MentorsPage = () => <div>Mentors Page</div>;
 
 describe('Navigation Integration', () => {
   beforeEach(() => {
-    useAuthStore.getState().clearAuth();
+    vi.resetAllMocks();
   });
 
   it('should navigate between pages when clicking links', async () => {
     const user = userEvent.setup();
-    useAuthStore.getState().setUser(createMockUser({ role: 'mentee' }));
+
+    // Mock useCurrentUser to return mentee user
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({ role: 'mentee' })
+      })
+    );
 
     renderWithRouter(
       <Routes>
@@ -59,9 +55,9 @@ describe('Navigation Integration', () => {
     // Start on profile page
     expect(screen.getByText('Profile Page')).toBeInTheDocument();
 
-    // Click My Bookings link
-    const bookingsLink = screen.getByText('My Bookings');
-    await user.click(bookingsLink);
+    // Click Home link (dashboard)
+    const homeLink = screen.getByText('Home');
+    await user.click(homeLink);
 
     // Should navigate to dashboard
     await waitFor(() => {
@@ -80,11 +76,15 @@ describe('Navigation Integration', () => {
 
   it('should navigate to availability page for mentors', async () => {
     const user = userEvent.setup();
-    useAuthStore.getState().setUser(
-      createMockUser({
-        id: 'mentor-123',
-        email: 'mentor@example.com',
-        role: 'mentor',
+
+    // Mock useCurrentUser to return mentor user
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({
+          id: 'mentor-123',
+          email: 'mentor@example.com',
+          role: 'mentor',
+        })
       })
     );
 
@@ -109,7 +109,12 @@ describe('Navigation Integration', () => {
   });
 
   it('should highlight active navigation link', async () => {
-    useAuthStore.getState().setUser(createMockUser({ role: 'mentee' }));
+    // Mock useCurrentUser to return mentee user
+    vi.mocked(useCurrentUser).mockReturnValue(
+      createMockUseCurrentUserResult({
+        data: createMockUserProfile({ role: 'mentee' })
+      })
+    );
 
     renderWithRouter(
       <Routes>
@@ -125,8 +130,8 @@ describe('Navigation Integration', () => {
     const profileLink = screen.getByText('My Profile').closest('a');
     expect(profileLink).toHaveClass('text-primary');
 
-    // My Bookings link should not have active class
-    const bookingsLink = screen.getByText('My Bookings').closest('a');
-    expect(bookingsLink).toHaveClass('text-gray-600');
+    // Home link should not have active class
+    const homeLink = screen.getByText('Home').closest('a');
+    expect(homeLink).toHaveClass('text-gray-600');
   });
 });

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 /**
  * Navigation links component with role-based display.
@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
  * - Mentees see "Browse Mentors"
  */
 export function Navigation() {
-  const { user } = useAuth();
+  const { data: user } = useCurrentUser();
   const role = user?.role;
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -19,7 +19,7 @@ export function Navigation() {
     }`;
 
   return (
-    <nav className="hidden md:flex items-center gap-6">
+    <nav className="flex items-center gap-6" data-testid="navigation">
       <NavLink to="/dashboard" className={navLinkClass}>
         Home
       </NavLink>

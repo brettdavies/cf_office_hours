@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { lazy, Suspense } from 'react';
@@ -13,7 +13,7 @@ const MenuIcon = lazy(() => import('lucide-react').then(mod => ({ default: mod.M
  * Displays navigation links in a side drawer for mobile devices.
  */
 export function MobileMenu() {
-  const { user } = useAuth();
+  const { data: user } = useCurrentUser();
   const role = user?.role;
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
