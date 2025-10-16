@@ -20,6 +20,7 @@ const BrowseMentorsPage = lazy(() =>
 );
 
 const CoordinatorMatchingPage = lazy(() => import('@/pages/coordinator/CoordinatorMatchingPage'));
+const CoordinatorMetricsPage = lazy(() => import('@/pages/coordinator/CoordinatorMetricsPage'));
 
 export const router = createBrowserRouter([
   // Root redirects to dashboard
@@ -76,6 +77,10 @@ export const router = createBrowserRouter([
           {
             path: 'coordinator/matching',
             element: <CoordinatorMatchingPage />,
+          },
+          {
+            path: 'coordinator/metrics',
+            element: <CoordinatorMetricsPage />,
           },
         ],
       },

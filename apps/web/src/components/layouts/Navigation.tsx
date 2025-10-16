@@ -33,9 +33,14 @@ export function Navigation() {
           My Availability
         </NavLink>
       ) : role === 'coordinator' ? (
-        <NavLink to="/coordinator/matching" className={navLinkClass}>
-          Find Matches
-        </NavLink>
+        <>
+          <NavLink to="/coordinator/matching" className={navLinkClass}>
+            Find Matches
+          </NavLink>
+          <NavLink to="/coordinator/metrics" className={navLinkClass}>
+            Metrics
+          </NavLink>
+        </>
       ) : (
         <NavLink to="/mentors" className={navLinkClass}>
           Browse Mentors
