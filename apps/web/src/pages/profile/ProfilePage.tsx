@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,13 +13,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useNotificationStore } from '@/stores/notificationStore';
 
 // Types from generated API spec
 type UserProfile = Awaited<ReturnType<typeof apiClient.getCurrentUser>>;
 
 export default function ProfilePage() {
-  const { toast } = useToast();
+  const { userId } = useParams<{ userId?: string }>();
+  const { addToast } = useNotificationStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -30,13 +32,30 @@ export default function ProfilePage() {
     company: '',
   });
 
+  // Determine if viewing own profile or another user's profile
+  const isOwnProfile = !userId;
+  const isViewOnly = !isOwnProfile;
+
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, [userId]);
 
   const fetchProfile = async () => {
     try {
       setIsLoading(true);
+      // For now, we only support viewing current user's profile
+      // TODO: Add API endpoint to fetch other users' profiles (coordinator-only via RLS)
+      if (userId) {
+        // Placeholder for fetching other user's profile
+        // const data = await apiClient.getUserProfile(userId);
+        addToast({
+          variant: 'error',
+          title: 'Not implemented',
+          description: 'Viewing other user profiles is not yet implemented. The API endpoint needs to be created.',
+        });
+        setIsLoading(false);
+        return;
+      }
       const data = await apiClient.getCurrentUser();
       setProfile(data);
       setFormData({
@@ -47,7 +66,7 @@ export default function ProfilePage() {
       });
     } catch (error) {
       if (error instanceof ApiError) {
-        toast({
+        addToast({
           variant: 'error',
           title: 'Failed to load profile',
           description: error.message,
@@ -112,7 +131,7 @@ export default function ProfilePage() {
         });
       }
 
-      toast({
+      addToast({
         variant: 'success',
         title: 'Profile updated',
         description: 'Your profile has been updated successfully.',
@@ -127,7 +146,7 @@ export default function ProfilePage() {
       }
 
       if (error instanceof ApiError) {
-        toast({
+        addToast({
           variant: 'error',
           title: 'Failed to update profile',
           description: error.message,
@@ -157,8 +176,10 @@ export default function ProfilePage() {
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>View and manage your profile information</CardDescription>
+        <CardTitle>{isViewOnly ? 'User Profile' : 'Profile'}</CardTitle>
+        <CardDescription>
+          {isViewOnly ? 'View user profile information' : 'View and manage your profile information'}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isEditing ? (
@@ -248,20 +269,22 @@ export default function ProfilePage() {
           </>
         )}
       </CardContent>
-      <CardFooter className="flex justify-end gap-2">
-        {isEditing ? (
-          <>
-            <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving || !formData.name}>
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </>
-        ) : (
-          <Button onClick={handleEdit}>Edit Profile</Button>
-        )}
-      </CardFooter>
+      {!isViewOnly && (
+        <CardFooter className="flex justify-end gap-2">
+          {isEditing ? (
+            <>
+              <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving || !formData.name}>
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleEdit}>Edit Profile</Button>
+          )}
+        </CardFooter>
+      )}
     </Card>
   );
 }

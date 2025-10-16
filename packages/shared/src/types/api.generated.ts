@@ -565,7 +565,7 @@ export interface paths {
                         start_time: string;
                         /** Format: date-time */
                         end_time: string;
-                        slot_duration_minutes: ("15" | "20" | "30" | "60") | number;
+                        slot_duration_minutes: ("15" | "30" | "60") | number;
                         /** @default 0 */
                         buffer_minutes?: number;
                         /** @enum {string} */
@@ -1051,6 +1051,177 @@ export interface paths {
                     };
                 };
                 /** @description Internal Server Error - Failed to fetch bookings */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bookings/overrides/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get pending tier override requests
+         * @description Returns all pending tier override requests with enriched user profiles and match scores. Coordinator access only.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of pending tier override requests */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            requests: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                mentee_id: string;
+                                /** Format: uuid */
+                                mentor_id: string;
+                                reason: string;
+                                /** @enum {string} */
+                                status: "pending" | "approved" | "denied" | "rejected";
+                                /** @enum {string} */
+                                scope: "one_time";
+                                /** Format: date-time */
+                                expires_at: string;
+                                /** Format: date-time */
+                                used_at: string | null;
+                                /** Format: uuid */
+                                reviewed_by: string | null;
+                                /** Format: date-time */
+                                reviewed_at: string | null;
+                                review_notes: string | null;
+                                /** Format: date-time */
+                                created_at: string;
+                                /** Format: uuid */
+                                created_by: string | null;
+                                /** Format: date-time */
+                                updated_at: string;
+                                /** Format: uuid */
+                                updated_by: string | null;
+                                mentee: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    /** Format: email */
+                                    email: string;
+                                    role: string;
+                                    /** @enum {string|null} */
+                                    reputation_tier: "bronze" | "silver" | "gold" | "platinum" | null;
+                                    profile: {
+                                        /** Format: uuid */
+                                        id: string;
+                                        /** Format: uuid */
+                                        user_id: string;
+                                        name: string;
+                                        title: string | null;
+                                        company: string | null;
+                                        bio: string | null;
+                                        /** Format: date-time */
+                                        created_at: string;
+                                        /** Format: date-time */
+                                        updated_at: string;
+                                    };
+                                };
+                                mentor: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    /** Format: email */
+                                    email: string;
+                                    role: string;
+                                    /** @enum {string|null} */
+                                    reputation_tier: "bronze" | "silver" | "gold" | "platinum" | null;
+                                    profile: {
+                                        /** Format: uuid */
+                                        id: string;
+                                        /** Format: uuid */
+                                        user_id: string;
+                                        name: string;
+                                        title: string | null;
+                                        company: string | null;
+                                        bio: string | null;
+                                        /** Format: date-time */
+                                        created_at: string;
+                                        /** Format: date-time */
+                                        updated_at: string;
+                                    };
+                                };
+                                match_score: number | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Unauthorized - Missing or invalid JWT token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden - Coordinator role required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Internal Server Error - Failed to fetch requests */
                 500: {
                     headers: {
                         [name: string]: unknown;

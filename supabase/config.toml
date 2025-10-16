@@ -74,7 +74,9 @@ sql_paths = [
   "./seeds/09_seed_availability.sql",
   "./seeds/10_seed_bookings.sql",
   "./seeds/11_seed_ai_matches_server.sql",
-  "./seeds/12_seed_tag_match_cache.sql"
+  "./seeds/12_seed_tag_match_cache.sql",
+  "./seeds/13_seed_reputation_tiers.sql",
+  "./seeds/14_seed_tier_override_requests.sql"
 ]
 
 [db.network_restrictions]

@@ -5,12 +5,15 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { BookingsList } from '@/components/features/bookings/BookingsList';
 import { useMyBookings } from '@/hooks/useMyBookings';
 import { useMyBookingsRealtime } from '@/hooks/useRealtime';
+import { CoordinatorDashboardPage } from '@/pages/coordinator/CoordinatorDashboardPage';
 
 /**
  * Dashboard page - main view after authentication.
  *
- * Displays all user bookings (as mentor or mentee) organized into
+ * For mentees/mentors: displays all user bookings organized into
  * upcoming and past tabs with real-time updates.
+ *
+ * For coordinators: displays pending tier override requests.
  */
 export default function DashboardPage() {
   const { data: user } = useCurrentUser();
@@ -19,6 +22,12 @@ export default function DashboardPage() {
   // Enable real-time updates for bookings
   useMyBookingsRealtime(user?.id);
 
+  // Show coordinator dashboard for coordinators
+  if (user?.role === 'coordinator') {
+    return <CoordinatorDashboardPage />;
+  }
+
+  // Show bookings dashboard for mentees/mentors
   return (
     <>
       <div className="mb-6">

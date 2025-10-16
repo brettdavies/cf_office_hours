@@ -40,3 +40,34 @@ export type MyBookingsResponse =
 export async function getMyBookings(): Promise<MyBookingsResponse> {
   return apiClient.get('/v1/bookings/my-bookings' as const);
 }
+
+/**
+ * Type for tier override request with enriched user data.
+ */
+export type TierOverrideRequest =
+  paths['/v1/bookings/overrides/pending']['get']['responses']['200']['content']['application/json']['requests'][number];
+
+/**
+ * Response type for GET /v1/bookings/overrides/pending.
+ * Returns list of pending tier override requests (coordinator only).
+ */
+export type PendingOverridesResponse =
+  paths['/v1/bookings/overrides/pending']['get']['responses']['200']['content']['application/json'];
+
+/**
+ * Get all pending tier override requests (Coordinator only).
+ *
+ * Returns pending requests with enriched user profiles and match scores.
+ * Only accessible to coordinators.
+ *
+ * @returns Promise with array of tier override requests
+ * @throws {ApiError} 401 if not authenticated
+ * @throws {ApiError} 403 if not coordinator role
+ *
+ * @example
+ * const { requests } = await getPendingTierOverrides();
+ * console.log(`${requests.length} pending override requests`);
+ */
+export async function getPendingTierOverrides(): Promise<PendingOverridesResponse> {
+  return apiClient.get('/v1/bookings/overrides/pending' as const);
+}
