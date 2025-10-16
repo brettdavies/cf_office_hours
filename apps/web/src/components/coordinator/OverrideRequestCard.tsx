@@ -22,12 +22,14 @@ import type { TierOverrideRequest } from '@/services/api/bookings';
 
 interface OverrideRequestCardProps {
   request: TierOverrideRequest;
-  isSelected: boolean;
-  isFadingOut: boolean;
+  variant?: 'full' | 'summary';
+  isSelected?: boolean;
+  isFadingOut?: boolean;
   isFocused?: boolean;
-  onToggleSelect: () => void;
-  onApprove: (id: string) => void;
-  onDecline: (id: string) => void;
+  onToggleSelect?: () => void;
+  onApprove?: (id: string) => void;
+  onDecline?: (id: string) => void;
+  onClick?: () => void;
 }
 
 /**
@@ -44,15 +46,20 @@ function getInitials(name: string): string {
 
 /**
  * Card component for displaying a tier override request.
+ *
+ * @param variant - Display variant: 'full' (default) shows all interactive features,
+ *                  'summary' shows simplified preview for dashboard
  */
 export function OverrideRequestCard({
   request,
-  isSelected,
-  isFadingOut,
+  variant = 'full',
+  isSelected = false,
+  isFadingOut = false,
   isFocused = false,
   onToggleSelect,
   onApprove,
   onDecline,
+  onClick,
 }: OverrideRequestCardProps) {
   const { id, mentee, mentor, match_score, created_at, expires_at } = request;
 
@@ -89,30 +96,37 @@ export function OverrideRequestCard({
     ? `${Math.round(hoursUntilExpiration)} hours`
     : formatDistanceToNow(expiresAtDate, { addSuffix: false });
 
-  return (
+  const cardContent = (
     <Card
       className={cn(
         'transition-all duration-300 hover:shadow-md',
-        isSelected && 'ring-2 ring-primary',
-        isFocused && 'ring-2 ring-blue-500 shadow-lg',
-        isFadingOut && 'opacity-50 scale-95',
+        variant === 'full' && isSelected && 'ring-2 ring-primary',
+        variant === 'full' && isFocused && 'ring-2 ring-blue-500 shadow-lg',
+        variant === 'full' && isFadingOut && 'opacity-50 scale-95',
+        variant === 'summary' && 'cursor-pointer',
         urgencyLevel === 'urgent' && 'border-red-300',
         urgencyLevel === 'warning' && 'border-yellow-300'
       )}
+      onClick={variant === 'summary' ? onClick : undefined}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`select-${id}`}
-              checked={isSelected}
-              onCheckedChange={onToggleSelect}
-              aria-label="Select request"
-            />
-            <label htmlFor={`select-${id}`} className="text-xs text-muted-foreground cursor-pointer">
-              Select
-            </label>
-          </div>
+          {variant === 'full' && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`select-${id}`}
+                checked={isSelected}
+                onCheckedChange={onToggleSelect}
+                aria-label="Select request"
+              />
+              <label htmlFor={`select-${id}`} className="text-xs text-muted-foreground cursor-pointer">
+                Select
+              </label>
+            </div>
+          )}
+          {variant === 'summary' && showUrgencyBadge && (
+            <div className="flex-1" />
+          )}
           {showUrgencyBadge && (
             <Badge
               variant={urgencyLevel === 'urgent' ? 'destructive' : 'default'}
@@ -196,28 +210,32 @@ export function OverrideRequestCard({
         </div>
       </CardContent>
 
-      <CardFooter className="flex gap-2 pt-3">
-        <Button
-          variant="default"
-          size="sm"
-          className="flex-1"
-          onClick={() => onApprove(id)}
-          disabled={isFadingOut}
-        >
-          <Check className="h-4 w-4 mr-1" />
-          Approve
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          onClick={() => onDecline(id)}
-          disabled={isFadingOut}
-        >
-          <X className="h-4 w-4 mr-1" />
-          Decline
-        </Button>
-      </CardFooter>
+      {variant === 'full' && (
+        <CardFooter className="flex gap-2 pt-3">
+          <Button
+            variant="default"
+            size="sm"
+            className="flex-1"
+            onClick={() => onApprove?.(id)}
+            disabled={isFadingOut}
+          >
+            <Check className="h-4 w-4 mr-1" />
+            Approve
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => onDecline?.(id)}
+            disabled={isFadingOut}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Decline
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
+
+  return cardContent;
 }

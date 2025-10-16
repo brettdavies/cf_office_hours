@@ -40,6 +40,9 @@ export function Navigation() {
           <NavLink to="/coordinator/metrics" className={navLinkClass}>
             Metrics
           </NavLink>
+          <NavLink to="/coordinator/overrides" className={navLinkClass}>
+            Overrides
+          </NavLink>
         </>
       ) : (
         <NavLink to="/mentors" className={navLinkClass}>

@@ -21,6 +21,7 @@ const BrowseMentorsPage = lazy(() =>
 
 const CoordinatorMatchingPage = lazy(() => import('@/pages/coordinator/CoordinatorMatchingPage'));
 const CoordinatorMetricsPage = lazy(() => import('@/pages/coordinator/CoordinatorMetricsPage'));
+const CoordinatorOverridesPage = lazy(() => import('@/pages/coordinator/CoordinatorOverridesPage'));
 
 export const router = createBrowserRouter([
   // Root redirects to dashboard
@@ -81,6 +82,10 @@ export const router = createBrowserRouter([
           {
             path: 'coordinator/metrics',
             element: <CoordinatorMetricsPage />,
+          },
+          {
+            path: 'coordinator/overrides',
+            element: <CoordinatorOverridesPage />,
           },
         ],
       },

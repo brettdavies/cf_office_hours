@@ -5,7 +5,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { BookingsList } from '@/components/features/bookings/BookingsList';
 import { useMyBookings } from '@/hooks/useMyBookings';
 import { useMyBookingsRealtime } from '@/hooks/useRealtime';
-import { CoordinatorDashboardPage } from '@/pages/coordinator/CoordinatorDashboardPage';
+import { CoordinatorLandingPage } from '@/pages/coordinator/CoordinatorLandingPage';
 
 /**
  * Dashboard page - main view after authentication.
@@ -22,9 +22,9 @@ export default function DashboardPage() {
   // Enable real-time updates for bookings
   useMyBookingsRealtime(user?.id);
 
-  // Show coordinator dashboard for coordinators
+  // Show coordinator landing page for coordinators
   if (user?.role === 'coordinator') {
-    return <CoordinatorDashboardPage />;
+    return <CoordinatorLandingPage />;
   }
 
   // Show bookings dashboard for mentees/mentors

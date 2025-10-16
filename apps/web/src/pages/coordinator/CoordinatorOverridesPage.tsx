@@ -1,8 +1,8 @@
 /**
- * Coordinator Dashboard Page
+ * Coordinator Overrides Page
  *
- * Displays pending tier override requests for coordinators to review and manage.
- * Features filtering, sorting, bulk actions, and local state management for approve/decline.
+ * Displays all pending tier override requests for coordinators to review and manage.
+ * Features filtering, sorting, bulk actions, keyboard navigation, and local state management.
  */
 
 // External dependencies
@@ -135,9 +135,9 @@ function parseSortFromURL(searchParams: URLSearchParams): SortOption {
 }
 
 /**
- * Main coordinator dashboard component for managing tier override requests.
+ * Main coordinator overrides page component for managing tier override requests.
  */
-export function CoordinatorDashboardPage() {
+export function CoordinatorOverridesPage() {
   const { requests, isLoading, error, refetch } = useTierOverrides();
   const { addToast } = useNotificationStore();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -881,3 +881,5 @@ export function CoordinatorDashboardPage() {
     </div>
   );
 }
+
+export default CoordinatorOverridesPage;
