@@ -1,0 +1,515 @@
+/**
+ * useOverridesState Hook
+ *
+ * Custom hook managing all state, business logic, and side effects for the tier override requests page.
+ * Handles filtering, sorting, selection, keyboard navigation, URL sync, and action handlers.
+ *
+ * Extracted from CoordinatorOverridesPage.tsx for maintainability and testability.
+ */
+
+// External dependencies
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+// Internal modules
+import { useNotificationStore } from '@/stores/notificationStore';
+import { getTierDifference, getMatchScoreBucket } from '@/lib/tier-utils';
+
+// Types
+import type { TierOverrideRequest } from '@/services/api/bookings';
+import type { SortOption } from '@/components/coordinator/OverridesSortingControl';
+import type { Filters } from '@/components/coordinator/OverridesFilterPanel';
+import { DEFAULT_FILTERS } from '@/components/coordinator/OverridesFilterPanel';
+
+/**
+ * Parse filters from URL search params
+ */
+function parseFiltersFromURL(searchParams: URLSearchParams): Filters {
+  const mentorTiersStr = searchParams.get('mentorTiers');
+  const menteeTiersStr = searchParams.get('menteeTiers');
+  const tierDiffsStr = searchParams.get('tierDiffs');
+  const matchScoresStr = searchParams.get('matchScores');
+
+  const mentorTiers = mentorTiersStr?.split(',').filter(Boolean);
+  const menteeTiers = menteeTiersStr?.split(',').filter(Boolean);
+  const tierDifferences = tierDiffsStr
+    ?.split(',')
+    .map(Number)
+    .filter(n => !isNaN(n));
+  const matchScoreBuckets = matchScoresStr?.split(',').filter(Boolean);
+
+  return {
+    mentorTiers:
+      mentorTiers && mentorTiers.length > 0
+        ? (mentorTiers as Filters['mentorTiers'])
+        : DEFAULT_FILTERS.mentorTiers,
+    menteeTiers:
+      menteeTiers && menteeTiers.length > 0
+        ? (menteeTiers as Filters['menteeTiers'])
+        : DEFAULT_FILTERS.menteeTiers,
+    tierDifferences:
+      tierDifferences && tierDifferences.length > 0
+        ? tierDifferences
+        : DEFAULT_FILTERS.tierDifferences,
+    matchScoreBuckets:
+      matchScoreBuckets && matchScoreBuckets.length > 0
+        ? (matchScoreBuckets as Filters['matchScoreBuckets'])
+        : DEFAULT_FILTERS.matchScoreBuckets,
+  };
+}
+
+/**
+ * Parse sort option from URL search params
+ */
+function parseSortFromURL(searchParams: URLSearchParams): SortOption {
+  const sort = searchParams.get('sort') as SortOption | null;
+  const validSorts = [
+    'time_pending_asc',
+    'time_pending_desc',
+    'expiration_asc',
+    'expiration_desc',
+    'mentee_name_asc',
+    'mentee_name_desc',
+    'mentor_name_asc',
+    'mentor_name_desc',
+    'match_score_asc',
+    'match_score_desc',
+  ];
+  return sort && validSorts.includes(sort) ? sort : 'time_pending_asc';
+}
+
+/**
+ * Custom hook for tier override requests state management
+ */
+export function useOverridesState(requests: TierOverrideRequest[]) {
+  const { addToast } = useNotificationStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Local state for displayed requests (modified by approve/decline actions)
+  const [displayedRequests, setDisplayedRequests] = useState<TierOverrideRequest[]>([]);
+  const [fadingOutIds, setFadingOutIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Filtering and sorting state - initialized from URL
+  const [sortBy, setSortBy] = useState<SortOption>(() => parseSortFromURL(searchParams));
+  const [filters, setFilters] = useState<Filters>(() => parseFiltersFromURL(searchParams));
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Update URL when sort or filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    // Add sort param
+    if (sortBy !== 'time_pending_asc') {
+      params.set('sort', sortBy);
+    }
+
+    // Add filter params only if they differ from defaults
+    if (
+      filters.mentorTiers.length !== 4 ||
+      filters.mentorTiers.some(t => !DEFAULT_FILTERS.mentorTiers.includes(t))
+    ) {
+      params.set('mentorTiers', filters.mentorTiers.join(','));
+    }
+    if (
+      filters.menteeTiers.length !== 4 ||
+      filters.menteeTiers.some(t => !DEFAULT_FILTERS.menteeTiers.includes(t))
+    ) {
+      params.set('menteeTiers', filters.menteeTiers.join(','));
+    }
+    if (
+      filters.tierDifferences.length !== 3 ||
+      filters.tierDifferences.some(d => !DEFAULT_FILTERS.tierDifferences.includes(d))
+    ) {
+      params.set('tierDiffs', filters.tierDifferences.join(','));
+    }
+    if (
+      filters.matchScoreBuckets.length !== 5 ||
+      filters.matchScoreBuckets.some(b => !DEFAULT_FILTERS.matchScoreBuckets.includes(b))
+    ) {
+      params.set('matchScores', filters.matchScoreBuckets.join(','));
+    }
+
+    // Update URL without causing navigation
+    setSearchParams(params, { replace: true });
+  }, [sortBy, filters, setSearchParams]);
+
+  // Approve handler
+  const handleApprove = useCallback(
+    (id: string) => {
+      const request = displayedRequests.find(r => r.id === id);
+      if (!request) return;
+
+      // Mark as fading out
+      setFadingOutIds(prev => new Set(prev).add(id));
+
+      // Wait for fade animation, then remove from local state
+      setTimeout(() => {
+        setDisplayedRequests(prev => prev.filter(r => r.id !== id));
+        setFadingOutIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+
+        // Show success toast
+        addToast({
+          title: 'Request Approved',
+          description: `Override request approved for ${request.mentee.profile.name} → ${request.mentor.profile.name}`,
+          variant: 'success',
+        });
+      }, 300);
+    },
+    [displayedRequests, addToast]
+  );
+
+  // Decline handler
+  const handleDecline = useCallback(
+    (id: string) => {
+      const request = displayedRequests.find(r => r.id === id);
+      if (!request) return;
+
+      // Mark as fading out
+      setFadingOutIds(prev => new Set(prev).add(id));
+
+      // Wait for fade animation, then remove from local state
+      setTimeout(() => {
+        setDisplayedRequests(prev => prev.filter(r => r.id !== id));
+        setFadingOutIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+
+        // Show success toast
+        addToast({
+          title: 'Request Declined',
+          description: `Override request declined for ${request.mentee.profile.name} → ${request.mentor.profile.name}`,
+          variant: 'default',
+        });
+      }, 300);
+    },
+    [displayedRequests, addToast]
+  );
+
+  // Bulk approve handler
+  const handleBulkApprove = useCallback(() => {
+    const idsArray = Array.from(selectedIds);
+
+    // Mark all as fading out with 50ms stagger
+    idsArray.forEach((id, index) => {
+      setTimeout(() => {
+        setFadingOutIds(prev => new Set(prev).add(id));
+      }, index * 50);
+    });
+
+    // Remove from state and show toasts with 100ms stagger
+    idsArray.forEach((id, index) => {
+      setTimeout(() => {
+        const request = displayedRequests.find(r => r.id === id);
+        if (request) {
+          addToast({
+            title: 'Request Approved',
+            description: `${request.mentee.profile.name} → ${request.mentor.profile.name}`,
+            variant: 'success',
+          });
+        }
+      }, index * 100);
+    });
+
+    // Remove all cards after animations complete
+    setTimeout(() => {
+      setDisplayedRequests(prev => prev.filter(r => !selectedIds.has(r.id)));
+      setFadingOutIds(new Set());
+      setSelectedIds(new Set());
+    }, idsArray.length * 50 + 300);
+  }, [selectedIds, displayedRequests, addToast]);
+
+  // Bulk decline handler
+  const handleBulkDecline = useCallback(() => {
+    const idsArray = Array.from(selectedIds);
+
+    // Mark all as fading out with 50ms stagger
+    idsArray.forEach((id, index) => {
+      setTimeout(() => {
+        setFadingOutIds(prev => new Set(prev).add(id));
+      }, index * 50);
+    });
+
+    // Remove from state and show toasts with 100ms stagger
+    idsArray.forEach((id, index) => {
+      setTimeout(() => {
+        const request = displayedRequests.find(r => r.id === id);
+        if (request) {
+          addToast({
+            title: 'Request Declined',
+            description: `${request.mentee.profile.name} → ${request.mentor.profile.name}`,
+            variant: 'default',
+          });
+        }
+      }, index * 100);
+    });
+
+    // Remove all cards after animations complete
+    setTimeout(() => {
+      setDisplayedRequests(prev => prev.filter(r => !selectedIds.has(r.id)));
+      setFadingOutIds(new Set());
+      setSelectedIds(new Set());
+    }, idsArray.length * 50 + 300);
+  }, [selectedIds, displayedRequests, addToast]);
+
+  // Toggle selection handler
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Update displayed requests when API data changes
+  useEffect(() => {
+    if (requests.length > 0) {
+      setDisplayedRequests(requests);
+    }
+  }, [requests]);
+
+  // Filter requests
+  const filteredRequests = useMemo(() => {
+    return displayedRequests.filter(request => {
+      const mentorTier = request.mentor.reputation_tier;
+      const menteeTier = request.mentee.reputation_tier;
+
+      if (!mentorTier || !menteeTier) return false;
+
+      // Mentor tier filter
+      if (!filters.mentorTiers.includes(mentorTier)) return false;
+
+      // Mentee tier filter
+      if (!filters.menteeTiers.includes(menteeTier)) return false;
+
+      // Tier difference filter
+      const diff = getTierDifference(mentorTier, menteeTier);
+      if (!filters.tierDifferences.includes(diff)) return false;
+
+      // Match score bucket filter
+      const bucket = getMatchScoreBucket(request.match_score);
+      if (!filters.matchScoreBuckets.includes(bucket)) return false;
+
+      return true;
+    });
+  }, [displayedRequests, filters]);
+
+  // Sort requests
+  const sortedRequests = useMemo(() => {
+    const sorted = [...filteredRequests];
+
+    const sortFns: Record<
+      SortOption,
+      (a: TierOverrideRequest, b: TierOverrideRequest) => number
+    > = {
+      time_pending_asc: (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      time_pending_desc: (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      expiration_asc: (a, b) =>
+        new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime(),
+      expiration_desc: (a, b) =>
+        new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime(),
+      mentee_name_asc: (a, b) => a.mentee.profile.name.localeCompare(b.mentee.profile.name),
+      mentee_name_desc: (a, b) => b.mentee.profile.name.localeCompare(a.mentee.profile.name),
+      mentor_name_asc: (a, b) => a.mentor.profile.name.localeCompare(b.mentor.profile.name),
+      mentor_name_desc: (a, b) => b.mentor.profile.name.localeCompare(a.mentor.profile.name),
+      match_score_asc: (a, b) => {
+        // Nulls go to the end
+        if (a.match_score === null || a.match_score === undefined) return 1;
+        if (b.match_score === null || b.match_score === undefined) return -1;
+        return a.match_score - b.match_score;
+      },
+      match_score_desc: (a, b) => {
+        // Nulls go to the end
+        if (a.match_score === null || a.match_score === undefined) return 1;
+        if (b.match_score === null || b.match_score === undefined) return -1;
+        return b.match_score - a.match_score;
+      },
+    };
+
+    return sorted.sort(sortFns[sortBy]);
+  }, [filteredRequests, sortBy]);
+
+  // Toggle select all handler
+  const handleToggleSelectAll = useCallback(() => {
+    const visibleRequests = sortedRequests.filter(r => !fadingOutIds.has(r.id));
+    if (selectedIds.size === visibleRequests.length) {
+      // Deselect all
+      setSelectedIds(new Set());
+    } else {
+      // Select all
+      setSelectedIds(new Set(visibleRequests.map(r => r.id)));
+    }
+  }, [sortedRequests, fadingOutIds, selectedIds.size]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle keyboard shortcuts if user is typing in an input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      const visibleRequests = sortedRequests.filter(r => !fadingOutIds.has(r.id));
+      if (visibleRequests.length === 0) return;
+
+      // Handle Ctrl+A / Cmd+A for Select All / Deselect All
+      if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleToggleSelectAll();
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowDown':
+        case 'ArrowRight':
+          e.preventDefault();
+          setFocusedIndex(prev => (prev + 1) % visibleRequests.length);
+          break;
+
+        case 'ArrowUp':
+        case 'ArrowLeft':
+          e.preventDefault();
+          setFocusedIndex(prev => (prev - 1 + visibleRequests.length) % visibleRequests.length);
+          break;
+
+        case 'Tab':
+          if (focusedIndex === -1) {
+            e.preventDefault();
+            setFocusedIndex(e.shiftKey ? visibleRequests.length - 1 : 0);
+          }
+          break;
+
+        case ' ':
+          e.preventDefault();
+          if (focusedIndex >= 0 && focusedIndex < visibleRequests.length) {
+            const request = visibleRequests[focusedIndex];
+            handleToggleSelect(request.id);
+          }
+          break;
+
+        case 'Enter':
+          e.preventDefault();
+          // If cards are selected, approve all selected. Otherwise approve focused card.
+          if (selectedIds.size > 0) {
+            handleBulkApprove();
+          } else if (focusedIndex >= 0 && focusedIndex < visibleRequests.length) {
+            const request = visibleRequests[focusedIndex];
+            handleApprove(request.id);
+          }
+          break;
+
+        case 'Delete':
+        case 'Backspace':
+          e.preventDefault();
+          // If cards are selected, decline all selected. Otherwise decline focused card.
+          if (selectedIds.size > 0) {
+            handleBulkDecline();
+          } else if (focusedIndex >= 0 && focusedIndex < visibleRequests.length) {
+            const request = visibleRequests[focusedIndex];
+            handleDecline(request.id);
+          }
+          break;
+
+        case 'Escape':
+          e.preventDefault();
+          setFocusedIndex(-1);
+          setSelectedIds(new Set());
+          break;
+
+        case 'a':
+        case 'A':
+          e.preventDefault();
+          // If cards are selected, approve all selected. Otherwise approve focused card.
+          if (selectedIds.size > 0) {
+            handleBulkApprove();
+          } else if (focusedIndex >= 0 && focusedIndex < visibleRequests.length) {
+            const request = visibleRequests[focusedIndex];
+            handleApprove(request.id);
+          }
+          break;
+
+        case 'd':
+        case 'D':
+          e.preventDefault();
+          // If cards are selected, decline all selected. Otherwise decline focused card.
+          if (selectedIds.size > 0) {
+            handleBulkDecline();
+          } else if (focusedIndex >= 0 && focusedIndex < visibleRequests.length) {
+            const request = visibleRequests[focusedIndex];
+            handleDecline(request.id);
+          }
+          break;
+
+        case '?':
+        case '/':
+          e.preventDefault();
+          setShowShortcuts(prev => !prev);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    focusedIndex,
+    sortedRequests,
+    fadingOutIds,
+    selectedIds,
+    handleApprove,
+    handleDecline,
+    handleBulkApprove,
+    handleBulkDecline,
+    handleToggleSelect,
+    handleToggleSelectAll,
+  ]);
+
+  return {
+    displayedRequests,
+    sortedRequests,
+    selectedIds,
+    focusedIndex,
+    fadingOutIds,
+    showShortcuts,
+    showFilters,
+    sortBy,
+    filters,
+    setShowShortcuts,
+    setShowFilters,
+    setSortBy,
+    setFilters,
+    handleApprove,
+    handleDecline,
+    handleBulkApprove,
+    handleBulkDecline,
+    handleToggleSelect,
+    handleToggleSelectAll,
+  };
+}

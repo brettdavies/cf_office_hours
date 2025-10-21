@@ -18,6 +18,7 @@ export * from "./schemas/common";
 
 // Export constants
 export * from "./constants/errors";
+export * from "./constants/tiers";
 
 // Export utilities when they are created
 // export * from './utils';

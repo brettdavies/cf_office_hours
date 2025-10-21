@@ -134,22 +134,41 @@ export class TierOverrideRepository extends BaseRepository {
     });
 
     // Enrich with match scores from user_match_cache
-    const enriched = await Promise.all(
-      transformedRequests.map(async (request) => {
-        const { data: matchData } = await this.supabase
-          .from('user_match_cache')
-          .select('match_score')
-          .eq('user_id', request.mentee_id)
-          .eq('recommended_user_id', request.mentor_id)
-          .eq('algorithm_version', 'tag-based-v1')
-          .maybeSingle();
+    // PERFORMANCE FIX: Fetch all match scores in single query instead of N queries
+    const menteeIds = transformedRequests.map((r) => r.mentee_id);
+    const mentorIds = transformedRequests.map((r) => r.mentor_id);
 
-        return {
-          ...request,
-          match_score: matchData?.match_score ?? null,
-        };
-      }),
-    );
+    const { data: matchScores, error: matchError } = await this.supabase
+      .from('user_match_cache')
+      .select('user_id, recommended_user_id, match_score')
+      .in('user_id', menteeIds)
+      .in('recommended_user_id', mentorIds)
+      .eq('algorithm_version', 'tag-based-v1');
+
+    if (matchError) {
+      console.error('[TIER_OVERRIDE_REPO] Failed to fetch match scores:', matchError);
+      // Non-fatal error - continue without match scores
+    }
+
+    // Create lookup map for O(1) access: "mentee_id-mentor_id" -> match_score
+    const matchScoreMap = new Map<string, number>();
+    if (matchScores) {
+      for (const score of matchScores) {
+        const key = `${score.user_id}-${score.recommended_user_id}`;
+        matchScoreMap.set(key, score.match_score);
+      }
+    }
+
+    // Map match scores to requests
+    const enriched = transformedRequests.map((request) => {
+      const key = `${request.mentee_id}-${request.mentor_id}`;
+      const matchScore = matchScoreMap.get(key) ?? null;
+
+      return {
+        ...request,
+        match_score: matchScore,
+      };
+    });
 
     return enriched;
   }

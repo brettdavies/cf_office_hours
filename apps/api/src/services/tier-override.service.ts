@@ -11,6 +11,7 @@
 
 // Internal modules
 import { TierOverrideRepository } from '../repositories/tier-override.repository';
+import { AppError } from '../lib/errors';
 import type { TierOverrideRequestWithUsers } from '../repositories/tier-override.repository';
 
 // Types
@@ -30,23 +31,36 @@ export class TierOverrideService {
    * Includes enriched user profiles and match scores.
    *
    * @returns Array of active pending override requests
+   * @throws {AppError} When fetching requests fails
    */
   async getPendingRequests(): Promise<TierOverrideRequestWithUsers[]> {
     console.log('[TIER_OVERRIDE_SERVICE] Fetching pending override requests');
 
-    const requests = await this.tierOverrideRepo.getPendingWithUsers();
+    try {
+      const requests = await this.tierOverrideRepo.getPendingWithUsers();
 
-    // Filter out expired requests
-    const now = new Date();
-    const active = requests.filter((request) => {
-      const expiresAt = new Date(request.expires_at);
-      return expiresAt > now;
-    });
+      // Filter out expired requests
+      const now = new Date();
+      const active = requests.filter((request) => {
+        const expiresAt = new Date(request.expires_at);
+        return expiresAt > now;
+      });
 
-    console.log(
-      `[TIER_OVERRIDE_SERVICE] Found ${active.length} active requests (${requests.length - active.length} expired)`,
-    );
+      console.log(
+        `[TIER_OVERRIDE_SERVICE] Found ${active.length} active requests (${requests.length - active.length} expired)`,
+      );
 
-    return active;
+      return active;
+    } catch (error) {
+      console.error('[TIER_OVERRIDE_SERVICE] Failed to fetch pending requests:', error);
+
+      // Wrap in AppError for consistent error handling
+      throw new AppError(
+        500,
+        'Failed to fetch tier override requests',
+        'TIER_OVERRIDE_FETCH_FAILED',
+        { originalError: error instanceof Error ? error.message : String(error) }
+      );
+    }
   }
 }
