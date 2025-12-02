@@ -1,5 +1,7 @@
 # CF Office Hours Platform
 
+> **Project Overview:** See [PROJECT.md](PROJECT.md) for a high-level overview, achievements, and technical highlights.
+
 **Intelligent mentor-mentee matching and scheduling platform for Capital Factory's startup accelerator program.**
 
 The CF Office Hours Platform revolutionizes how entrepreneurs connect with experienced mentors. Built to replace Union.vc, this platform uses AI-powered matching algorithms to connect mentees with the most relevant mentors based on industry expertise, company stage alignment, and reputation-based access tiers.
