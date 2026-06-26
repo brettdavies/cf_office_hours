@@ -610,7 +610,7 @@ POST https://api.officehours.youcanjustdothings.io/v1/auth/magic-link
 Content-Type: application/json
 
 {
-  "email": "sarah.mentor@capitalfactory.com"
+  "email": "sarah.mentor@example.com"
 }
 ```
 
@@ -618,7 +618,7 @@ Content-Type: application/json
 ```json
 {
   "message": "Magic link sent to your email",
-  "email": "sarah.mentor@capitalfactory.com",
+  "email": "sarah.mentor@example.com",
   "expires_in": 3600
 }
 ```

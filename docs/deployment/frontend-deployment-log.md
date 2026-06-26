@@ -126,7 +126,7 @@ Follow these steps to complete the first production deployment:
 - **Version:** 1.0.0 (Epic 0 Walking Skeleton)
 - **Deployment ID:** [visible in Cloudflare dashboard]
 - **Frontend URL:** https://officehours.youcanjustdothings.io (custom domain pending)
-- **Deployed By:** Brett Davies
+- **Deployed By:** Maintainer
 - **Git Commit:** e51f50b
 - **Build Time:** 4.64s
 - **Status:** ✅ Build Successful (custom domain configuration pending)

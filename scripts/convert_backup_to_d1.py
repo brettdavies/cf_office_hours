@@ -60,12 +60,17 @@ def normalize_timestamp(value: str) -> str:
     return f"{date}T{time}{millis}Z"
 
 
-def sql_literal(raw: str, column: str, email_map: dict) -> str:
+def sql_literal(raw: str, column: str, email_map: dict, replacements: list) -> str:
     """Render one COPY field as a SQLite SQL literal."""
     if raw == r"\N":
         return "NULL"
 
     value = unescape_copy(raw)
+
+    # Global substring scrubs (e.g. replacing PII) apply to every text field.
+    for old, new in replacements:
+        if old in value:
+            value = value.replace(old, new)
 
     if column in BOOL_COLUMNS:
         return "1" if value == "t" else "0"
@@ -79,7 +84,9 @@ def sql_literal(raw: str, column: str, email_map: dict) -> str:
     return f"'{escaped}'"
 
 
-def emit_table(out, table: str, columns: list, rows: list, email_map: dict) -> None:
+def emit_table(
+    out, table: str, columns: list, rows: list, email_map: dict, replacements: list
+) -> None:
     """Write batched INSERT statements for one table's rows."""
     if not rows:
         return
@@ -91,7 +98,7 @@ def emit_table(out, table: str, columns: list, rows: list, email_map: dict) -> N
         values = []
         for fields in batch:
             literals = [
-                sql_literal(fields[i], columns[i], email_map)
+                sql_literal(fields[i], columns[i], email_map, replacements)
                 for i in range(len(columns))
             ]
             values.append("  (" + ", ".join(literals) + ")")
@@ -105,12 +112,23 @@ def main() -> int:
     parser.add_argument("backup")
     parser.add_argument("out")
     parser.add_argument("--email-map", action="append", default=[])
+    parser.add_argument(
+        "--replace",
+        action="append",
+        default=[],
+        help="Global substring scrub applied to every text field, as old=new",
+    )
     args = parser.parse_args()
 
     email_map = {}
     for pair in args.email_map:
         old, new = pair.split("=", 1)
         email_map[old] = new
+
+    replacements = []
+    for pair in args.replace:
+        old, new = pair.split("=", 1)
+        replacements.append((old, new))
 
     collected = {}
     with open(args.backup, "r", encoding="utf-8") as fh:
@@ -134,7 +152,7 @@ def main() -> int:
         for table in TARGET_TABLES:
             if table in collected:
                 columns, rows = collected[table]
-                emit_table(out, table, columns, rows, email_map)
+                emit_table(out, table, columns, rows, email_map, replacements)
             else:
                 print(f"warning: no data block for {table}", file=sys.stderr)
 
