@@ -1,8 +1,8 @@
 /**
  * useTierOverrides Hook Tests
  *
- * Tests React Query hook for fetching tier override requests.
- * Covers loading states, error handling, and retry logic.
+ * Tests the React Query hook for fetching pending tier override requests.
+ * Covers loading, success, error, empty, and refetch behavior.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -11,21 +11,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTierOverrides } from './useTierOverrides';
 import * as bookingsApi from '@/services/api/bookings';
 
-// Mock the bookings API
+// Mock the bookings API (the hook calls getPendingTierOverrides)
 vi.mock('@/services/api/bookings', () => ({
-  fetchPendingTierOverrides: vi.fn(),
+  getPendingTierOverrides: vi.fn(),
 }));
 
-// Create wrapper for React Query
 const createWrapper = () => {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false, // Disable retries for testing
-      },
-    },
+    defaultOptions: { queries: { retry: false } },
   });
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ({ children }: any) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -37,9 +31,9 @@ describe('useTierOverrides', () => {
     vi.clearAllMocks();
   });
 
-  it('should return loading state initially', () => {
-    vi.mocked(bookingsApi.fetchPendingTierOverrides).mockImplementation(
-      () => new Promise(() => {}), // Never resolves
+  it('returns the loading state initially', () => {
+    vi.mocked(bookingsApi.getPendingTierOverrides).mockImplementation(
+      () => new Promise(() => {}) // never resolves
     );
 
     const { result } = renderHook(() => useTierOverrides(), {
@@ -47,11 +41,11 @@ describe('useTierOverrides', () => {
     });
 
     expect(result.current.isLoading).toBe(true);
-    expect(result.current.requests).toBeUndefined();
+    expect(result.current.requests).toEqual([]);
     expect(result.current.error).toBeNull();
   });
 
-  it('should fetch tier overrides successfully', async () => {
+  it('fetches tier overrides successfully', async () => {
     const mockData = [
       {
         id: 'req-1',
@@ -62,32 +56,13 @@ describe('useTierOverrides', () => {
         created_at: '2025-01-01T00:00:00Z',
         expires_at: '2025-01-08T00:00:00Z',
         match_score: 85.5,
-        mentee: {
-          id: 'mentee-1',
-          email: 'mentee@test.com',
-          role: 'mentee',
-          reputation_tier: 'bronze',
-          profile: {
-            name: 'Mentee Test',
-            title: 'Founder',
-            company: 'TestCo',
-          },
-        },
-        mentor: {
-          id: 'mentor-1',
-          email: 'mentor@test.com',
-          role: 'mentor',
-          reputation_tier: 'platinum',
-          profile: {
-            name: 'Mentor Test',
-            title: 'Advisor',
-            company: 'AdviceCo',
-          },
-        },
       },
     ];
 
-    vi.mocked(bookingsApi.fetchPendingTierOverrides).mockResolvedValue(mockData);
+    vi.mocked(bookingsApi.getPendingTierOverrides).mockResolvedValue({
+      requests: mockData,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     const { result } = renderHook(() => useTierOverrides(), {
       wrapper: createWrapper(),
@@ -97,26 +72,28 @@ describe('useTierOverrides', () => {
 
     expect(result.current.requests).toEqual(mockData);
     expect(result.current.error).toBeNull();
-    expect(bookingsApi.fetchPendingTierOverrides).toHaveBeenCalledTimes(1);
+    expect(bookingsApi.getPendingTierOverrides).toHaveBeenCalledTimes(1);
   });
 
-  it('should handle error state', async () => {
-    const mockError = new Error('Failed to fetch');
-
-    vi.mocked(bookingsApi.fetchPendingTierOverrides).mockRejectedValue(mockError);
+  it('handles the error state', async () => {
+    vi.mocked(bookingsApi.getPendingTierOverrides).mockRejectedValue(new Error('Failed to fetch'));
 
     const { result } = renderHook(() => useTierOverrides(), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.requests).toBeUndefined();
-    expect(result.current.error).toBeTruthy();
+    // The hook retries twice (with backoff), so allow extra time to settle.
+    await waitFor(() => expect(result.current.error).toBeTruthy(), {
+      timeout: 8000,
+    });
+    expect(result.current.requests).toEqual([]);
   });
 
-  it('should handle empty results', async () => {
-    vi.mocked(bookingsApi.fetchPendingTierOverrides).mockResolvedValue([]);
+  it('handles empty results', async () => {
+    vi.mocked(bookingsApi.getPendingTierOverrides).mockResolvedValue({
+      requests: [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     const { result } = renderHook(() => useTierOverrides(), {
       wrapper: createWrapper(),
@@ -128,37 +105,34 @@ describe('useTierOverrides', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('should support refetch', async () => {
-    const mockData = [{ id: 'req-1' }];
-
-    vi.mocked(bookingsApi.fetchPendingTierOverrides).mockResolvedValue(mockData);
+  it('supports refetch', async () => {
+    vi.mocked(bookingsApi.getPendingTierOverrides).mockResolvedValue({
+      requests: [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     const { result } = renderHook(() => useTierOverrides(), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    // Clear mock calls
     vi.clearAllMocks();
 
-    // Trigger refetch
-    result.current.refetch();
+    await result.current.refetch();
 
-    await waitFor(() =>
-      expect(bookingsApi.fetchPendingTierOverrides).toHaveBeenCalledTimes(1),
-    );
+    await waitFor(() => expect(bookingsApi.getPendingTierOverrides).toHaveBeenCalledTimes(1));
   });
 
-  it('should use correct query key', () => {
-    vi.mocked(bookingsApi.fetchPendingTierOverrides).mockResolvedValue([]);
+  it('exposes a refetch function', () => {
+    vi.mocked(bookingsApi.getPendingTierOverrides).mockResolvedValue({
+      requests: [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     const { result } = renderHook(() => useTierOverrides(), {
       wrapper: createWrapper(),
     });
 
-    // Query key should be ['bookings', 'overrides', 'pending']
-    // This ensures proper cache invalidation
     expect(result.current).toHaveProperty('refetch');
   });
 });
