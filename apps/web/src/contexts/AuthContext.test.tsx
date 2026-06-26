@@ -1,41 +1,29 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuthContext } from './AuthContext';
-import { supabase } from '@/services/supabase';
 import { createTestQueryClient } from '@/test/test-utils';
 
-// Mock Supabase client
-vi.mock('@/services/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-      onAuthStateChange: vi.fn(),
-      signOut: vi.fn(),
-    },
-  },
-}));
+const storeSession = (token: string, user: Record<string, unknown>): void => {
+  localStorage.setItem('cf_oh_token', token);
+  localStorage.setItem('cf_oh_user', JSON.stringify(user));
+};
 
-// Test component that uses the auth context
+// Mirrors the cross-tab notification the auth service emits on login/logout.
+const notifyAuthChange = (): void => {
+  window.dispatchEvent(new StorageEvent('storage', { key: 'cf_oh_token' }));
+};
+
 const TestComponent = () => {
-  const { session, isLoading, isAuthenticated } = useAuthContext();
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
+  const { session, isAuthenticated } = useAuthContext();
   return (
     <div>
-      <div data-testid="auth-status">
-        {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
-      </div>
+      <div data-testid="auth-status">{isAuthenticated ? 'Authenticated' : 'Not Authenticated'}</div>
       <div data-testid="session-token">{session?.access_token ? 'Has Token' : 'No Token'}</div>
     </div>
   );
 };
 
-// Wrapper component for tests - uses createTestQueryClient from test-utils
 const TestWrapper = ({ children }: { children: React.ReactNode }) => {
   const queryClient = createTestQueryClient();
   return (
@@ -47,24 +35,15 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => {
 
 describe('AuthProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     localStorage.clear();
   });
 
-  it('should provide initial loading state', () => {
-    // Mock no session initially
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: null },
-      error: null,
+  it('renders authenticated when a session is stored', () => {
+    storeSession('mock-access-token', {
+      id: 'user-123',
+      email: 'test@example.com',
+      role: 'mentee',
     });
-
-    vi.mocked(supabase.auth.onAuthStateChange).mockReturnValue({
-      data: {
-        subscription: {
-          unsubscribe: vi.fn(),
-        },
-      },
-    } as any);
 
     render(
       <TestWrapper>
@@ -72,111 +51,37 @@ describe('AuthProvider', () => {
       </TestWrapper>
     );
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('Authenticated');
+    expect(screen.getByTestId('session-token')).toHaveTextContent('Has Token');
   });
 
-  it('should handle authenticated state', async () => {
-    const mockSession = {
-      access_token: 'mock-access-token',
-      refresh_token: 'mock-refresh-token',
-      user: {
-        id: 'user-123',
-        email: 'test@example.com',
-      },
-    };
-
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: mockSession as any },
-      error: null,
-    });
-
-    vi.mocked(supabase.auth.onAuthStateChange).mockReturnValue({
-      data: {
-        subscription: {
-          unsubscribe: vi.fn(),
-        },
-      },
-    } as any);
-
+  it('renders unauthenticated when no session is stored', () => {
     render(
       <TestWrapper>
         <TestComponent />
       </TestWrapper>
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId('auth-status')).toHaveTextContent('Authenticated');
-      expect(screen.getByTestId('session-token')).toHaveTextContent('Has Token');
-    });
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('Not Authenticated');
+    expect(screen.getByTestId('session-token')).toHaveTextContent('No Token');
   });
 
-  it('should handle unauthenticated state', async () => {
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: null },
-      error: null,
-    });
-
-    vi.mocked(supabase.auth.onAuthStateChange).mockReturnValue({
-      data: {
-        subscription: {
-          unsubscribe: vi.fn(),
-        },
-      },
-    } as any);
-
+  it('reacts to a sign-in', async () => {
     render(
       <TestWrapper>
         <TestComponent />
       </TestWrapper>
     );
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('Not Authenticated');
 
-    await waitFor(() => {
-      expect(screen.getByTestId('auth-status')).toHaveTextContent('Not Authenticated');
-      expect(screen.getByTestId('session-token')).toHaveTextContent('No Token');
-    });
-  });
-
-  it('should handle auth state changes', async () => {
-    let authCallback: any;
-
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: null },
-      error: null,
-    });
-
-    vi.mocked(supabase.auth.onAuthStateChange).mockImplementation(callback => {
-      authCallback = callback;
-      return {
-        data: {
-          subscription: {
-            unsubscribe: vi.fn(),
-          },
-        },
-      } as any;
-    });
-
-    render(
-      <TestWrapper>
-        <TestComponent />
-      </TestWrapper>
-    );
-
-    // Wait for initial state
-    await waitFor(() => {
-      expect(screen.getByTestId('auth-status')).toHaveTextContent('Not Authenticated');
-    });
-
-    // Simulate SIGNED_IN event
-    const mockSession = {
-      access_token: 'new-token',
-      refresh_token: 'new-refresh',
-      user: {
+    act(() => {
+      storeSession('new-token', {
         id: 'user-456',
         email: 'new@example.com',
-      },
-    };
-
-    authCallback('SIGNED_IN', mockSession);
+        role: 'mentor',
+      });
+      notifyAuthChange();
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId('auth-status')).toHaveTextContent('Authenticated');
@@ -184,69 +89,36 @@ describe('AuthProvider', () => {
     });
   });
 
-  it('should handle sign out', async () => {
-    const mockSession = {
-      access_token: 'mock-access-token',
-      refresh_token: 'mock-refresh-token',
-      user: {
-        id: 'user-123',
-        email: 'test@example.com',
-      },
-    };
-
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: mockSession as any },
-      error: null,
-    });
-
-    vi.mocked(supabase.auth.onAuthStateChange).mockReturnValue({
-      data: {
-        subscription: {
-          unsubscribe: vi.fn(),
-        },
-      },
-    } as any);
-
+  it('reacts to a sign-out', async () => {
+    storeSession('tok', { id: 'u', email: 'e@example.com', role: 'mentee' });
     render(
       <TestWrapper>
         <TestComponent />
       </TestWrapper>
     );
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('Authenticated');
 
-    await waitFor(() => {
-      expect(screen.getByTestId('auth-status')).toHaveTextContent('Authenticated');
+    act(() => {
+      localStorage.clear();
+      notifyAuthChange();
     });
-
-    // Simulate SIGNED_OUT event
-    const signOutCallback = vi.mocked(supabase.auth.onAuthStateChange).mock.calls[0][0];
-    signOutCallback('SIGNED_OUT', null);
 
     await waitFor(() => {
       expect(screen.getByTestId('auth-status')).toHaveTextContent('Not Authenticated');
     });
   });
 
-  it('should throw error when useAuthContext is used outside provider', () => {
-    // Suppress console.error for this test
+  it('throws when useAuthContext is used outside a provider', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    expect(() => {
-      render(<TestComponent />);
-    }).toThrow('useAuthContext must be used within an AuthProvider');
-
+    expect(() => render(<TestComponent />)).toThrow(
+      'useAuthContext must be used within an AuthProvider'
+    );
     consoleSpy.mockRestore();
   });
 
-  it('should handle errors during session retrieval gracefully', async () => {
-    vi.mocked(supabase.auth.getSession).mockRejectedValue(new Error('Session error'));
-
-    vi.mocked(supabase.auth.onAuthStateChange).mockReturnValue({
-      data: {
-        subscription: {
-          unsubscribe: vi.fn(),
-        },
-      },
-    } as any);
+  it('treats a corrupt stored session as signed out', () => {
+    localStorage.setItem('cf_oh_token', 'tok');
+    localStorage.setItem('cf_oh_user', 'not-json');
 
     render(
       <TestWrapper>
@@ -254,8 +126,6 @@ describe('AuthProvider', () => {
       </TestWrapper>
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId('auth-status')).toHaveTextContent('Not Authenticated');
-    });
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('Not Authenticated');
   });
 });

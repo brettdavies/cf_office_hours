@@ -1,213 +1,121 @@
 /**
- * Unit tests for AvailabilityRepository.
- *
- * Tests database operations for availability table.
+ * Unit tests for AvailabilityRepository against an in-memory D1 database.
  */
 
 // External dependencies
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // Internal modules
 import { AvailabilityRepository } from './availability.repository';
-import {
-  createMockAvailabilityBlock,
-  createMockAvailabilityRequest,
-} from '../test/fixtures/availability';
+import { createMockAvailabilityRequest } from '../test/fixtures/availability';
+import { createTestDb, insertRow } from '../test/helpers/d1';
 
 // Types
 import type { Env } from '../types/bindings';
 
-// Mock Supabase client
-const mockSupabase = {
-  from: vi.fn(),
-};
-
-vi.mock('../lib/db', () => ({
-  createSupabaseClient: vi.fn(() => mockSupabase),
-}));
+const MENTOR_ID = 'mentor-uuid-123';
 
 describe('AvailabilityRepository', () => {
   let repository: AvailabilityRepository;
-  let mockEnv: Env;
+  let raw: ReturnType<typeof createTestDb>['raw'];
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockEnv = {
-      SUPABASE_URL: 'https://test.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'test-key',
-    } as Env;
-    repository = new AvailabilityRepository(mockEnv);
+    const db = createTestDb();
+    raw = db.raw;
+    repository = new AvailabilityRepository({ DB: db.DB } as unknown as Env);
   });
 
   describe('create', () => {
-    it('should create availability block with valid data', async () => {
-      const mentorId = 'mentor-uuid-123';
-      const mockBlock = createMockAvailabilityBlock();
+    it('creates an availability block and generates its time slots', async () => {
+      const request = createMockAvailabilityRequest();
+      const result = await repository.create(MENTOR_ID, request);
 
-      mockSupabase.from.mockReturnValue({
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: mockBlock,
-              error: null,
-            }),
-          }),
-        }),
-      });
+      expect(result.mentor_id).toBe(MENTOR_ID);
+      expect(result.location).toBe('online');
+      expect(result.slot_duration_minutes).toBe(30);
+      expect(result.start_time).toBe(request.start_time);
 
-      const result = await repository.create(mentorId, createMockAvailabilityRequest());
-
-      expect(result).toEqual(mockBlock);
-      expect(mockSupabase.from).toHaveBeenCalledWith('availability');
+      // A 2-hour window at 30-minute slots yields 4 slots.
+      const { n } = raw
+        .prepare('SELECT COUNT(*) AS n FROM time_slots WHERE availability_id = ?')
+        .get(result.id) as { n: number };
+      expect(n).toBe(4);
     });
 
-    it('should throw error when database insert fails', async () => {
-      mockSupabase.from.mockReturnValue({
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Database error' },
-            }),
-          }),
-        }),
-      });
-
+    it('throws when the insert violates a constraint', async () => {
       await expect(
-        repository.create('mentor-uuid-123', createMockAvailabilityRequest())
-      ).rejects.toThrow('Database error');
-    });
-
-    it('should set recurrence_pattern to one_time', async () => {
-      const insertMock = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: {
-              id: 'block-id',
-              recurrence_pattern: 'one_time',
-            },
-            error: null,
-          }),
-        }),
-      });
-
-      mockSupabase.from.mockReturnValue({
-        insert: insertMock,
-      });
-
-      await repository.create('mentor-uuid-123', createMockAvailabilityRequest());
-
-      expect(insertMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          mentor_id: 'mentor-uuid-123',
-          location: 'online',
-        })
-      );
+        repository.create(
+          MENTOR_ID,
+          createMockAvailabilityRequest({
+            slot_duration_minutes: 17 as unknown as 30,
+          })
+        )
+      ).rejects.toThrow();
     });
   });
 
   describe('findByMentor', () => {
-    it('should return mentor availability blocks', async () => {
-      const mentorId = 'mentor-uuid-123';
-      const mockBlocks = [createMockAvailabilityBlock({ id: 'block-1', description: null })];
-
-      mockSupabase.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({
-                data: mockBlocks,
-                error: null,
-              }),
-            }),
-          }),
-        }),
+    beforeEach(() => {
+      insertRow(raw, 'availability', {
+        id: 'a-late',
+        mentor_id: MENTOR_ID,
+        start_time: '2025-10-10T14:00:00Z',
+        end_time: '2025-10-10T15:00:00Z',
+        slot_duration_minutes: 30,
+        location: 'online',
       });
-
-      const result = await repository.findByMentor(mentorId);
-
-      expect(result).toEqual(mockBlocks);
-      expect(mockSupabase.from).toHaveBeenCalledWith('availability');
+      insertRow(raw, 'availability', {
+        id: 'a-early',
+        mentor_id: MENTOR_ID,
+        start_time: '2025-10-09T14:00:00Z',
+        end_time: '2025-10-09T15:00:00Z',
+        slot_duration_minutes: 30,
+        location: 'online',
+      });
+      insertRow(raw, 'availability', {
+        id: 'a-deleted',
+        mentor_id: MENTOR_ID,
+        start_time: '2025-10-08T14:00:00Z',
+        end_time: '2025-10-08T15:00:00Z',
+        slot_duration_minutes: 30,
+        location: 'online',
+        deleted_at: '2025-10-08T00:00:00Z',
+      });
     });
 
-    it('should return empty array when no blocks found', async () => {
-      mockSupabase.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({
-                data: [],
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      });
-
-      const result = await repository.findByMentor('mentor-uuid-123');
-
-      expect(result).toEqual([]);
+    it('returns non-deleted blocks ordered by start_time', async () => {
+      const result = await repository.findByMentor(MENTOR_ID);
+      expect(result.map(b => b.id)).toEqual(['a-early', 'a-late']);
     });
 
-    it('should return empty array on database error', async () => {
-      mockSupabase.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({
-                data: null,
-                error: { message: 'Database error' },
-              }),
-            }),
-          }),
-        }),
-      });
-
-      const result = await repository.findByMentor('mentor-uuid-123');
-
-      expect(result).toEqual([]);
+    it('returns an empty array for an unknown mentor', async () => {
+      expect(await repository.findByMentor('nobody')).toEqual([]);
     });
   });
 
   describe('findById', () => {
-    it('should return availability block by ID', async () => {
-      const mockBlock = createMockAvailabilityBlock({ description: null });
-
-      mockSupabase.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: mockBlock,
-                error: null,
-              }),
-            }),
-          }),
-        }),
+    it('returns the block, or null when deleted or missing', async () => {
+      insertRow(raw, 'availability', {
+        id: 'a-active',
+        mentor_id: MENTOR_ID,
+        start_time: '2025-10-10T14:00:00Z',
+        end_time: '2025-10-10T15:00:00Z',
+        slot_duration_minutes: 30,
+        location: 'online',
+      });
+      insertRow(raw, 'availability', {
+        id: 'a-removed',
+        mentor_id: MENTOR_ID,
+        start_time: '2025-10-10T14:00:00Z',
+        end_time: '2025-10-10T15:00:00Z',
+        slot_duration_minutes: 30,
+        location: 'online',
+        deleted_at: '2025-10-10T00:00:00Z',
       });
 
-      const result = await repository.findById('block-uuid-456');
-
-      expect(result).toEqual(mockBlock);
-    });
-
-    it('should return null when block not found', async () => {
-      mockSupabase.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: null,
-                error: { message: 'Not found' },
-              }),
-            }),
-          }),
-        }),
-      });
-
-      const result = await repository.findById('nonexistent-id');
-
-      expect(result).toBeNull();
+      expect((await repository.findById('a-active'))?.id).toBe('a-active');
+      expect(await repository.findById('a-removed')).toBeNull();
+      expect(await repository.findById('missing')).toBeNull();
     });
   });
 });

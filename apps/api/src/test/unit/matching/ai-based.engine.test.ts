@@ -5,40 +5,24 @@
  */
 
 // External dependencies
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // Internal modules
 import { AiBasedMatchingEngineV1 } from '../../../providers/matching/ai-based.engine';
+import { createTestDb, insertRow } from '../../helpers/d1';
 
 // Centralized fixtures (REQUIRED per Section 14.11.2)
-import {
-  createMockUserWithBio,
-  createMockMenteeWithCompany,
-  mockAiMatchData,
-} from '../../fixtures/matching-ai';
-
-// Mock Supabase client
-const createMockSupabaseClient = (): SupabaseClient => {
-  return {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-        })),
-      })),
-    })),
-  } as unknown as SupabaseClient;
-};
+import { mockAiMatchData } from '../../fixtures/matching-ai';
 
 describe('AiBasedMatchingEngineV1', () => {
-  let db: SupabaseClient;
   let engine: AiBasedMatchingEngineV1;
+  let raw: ReturnType<typeof createTestDb>['raw'];
   const mockApiKey = 'test-api-key';
 
   beforeEach(() => {
-    db = createMockSupabaseClient();
-    engine = new AiBasedMatchingEngineV1(db, mockApiKey);
+    const db = createTestDb();
+    raw = db.raw;
+    engine = new AiBasedMatchingEngineV1(db.DB as unknown as D1Database, mockApiKey);
   });
 
   describe('getAlgorithmVersion', () => {
@@ -49,35 +33,27 @@ describe('AiBasedMatchingEngineV1', () => {
 
   describe('fetchUserWithTags', () => {
     it('should fetch mentor with bio', async () => {
-      const mockMentor = createMockUserWithBio();
+      insertRow(raw, 'users', {
+        id: 'mentor-1',
+        airtable_record_id: 'air-1',
+        email: 'mentor1@test.com',
+        role: 'mentor',
+      });
+      insertRow(raw, 'user_profiles', {
+        id: 'p1',
+        user_id: 'mentor-1',
+        name: 'Mentor One',
+        bio: 'Expert in DevOps and cloud infrastructure',
+      });
 
-      db.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: {
-                id: mockMentor.id,
-                email: mockMentor.email,
-                role: mockMentor.role,
-                is_active: mockMentor.is_active,
-                last_activity_at: mockMentor.last_activity_at?.toISOString(),
-                deleted_at: mockMentor.deleted_at,
-                user_profiles: mockMentor.user_profiles,
-              },
-              error: null,
-            }),
-          })),
-        })),
-      })) as any;
-
-      const result = await (engine as any).fetchUserWithTags(mockMentor.id);
+      const result = await (engine as any).fetchUserWithTags('mentor-1');
 
       expect(result).toMatchObject({
-        id: mockMentor.id,
-        email: mockMentor.email,
+        id: 'mentor-1',
+        email: 'mentor1@test.com',
         role: 'mentor',
         user_profiles: {
-          bio: mockMentor.user_profiles.bio,
+          bio: 'Expert in DevOps and cloud infrastructure',
           portfolio_company_id: null,
         },
         portfolio_company: null,
@@ -85,66 +61,34 @@ describe('AiBasedMatchingEngineV1', () => {
     });
 
     it('should fetch mentee with portfolio company', async () => {
-      const mockMentee = createMockMenteeWithCompany();
+      insertRow(raw, 'users', {
+        id: 'mentee-1',
+        airtable_record_id: 'air-2',
+        email: 'mentee1@test.com',
+        role: 'mentee',
+      });
+      insertRow(raw, 'user_profiles', {
+        id: 'p2',
+        user_id: 'mentee-1',
+        name: 'Mentee One',
+        portfolio_company_id: 'company-1',
+      });
+      insertRow(raw, 'portfolio_companies', {
+        id: 'company-1',
+        name: 'Acme Health',
+        description: 'Healthcare analytics startup',
+      });
 
-      db.from = vi.fn((table) => {
-        if (table === 'users') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn().mockResolvedValue({
-                  data: {
-                    id: mockMentee.id,
-                    email: mockMentee.email,
-                    role: mockMentee.role,
-                    is_active: mockMentee.is_active,
-                    last_activity_at: mockMentee.last_activity_at?.toISOString(),
-                    deleted_at: mockMentee.deleted_at,
-                    user_profiles: mockMentee.user_profiles,
-                  },
-                  error: null,
-                }),
-              })),
-            })),
-          };
-        } else if (table === 'portfolio_companies') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn().mockResolvedValue({
-                  data: mockMentee.portfolio_company,
-                  error: null,
-                }),
-              })),
-            })),
-          };
-        }
-        return {} as any;
-      }) as any;
-
-      const result = await (engine as any).fetchUserWithTags(mockMentee.id);
+      const result = await (engine as any).fetchUserWithTags('mentee-1');
 
       expect(result).toMatchObject({
-        id: mockMentee.id,
+        id: 'mentee-1',
         role: 'mentee',
-        portfolio_company: {
-          description: mockMentee.portfolio_company?.description,
-        },
+        portfolio_company: { description: 'Healthcare analytics startup' },
       });
     });
 
     it('should return null if user not found', async () => {
-      db.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Not found' },
-            }),
-          })),
-        })),
-      })) as any;
-
       const result = await (engine as any).fetchUserWithTags('nonexistent');
       expect(result).toBeNull();
     });

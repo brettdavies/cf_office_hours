@@ -1,135 +1,47 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/services/supabase';
+import { useNavigate } from 'react-router-dom';
+import { loginAs } from '@/services/auth';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { getErrorMessage } from '@/lib/error-messages';
-import { isValidEmail } from '@/lib/validators';
+
+type Role = 'mentee' | 'mentor' | 'coordinator';
+
+const ROLES: { role: Role; label: string }[] = [
+  { role: 'mentee', label: 'Mentee' },
+  { role: 'mentor', label: 'Mentor' },
+  { role: 'coordinator', label: 'Coordinator' },
+];
 
 export default function LoginPage() {
-  const [searchParams] = useSearchParams();
-  const emailParam = searchParams.get('u');
-
-  // Initialize email state with query parameter if valid
-  const [email, setEmail] = useState(() => {
-    if (emailParam) {
-      // URL decoding converts '+' to space, but email '+' is valid (e.g., test+tag@gmail.com)
-      // Convert spaces back to '+' before validation to support unencoded URLs
-      const normalizedEmail = emailParam.replace(/\s/g, '+');
-      if (isValidEmail(normalizedEmail)) {
-        return normalizedEmail;
-      }
-    }
-    return '';
-  });
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const [loadingRole, setLoadingRole] = useState<Role | null>(null);
   const addToast = useNotificationStore(state => state.addToast);
 
-  const handleMagicLink = async () => {
-    if (!email) {
-      addToast({
-        title: 'Error',
-        description: 'Please enter your email address',
-        variant: 'error',
-      });
-      return;
-    }
-
-    setLoading(true);
+  const handleLoginAs = async (role: Role) => {
+    setLoadingRole(role);
     try {
-      const redirectUrl = `${window.location.origin}/auth/callback`;
-
-      if (import.meta.env.DEV) {
-        console.log('[AUTH] Magic link send initiated', {
-          email,
-          redirectUrl,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: redirectUrl,
-        },
-      });
-
-      if (import.meta.env.DEV) {
-        console.log('[AUTH] Magic link sent', {
-          email,
-          redirectUrl,
-          success: !error,
-          error: error?.message,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      if (error) throw error;
-
-      addToast({
-        title: 'Check your email',
-        description: 'We sent you a magic link to sign in.',
-        variant: 'success',
-      });
+      await loginAs(role);
+      navigate('/dashboard', { replace: true });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send magic link';
-
-      // Determine error code based on error type
-      // Note: Supabase Auth wraps database errors for security, so we infer from the message
-      let errorCode: string | undefined;
-
-      // "Database error saving new user" during signup = email not whitelisted
-      // This is the only database trigger that blocks user creation
-      if (errorMessage.includes('Database error saving new user')) {
-        errorCode = 'EMAIL_NOT_WHITELISTED';
-      }
-
-      const userFriendlyMessage = getErrorMessage(errorCode, errorMessage);
-
-      if (import.meta.env.DEV) {
-        console.error('[ERROR] Magic link send failed', {
-          email,
-          error: errorMessage,
-          errorCode,
-          userFriendlyMessage,
-          timestamp: new Date().toISOString(),
-        });
-      }
-      addToast({
-        title: 'Error',
-        description: userFriendlyMessage,
-        variant: 'error',
-      });
+      const description = error instanceof Error ? error.message : 'Failed to sign in';
+      addToast({ title: 'Error', description, variant: 'error' });
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleMagicLink();
+      setLoadingRole(null);
     }
   };
 
   return (
     <div className="flex flex-col gap-6 max-w-md mx-auto">
       <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-2xl font-bold">Sign In</h1>
-        <p className="text-sm text-muted-foreground">Enter your email to receive a magic link</p>
+        <h1 className="text-2xl font-bold">CF Office Hours Demo</h1>
+        <p className="text-sm text-muted-foreground">Choose a role to explore the demo</p>
       </div>
-      <div className="flex flex-col gap-4">
-        <Input
-          type="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={loading}
-        />
-        <Button onClick={handleMagicLink} disabled={loading}>
-          {loading ? 'Sending...' : 'Send Magic Link'}
-        </Button>
+      <div className="flex flex-col gap-3">
+        {ROLES.map(({ role, label }) => (
+          <Button key={role} onClick={() => handleLoginAs(role)} disabled={loadingRole !== null}>
+            {loadingRole === role ? 'Signing in...' : `Login as ${label}`}
+          </Button>
+        ))}
       </div>
     </div>
   );

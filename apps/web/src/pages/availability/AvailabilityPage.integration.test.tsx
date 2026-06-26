@@ -90,7 +90,7 @@ describe('Availability Flow Integration Tests', () => {
 
   beforeEach(() => {
     // Set auth token
-    localStorage.setItem('auth_token', 'test-token-123');
+    localStorage.setItem('cf_oh_token', 'test-token-123');
   });
 
   describe('complete availability flow', () => {

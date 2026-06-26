@@ -1,260 +1,112 @@
 /**
- * Tier Override Repository Tests
- *
- * Tests data access layer for tier override requests.
- * Covers query building, match score enrichment, and error handling.
+ * Tier Override Repository tests against an in-memory D1 database.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// External dependencies
+import { describe, it, expect, beforeEach } from 'vitest';
+
+// Internal modules
 import { TierOverrideRepository } from './tier-override.repository';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { createTestDb, insertRow } from '../test/helpers/d1';
 
-// Mock Supabase client
-const createMockSupabaseClient = () => {
-  const mockSelect = vi.fn();
-  const mockEq = vi.fn();
-  const mockIn = vi.fn();
-  const mockOrder = vi.fn();
-  const mockFrom = vi.fn();
+// Types
+import type { Env } from '../types/bindings';
 
-  // Chain methods
-  mockFrom.mockReturnValue({
-    select: mockSelect,
+type Raw = ReturnType<typeof createTestDb>['raw'];
+
+function seedPair(
+  raw: Raw,
+  opts: { menteeId: string; mentorId: string; reqId: string; status?: string }
+): void {
+  const { menteeId, mentorId, reqId, status = 'pending' } = opts;
+  insertRow(raw, 'users', {
+    id: menteeId,
+    airtable_record_id: `air-${menteeId}`,
+    email: `${menteeId}@test.com`,
+    role: 'mentee',
+    reputation_tier: 'bronze',
   });
-
-  mockSelect.mockReturnValue({
-    eq: mockEq,
-    in: mockIn,
+  insertRow(raw, 'users', {
+    id: mentorId,
+    airtable_record_id: `air-${mentorId}`,
+    email: `${mentorId}@test.com`,
+    role: 'mentor',
+    reputation_tier: 'platinum',
   });
-
-  mockEq.mockReturnValue({
-    order: mockOrder,
-    eq: mockEq,
-    in: mockIn,
+  insertRow(raw, 'user_profiles', {
+    id: `p-${menteeId}`,
+    user_id: menteeId,
+    name: `Name ${menteeId}`,
+    title: 'Founder',
+    company: 'TestCo',
   });
-
-  mockIn.mockReturnValue({
-    in: mockIn,
-    eq: mockEq,
+  insertRow(raw, 'user_profiles', {
+    id: `p-${mentorId}`,
+    user_id: mentorId,
+    name: `Name ${mentorId}`,
+    title: 'Advisor',
+    company: 'AdviceCo',
   });
-
-  mockOrder.mockReturnValue({
-    data: null,
-    error: null,
+  insertRow(raw, 'tier_override_requests', {
+    id: reqId,
+    mentee_id: menteeId,
+    mentor_id: mentorId,
+    reason: 'Need help',
+    status,
+    scope: 'one_time',
+    expires_at: '2025-01-08T00:00:00Z',
+    created_at: '2025-01-01T00:00:00Z',
   });
+}
 
-  return {
-    from: mockFrom,
-    _mockSelect: mockSelect,
-    _mockEq: mockEq,
-    _mockIn: mockIn,
-    _mockOrder: mockOrder,
-  };
-};
-
-describe('TierOverrideRepository', () => {
-  let mockSupabase: ReturnType<typeof createMockSupabaseClient>;
+describe('TierOverrideRepository.getPendingWithUsers', () => {
   let repository: TierOverrideRepository;
+  let raw: Raw;
 
   beforeEach(() => {
-    mockSupabase = createMockSupabaseClient();
-    // @ts-expect-error - Mocking Supabase client
-    repository = new TierOverrideRepository({ SUPABASE: mockSupabase });
+    const db = createTestDb();
+    raw = db.raw;
+    repository = new TierOverrideRepository({ DB: db.DB } as unknown as Env);
   });
 
-  describe('getPendingWithUsers', () => {
-    it('should fetch pending requests with user profiles', async () => {
-      const mockRequests = [
-        {
-          id: 'req-1',
-          mentee_id: 'mentee-1',
-          mentor_id: 'mentor-1',
-          status: 'pending',
-          reason: 'Need help',
-          created_at: '2025-01-01T00:00:00Z',
-          expires_at: '2025-01-08T00:00:00Z',
-          mentee: {
-            id: 'mentee-1',
-            email: 'mentee@test.com',
-            role: 'mentee',
-            reputation_tier: 'bronze',
-            profile: [{
-              id: 'profile-1',
-              user_id: 'mentee-1',
-              name: 'Mentee Test',
-              title: 'Founder',
-              company: 'TestCo',
-              bio: 'Test bio',
-              created_at: '2025-01-01T00:00:00Z',
-              updated_at: '2025-01-01T00:00:00Z',
-            }],
-          },
-          mentor: {
-            id: 'mentor-1',
-            email: 'mentor@test.com',
-            role: 'mentor',
-            reputation_tier: 'platinum',
-            profile: [{
-              id: 'profile-2',
-              user_id: 'mentor-1',
-              name: 'Mentor Test',
-              title: 'Advisor',
-              company: 'AdviceCo',
-              bio: 'Test bio',
-              created_at: '2025-01-01T00:00:00Z',
-              updated_at: '2025-01-01T00:00:00Z',
-            }],
-          },
-        },
-      ];
-
-      const mockMatchScores = [
-        {
-          user_id: 'mentee-1',
-          recommended_user_id: 'mentor-1',
-          match_score: 85.5,
-        },
-      ];
-
-      // Setup mock responses
-      mockSupabase._mockOrder.mockResolvedValueOnce({
-        data: mockRequests,
-        error: null,
-      });
-
-      mockSupabase._mockEq.mockResolvedValueOnce({
-        data: mockMatchScores,
-        error: null,
-      });
-
-      const result = await repository.getPendingWithUsers();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('req-1');
-      expect(result[0].mentee.profile.name).toBe('Mentee Test');
-      expect(result[0].mentor.profile.name).toBe('Mentor Test');
-      expect(result[0].match_score).toBe(85.5);
-      expect(mockSupabase.from).toHaveBeenCalledWith('tier_override_requests');
+  it('returns pending requests with profiles and the match score', async () => {
+    seedPair(raw, { menteeId: 'mentee-1', mentorId: 'mentor-1', reqId: 'req-1' });
+    insertRow(raw, 'user_match_cache', {
+      id: 'c1',
+      user_id: 'mentee-1',
+      recommended_user_id: 'mentor-1',
+      match_score: 85.5,
+      match_explanation: '{}',
+      algorithm_version: 'tag-based-v1',
     });
 
-    it('should handle missing match scores gracefully', async () => {
-      const mockRequests = [
-        {
-          id: 'req-1',
-          mentee_id: 'mentee-1',
-          mentor_id: 'mentor-1',
-          mentee: {
-            id: 'mentee-1',
-            profile: [{ name: 'Test' }],
-          },
-          mentor: {
-            id: 'mentor-1',
-            profile: [{ name: 'Test' }],
-          },
-        },
-      ];
+    const result = await repository.getPendingWithUsers();
 
-      mockSupabase._mockOrder.mockResolvedValueOnce({
-        data: mockRequests,
-        error: null,
-      });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('req-1');
+    expect(result[0].mentee.profile.name).toBe('Name mentee-1');
+    expect(result[0].mentor.profile.name).toBe('Name mentor-1');
+    expect(result[0].match_score).toBe(85.5);
+  });
 
-      mockSupabase._mockEq.mockResolvedValueOnce({
-        data: [], // No match scores
-        error: null,
-      });
+  it('returns a null match score when no cache entry exists', async () => {
+    seedPair(raw, { menteeId: 'mentee-1', mentorId: 'mentor-1', reqId: 'req-1' });
+    const result = await repository.getPendingWithUsers();
+    expect(result).toHaveLength(1);
+    expect(result[0].match_score).toBeNull();
+  });
 
-      const result = await repository.getPendingWithUsers();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].match_score).toBeNull();
+  it('excludes non-pending requests', async () => {
+    seedPair(raw, {
+      menteeId: 'mentee-1',
+      mentorId: 'mentor-1',
+      reqId: 'req-1',
+      status: 'approved',
     });
+    expect(await repository.getPendingWithUsers()).toEqual([]);
+  });
 
-    it('should handle empty results', async () => {
-      mockSupabase._mockOrder.mockResolvedValueOnce({
-        data: [],
-        error: null,
-      });
-
-      const result = await repository.getPendingWithUsers();
-
-      expect(result).toEqual([]);
-    });
-
-    it('should throw error when database query fails', async () => {
-      mockSupabase._mockOrder.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Database error', code: '500' },
-      });
-
-      await expect(repository.getPendingWithUsers()).rejects.toThrow(
-        'Failed to fetch tier override requests',
-      );
-    });
-
-    it('should fetch match scores in single query (no N+1)', async () => {
-      const mockRequests = [
-        {
-          id: 'req-1',
-          mentee_id: 'mentee-1',
-          mentor_id: 'mentor-1',
-          mentee: { id: 'mentee-1', profile: [{ name: 'Test1' }] },
-          mentor: { id: 'mentor-1', profile: [{ name: 'Test1' }] },
-        },
-        {
-          id: 'req-2',
-          mentee_id: 'mentee-2',
-          mentor_id: 'mentor-2',
-          mentee: { id: 'mentee-2', profile: [{ name: 'Test2' }] },
-          mentor: { id: 'mentor-2', profile: [{ name: 'Test2' }] },
-        },
-      ];
-
-      mockSupabase._mockOrder.mockResolvedValueOnce({
-        data: mockRequests,
-        error: null,
-      });
-
-      mockSupabase._mockEq.mockResolvedValueOnce({
-        data: [
-          { user_id: 'mentee-1', recommended_user_id: 'mentor-1', match_score: 80 },
-          { user_id: 'mentee-2', recommended_user_id: 'mentor-2', match_score: 90 },
-        ],
-        error: null,
-      });
-
-      await repository.getPendingWithUsers();
-
-      // Should use .in() to fetch all match scores at once
-      expect(mockSupabase._mockIn).toHaveBeenCalled();
-      // Should NOT call database N times (no Promise.all with individual queries)
-    });
-
-    it('should continue without match scores if match score query fails', async () => {
-      const mockRequests = [
-        {
-          id: 'req-1',
-          mentee_id: 'mentee-1',
-          mentor_id: 'mentor-1',
-          mentee: { id: 'mentee-1', profile: [{ name: 'Test' }] },
-          mentor: { id: 'mentor-1', profile: [{ name: 'Test' }] },
-        },
-      ];
-
-      mockSupabase._mockOrder.mockResolvedValueOnce({
-        data: mockRequests,
-        error: null,
-      });
-
-      mockSupabase._mockEq.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Match score query failed' },
-      });
-
-      const result = await repository.getPendingWithUsers();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].match_score).toBeNull();
-    });
+  it('returns an empty array when there are no requests', async () => {
+    expect(await repository.getPendingWithUsers()).toEqual([]);
   });
 });

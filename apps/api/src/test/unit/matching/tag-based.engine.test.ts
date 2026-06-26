@@ -10,10 +10,10 @@
 
 // External dependencies
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Internal modules
 import { TagBasedMatchingEngineV1 } from '../../../providers/matching/tag-based.engine';
+import { createTestDb, insertRow } from '../../helpers/d1';
 
 // Test fixtures (MANDATORY - no inline mocks)
 import {
@@ -48,24 +48,14 @@ const toTagsWithCategory = (values: string[]): TagWithCategory[] => {
   });
 };
 
-/**
- * Mock Supabase client for testing
- */
-const createMockSupabaseClient = (): SupabaseClient => {
-  const mockClient = {
-    from: vi.fn(),
-  } as any;
-
-  return mockClient;
-};
-
 describe('TagBasedMatchingEngineV1', () => {
   let engine: TagBasedMatchingEngineV1;
-  let mockDb: SupabaseClient;
+  let raw: ReturnType<typeof createTestDb>['raw'];
 
   beforeEach(() => {
-    mockDb = createMockSupabaseClient();
-    engine = new TagBasedMatchingEngineV1(mockDb);
+    const db = createTestDb();
+    raw = db.raw;
+    engine = new TagBasedMatchingEngineV1(db.DB as unknown as D1Database);
     vi.clearAllMocks();
   });
 
@@ -406,45 +396,25 @@ describe('TagBasedMatchingEngineV1', () => {
   // ============================================================================
 
   describe('recalculateAllMatches (batch processing)', () => {
-    it('should respect limit option', async () => {
-      // Arrange
-      const mockQuery = {
-        data: [],
-        error: null,
-      };
+    const seedUsers = (count: number): void => {
+      for (let i = 0; i < count; i++) {
+        insertRow(raw, 'users', {
+          id: `user-${i}`,
+          airtable_record_id: `air-${i}`,
+          email: `u${i}@test.com`,
+          role: i % 2 ? 'mentor' : 'mentee',
+        });
+      }
+    };
 
-      const mockLimit = vi.fn().mockResolvedValue(mockQuery);
-      const mockOrder = vi.fn().mockReturnValue({ limit: mockLimit });
-      const mockEq = vi.fn().mockReturnValue({ order: mockOrder });
-      const mockIs = vi.fn().mockReturnValue({ eq: mockEq });
-      const mockSelect = vi.fn().mockReturnValue({ is: mockIs });
-      const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-
-      (mockDb.from as any) = mockFrom;
-
-      // Act
+    it('respects the limit option', async () => {
+      seedUsers(15);
+      const spy = vi.spyOn(engine, 'recalculateMatches').mockResolvedValue(undefined);
       await engine.recalculateAllMatches({ limit: 10 });
-
-      // Assert
-      expect(mockLimit).toHaveBeenCalledWith(10);
+      expect(spy).toHaveBeenCalledTimes(10);
     });
 
-    it('should handle empty user list gracefully', async () => {
-      // Arrange
-      const mockQuery = {
-        data: [],
-        error: null,
-      };
-
-      const mockOrder = vi.fn().mockResolvedValue(mockQuery);
-      const mockEq = vi.fn().mockReturnValue({ order: mockOrder });
-      const mockIs = vi.fn().mockReturnValue({ eq: mockEq });
-      const mockSelect = vi.fn().mockReturnValue({ is: mockIs });
-      const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-
-      (mockDb.from as any) = mockFrom;
-
-      // Act & Assert (should not throw)
+    it('handles an empty user list gracefully', async () => {
       await expect(engine.recalculateAllMatches()).resolves.not.toThrow();
     });
   });
@@ -454,162 +424,92 @@ describe('TagBasedMatchingEngineV1', () => {
   // ===========================================================================
 
   describe('Bulk Processing Optimizations', () => {
-    describe('fetchMultipleUsersWithTags (N+1 elimination)', () => {
-      it('should bulk fetch users with minimal queries', async () => {
-        // Arrange
-        const userIds = ['user-1', 'user-2', 'user-3'];
-
-        const mockUsers = [
-          {
-            id: 'user-1',
-            role: 'mentor',
-            user_profiles: { portfolio_company_id: null, stage: 'seed' },
-          },
-          {
-            id: 'user-2',
-            role: 'mentee',
-            user_profiles: { portfolio_company_id: 'company-1', stage: 'seed' },
-          },
-          {
-            id: 'user-3',
-            role: 'mentor',
-            user_profiles: { portfolio_company_id: null, stage: 'series-a' },
-          },
-        ];
-
-        const mockPersonalTags = [
-          {
-            entity_id: 'user-1',
-            taxonomy: { slug: 'fintech', category: 'industry' },
-          },
-          {
-            entity_id: 'user-2',
-            taxonomy: { slug: 'react', category: 'technology' },
-          },
-        ];
-
-        const mockCompanyTags = [
-          {
-            entity_id: 'company-1',
-            taxonomy: { slug: 'ai', category: 'industry' },
-          },
-        ];
-
-        let queryCount = 0;
-        const mockFrom = vi.fn((table: string) => {
-          queryCount++;
-          if (table === 'users') {
-            return {
-              select: vi.fn().mockReturnThis(),
-              in: vi.fn().mockResolvedValue({ data: mockUsers, error: null }),
-            };
-          } else if (table === 'entity_tags') {
-            queryCount++;
-            if (queryCount === 2) {
-              // Personal tags
-              return {
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                in: vi.fn().mockReturnThis(),
-                is: vi.fn().mockResolvedValue({
-                  data: mockPersonalTags,
-                  error: null,
-                }),
-              };
-            } else {
-              // Company tags
-              return {
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                in: vi.fn().mockReturnThis(),
-                is: vi.fn().mockResolvedValue({
-                  data: mockCompanyTags,
-                  error: null,
-                }),
-              };
-            }
-          }
-          return {};
+    describe('fetchMultipleUsersWithTags (bulk fetch)', () => {
+      const seedTaxonomy = (id: string, value: string, category: string): void =>
+        insertRow(raw, 'taxonomy', {
+          id,
+          category,
+          value,
+          display_name: value,
+          is_approved: 1,
+          source: 'admin',
         });
 
-        (mockDb.from as any) = mockFrom;
+      it('combines personal and inherited company tags for mentees', async () => {
+        insertRow(raw, 'users', {
+          id: 'mentee-1',
+          airtable_record_id: 'air-1',
+          email: 'm1@test.com',
+          role: 'mentee',
+        });
+        insertRow(raw, 'user_profiles', {
+          id: 'p1',
+          user_id: 'mentee-1',
+          name: 'M1',
+          portfolio_company_id: 'company-1',
+        });
+        seedTaxonomy('tax-react', 'react', 'technology');
+        seedTaxonomy('tax-fintech', 'fintech', 'industry');
+        insertRow(raw, 'entity_tags', {
+          id: 'et1',
+          entity_type: 'user',
+          entity_id: 'mentee-1',
+          taxonomy_id: 'tax-react',
+        });
+        insertRow(raw, 'entity_tags', {
+          id: 'et2',
+          entity_type: 'portfolio_company',
+          entity_id: 'company-1',
+          taxonomy_id: 'tax-fintech',
+        });
 
-        // Act
-        const result = await (engine as any).fetchMultipleUsersWithTags(userIds);
+        const result = await (
+          engine as never as {
+            fetchMultipleUsersWithTags: (
+              ids: string[]
+            ) => Promise<Array<{ role: string; tags: { value: string }[] }>>;
+          }
+        ).fetchMultipleUsersWithTags(['mentee-1']);
 
-        // Assert
-        expect(result).toHaveLength(3);
-        // Should use bulk queries (3-5) instead of N+1 queries (would be 7+ for 3 users)
-        expect(queryCount).toBeLessThan(10); // Significantly fewer than N+1 approach
-
-        // Verify mentee has both personal and company tags
-        const mentee = result.find((u: any) => u.id === 'user-2');
-        expect(mentee?.tags).toBeDefined();
+        expect(result).toHaveLength(1);
+        expect(result[0].role).toBe('mentee');
+        expect(result[0].tags.map(t => t.value).sort()).toEqual(['fintech', 'react']);
       });
 
-      it('should handle empty user list', async () => {
-        // Act
-        const result = await (engine as any).fetchMultipleUsersWithTags([]);
-
-        // Assert
+      it('returns an empty array for an empty user list', async () => {
+        const result = await (
+          engine as never as {
+            fetchMultipleUsersWithTags: (ids: string[]) => Promise<unknown[]>;
+          }
+        ).fetchMultipleUsersWithTags([]);
         expect(result).toEqual([]);
       });
 
-      it('should combine personal and company tags for mentees', async () => {
-        // Arrange
-        const mockUsers = [
-          {
-            id: 'mentee-1',
-            role: 'mentee',
-            user_profiles: { portfolio_company_id: 'company-1', stage: 'seed' },
-          },
-        ];
-
-        const mockPersonalTags = [
-          {
-            entity_id: 'mentee-1',
-            taxonomy: { slug: 'react', category: 'technology' },
-          },
-        ];
-
-        const mockCompanyTags = [
-          {
-            entity_id: 'company-1',
-            taxonomy: { slug: 'fintech', category: 'industry' },
-          },
-        ];
-
-        const mockFrom = vi.fn((table: string) => {
-          if (table === 'users') {
-            return {
-              select: vi.fn().mockReturnThis(),
-              in: vi.fn().mockResolvedValue({ data: mockUsers, error: null }),
-            };
-          } else if (table === 'entity_tags') {
-            return {
-              select: vi.fn().mockReturnThis(),
-              eq: vi.fn().mockReturnThis(),
-              in: vi.fn().mockReturnThis(),
-              is: vi.fn((field: string, _value: any) => {
-                // Return personal or company tags based on query
-                return Promise.resolve({
-                  data: field === 'deleted_at' ? mockPersonalTags.concat(mockCompanyTags) : [],
-                  error: null,
-                });
-              }),
-            };
-          }
-          return {};
+      it('does not inherit company tags for mentors', async () => {
+        insertRow(raw, 'users', {
+          id: 'mentor-1',
+          airtable_record_id: 'air-2',
+          email: 'mentor1@test.com',
+          role: 'mentor',
+        });
+        insertRow(raw, 'user_profiles', { id: 'p2', user_id: 'mentor-1', name: 'Mentor1' });
+        seedTaxonomy('tax-react', 'react', 'technology');
+        insertRow(raw, 'entity_tags', {
+          id: 'et1',
+          entity_type: 'user',
+          entity_id: 'mentor-1',
+          taxonomy_id: 'tax-react',
         });
 
-        (mockDb.from as any) = mockFrom;
+        const result = await (
+          engine as never as {
+            fetchMultipleUsersWithTags: (
+              ids: string[]
+            ) => Promise<Array<{ tags: { value: string }[] }>>;
+          }
+        ).fetchMultipleUsersWithTags(['mentor-1']);
 
-        // Act
-        const result = await (engine as any).fetchMultipleUsersWithTags(['mentee-1']);
-
-        // Assert
-        expect(result).toHaveLength(1);
-        expect(result[0].role).toBe('mentee');
+        expect(result[0].tags.map(t => t.value)).toEqual(['react']);
       });
     });
 
@@ -633,12 +533,12 @@ describe('TagBasedMatchingEngineV1', () => {
         // Act
         await engine.recalculateMatches(user.id, { chunkSize: 100 });
 
-        // Assert
+        // Assert: for a mentor, cache entries carry the mentor as recommended_user_id.
         expect((engine as any).writeToCacheAtomic).toHaveBeenCalledWith(
           user.id,
           expect.arrayContaining([
             expect.objectContaining({
-              user_id: user.id,
+              recommended_user_id: user.id,
               algorithm_version: 'tag-based-v1',
             }),
           ])
@@ -673,99 +573,40 @@ describe('TagBasedMatchingEngineV1', () => {
     });
 
     describe('Enhanced recalculateAllMatches Error Handling', () => {
-      it('should isolate individual user failures', async () => {
-        // Arrange
-        const mockUsers = [{ id: 'user-1' }, { id: 'user-2' }, { id: 'user-3' }];
+      const seedUsers = (ids: string[]): void =>
+        ids.forEach((id, i) =>
+          insertRow(raw, 'users', {
+            id,
+            airtable_record_id: `air-${id}`,
+            email: `${id}@test.com`,
+            role: i % 2 ? 'mentor' : 'mentee',
+          })
+        );
 
-        const mockQuery = {
-          data: mockUsers,
-          error: null,
-        };
-
-        const mockOrder = vi.fn().mockResolvedValue(mockQuery);
-        const mockEq = vi.fn().mockReturnValue({ order: mockOrder });
-        const mockIs = vi.fn().mockReturnValue({ eq: mockEq });
-        const mockSelect = vi.fn().mockReturnValue({ is: mockIs });
-        const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-
-        (mockDb.from as any) = mockFrom;
-
-        // Mock recalculateMatches to fail for user-2 only
+      it('isolates individual user failures', async () => {
+        seedUsers(['user-1', 'user-2', 'user-3']);
         let callCount = 0;
         vi.spyOn(engine, 'recalculateMatches').mockImplementation(async (userId: string) => {
           callCount++;
           if (userId === 'user-2') {
             throw new Error('User processing failed');
           }
-          return Promise.resolve();
         });
 
-        // Act
         await engine.recalculateAllMatches({ batchSize: 10 });
 
-        // Assert - All 3 users should be attempted
         expect(callCount).toBe(3);
       });
 
-      it('should process all active users (modifiedAfter filter not yet implemented)', async () => {
-        // Arrange
-        const mockUsers = [{ id: 'user-1' }, { id: 'user-2' }];
+      it('processes all active users', async () => {
+        seedUsers(['user-1', 'user-2']);
+        const spy = vi.spyOn(engine, 'recalculateMatches').mockResolvedValue(undefined);
 
-        const mockQuery = {
-          data: mockUsers,
-          error: null,
-        };
-
-        const mockOrder = vi.fn().mockResolvedValue(mockQuery);
-        const mockEq = vi.fn().mockReturnValue({ order: mockOrder });
-        const mockIs = vi.fn().mockReturnValue({ eq: mockEq });
-        const mockSelect = vi.fn().mockReturnValue({ is: mockIs });
-        const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-
-        (mockDb.from as any) = mockFrom;
-
-        vi.spyOn(engine, 'recalculateMatches').mockResolvedValue(undefined);
-
-        // Act
         await engine.recalculateAllMatches();
 
-        // Assert - All users processed
-        expect(engine.recalculateMatches).toHaveBeenCalledTimes(2);
-        expect(engine.recalculateMatches).toHaveBeenCalledWith('user-1');
-        expect(engine.recalculateMatches).toHaveBeenCalledWith('user-2');
-      });
-
-      it('should respect configurable delay between batches', async () => {
-        // Arrange
-        const mockUsers = Array.from({ length: 60 }, (_, i) => ({ id: `user-${i}` }));
-
-        const mockQuery = {
-          data: mockUsers,
-          error: null,
-        };
-
-        const mockOrder = vi.fn().mockResolvedValue(mockQuery);
-        const mockEq = vi.fn().mockReturnValue({ order: mockOrder });
-        const mockIs = vi.fn().mockReturnValue({ eq: mockEq });
-        const mockSelect = vi.fn().mockReturnValue({ is: mockIs });
-        const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-
-        (mockDb.from as any) = mockFrom;
-
-        vi.spyOn(engine, 'recalculateMatches').mockResolvedValue(undefined);
-
-        const startTime = Date.now();
-
-        // Act - Process 60 users in batches of 50 (2 batches) with 50ms delay
-        await engine.recalculateAllMatches({
-          batchSize: 50,
-          delayBetweenBatches: 50,
-        });
-
-        const elapsed = Date.now() - startTime;
-
-        // Assert - Should have 1 delay between batches (50ms minimum)
-        expect(elapsed).toBeGreaterThanOrEqual(40); // Allow some margin
+        expect(spy).toHaveBeenCalledTimes(2);
+        expect(spy).toHaveBeenCalledWith('user-1');
+        expect(spy).toHaveBeenCalledWith('user-2');
       });
     });
   });
