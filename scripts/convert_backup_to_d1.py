@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Convert a plain-text Postgres cluster dump into a Cloudflare D1 (SQLite) seed.
+
+Reads the `COPY public.<table> (...) FROM stdin;` blocks for the application
+tables and emits batched multi-row INSERT statements with SQLite-compatible
+values: booleans become 0/1, Postgres timestamps are normalized to ISO-8601 UTC,
+and JSON/text is single-quote escaped. Numeric columns rely on SQLite column
+affinity to coerce the quoted values.
+
+Usage:
+  convert_backup_to_d1.py <backup.sql> <out.sql> [--email-map old=new ...]
+"""
+
+import argparse
+import re
+import sys
+
+# Tables to load, in parent-first order.
+TARGET_TABLES = [
+    "portfolio_companies",
+    "users",
+    "user_profiles",
+    "user_urls",
+    "taxonomy",
+    "entity_tags",
+    "availability",
+    "time_slots",
+    "bookings",
+    "user_match_cache",
+    "tier_override_requests",
+]
+
+# Columns stored as SQLite INTEGER booleans.
+BOOL_COLUMNS = {"is_approved", "is_booked"}
+
+ROWS_PER_INSERT = 100
+
+COPY_HEADER = re.compile(r"^COPY public\.(\w+) \((.*)\) FROM stdin;$")
+PG_TIMESTAMP = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})(\.\d+)?(\+00(?::00)?|Z)?$"
+)
+
+_UNESCAPE = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\"}
+
+
+def unescape_copy(value: str) -> str:
+    """Decode the backslash escapes used inside a COPY field."""
+    return re.sub(r"\\(.)", lambda m: _UNESCAPE.get(m.group(1), m.group(1)), value)
+
+
+def normalize_timestamp(value: str) -> str:
+    """Normalize a Postgres timestamp to ISO-8601 with millisecond precision and Z."""
+    m = PG_TIMESTAMP.match(value)
+    if not m:
+        return value
+    date, time, frac, _tz = m.groups()
+    millis = ""
+    if frac:
+        millis = "." + (frac[1:] + "000")[:3]
+    return f"{date}T{time}{millis}Z"
+
+
+def sql_literal(raw: str, column: str, email_map: dict) -> str:
+    """Render one COPY field as a SQLite SQL literal."""
+    if raw == r"\N":
+        return "NULL"
+
+    value = unescape_copy(raw)
+
+    if column in BOOL_COLUMNS:
+        return "1" if value == "t" else "0"
+
+    if column == "email" and value in email_map:
+        value = email_map[value]
+
+    value = normalize_timestamp(value)
+
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
+def emit_table(out, table: str, columns: list, rows: list, email_map: dict) -> None:
+    """Write batched INSERT statements for one table's rows."""
+    if not rows:
+        return
+    col_list = ", ".join(columns)
+    out.write(f"-- {table}: {len(rows)} rows\n")
+    for start in range(0, len(rows), ROWS_PER_INSERT):
+        batch = rows[start : start + ROWS_PER_INSERT]
+        out.write(f"INSERT INTO {table} ({col_list}) VALUES\n")
+        values = []
+        for fields in batch:
+            literals = [
+                sql_literal(fields[i], columns[i], email_map)
+                for i in range(len(columns))
+            ]
+            values.append("  (" + ", ".join(literals) + ")")
+        out.write(",\n".join(values))
+        out.write(";\n")
+    out.write("\n")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("backup")
+    parser.add_argument("out")
+    parser.add_argument("--email-map", action="append", default=[])
+    args = parser.parse_args()
+
+    email_map = {}
+    for pair in args.email_map:
+        old, new = pair.split("=", 1)
+        email_map[old] = new
+
+    collected = {}
+    with open(args.backup, "r", encoding="utf-8") as fh:
+        line = fh.readline()
+        while line:
+            header = COPY_HEADER.match(line.rstrip("\n"))
+            if header:
+                table = header.group(1)
+                columns = [c.strip() for c in header.group(2).split(",")]
+                rows = []
+                line = fh.readline()
+                while line and line.rstrip("\n") != r"\.":
+                    rows.append(line.rstrip("\n").split("\t"))
+                    line = fh.readline()
+                if table in TARGET_TABLES:
+                    collected[table] = (columns, rows)
+            line = fh.readline()
+
+    with open(args.out, "w", encoding="utf-8") as out:
+        out.write("-- Generated D1 seed from the production backup. Do not edit by hand.\n\n")
+        for table in TARGET_TABLES:
+            if table in collected:
+                columns, rows = collected[table]
+                emit_table(out, table, columns, rows, email_map)
+            else:
+                print(f"warning: no data block for {table}", file=sys.stderr)
+
+    total = sum(len(rows) for _, rows in collected.values())
+    print(f"Wrote {args.out}: {len(collected)} tables, {total} rows")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
