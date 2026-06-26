@@ -2,35 +2,18 @@
 import { describe, it, expect } from 'vitest';
 
 // Internal modules
-import { createSupabaseClient } from './db';
+import { getDb } from './db';
 
 // Types
 import type { Env } from '../types/bindings';
 
-describe('createSupabaseClient', () => {
-  it('should create Supabase client with correct configuration', () => {
-    const mockEnv: Env = {
-      SUPABASE_URL: 'http://localhost:54321',
-      SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
-      SUPABASE_JWT_SECRET: 'test-jwt-secret',
-    };
-
-    const client = createSupabaseClient(mockEnv);
-
-    expect(client).toBeDefined();
-    expect(client.auth).toBeDefined();
+describe('getDb', () => {
+  it('returns the configured D1 binding', () => {
+    const fakeDb = {} as D1Database;
+    expect(getDb({ DB: fakeDb } as Env)).toBe(fakeDb);
   });
 
-  it('should configure client with autoRefreshToken disabled', () => {
-    const mockEnv: Env = {
-      SUPABASE_URL: 'http://localhost:54321',
-      SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
-      SUPABASE_JWT_SECRET: 'test-jwt-secret',
-    };
-
-    const client = createSupabaseClient(mockEnv);
-
-    // Client should be created without throwing error
-    expect(client).toBeDefined();
+  it('throws when the DB binding is missing', () => {
+    expect(() => getDb({} as Env)).toThrow('D1 database binding');
   });
 });

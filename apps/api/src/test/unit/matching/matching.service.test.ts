@@ -1,345 +1,180 @@
 /**
- * MatchingService Unit Tests
- *
- * Tests retrieval logic for pre-calculated match recommendations.
- * Uses centralized fixtures from @/test/fixtures/matching (Section 14.11.2).
+ * MatchingService tests against an in-memory D1 database.
  */
 
 // External dependencies
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 // Internal modules
 import { MatchingService } from '../../../services/matching.service';
-import { createMockMatchExplanation, createMockUser } from '../../../test/fixtures/matching';
+import { createTestDb, insertRow } from '../../helpers/d1';
 
 // Types
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Env } from '../../../types/bindings';
 
-/**
- * Creates a mock Supabase client with chainable query builder
- */
-const createMockSupabaseClient = () => {
-  const mockQuery = {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockReturnThis(),
-    or: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn(),
-  };
+type Raw = ReturnType<typeof createTestDb>['raw'];
 
-  const mockDb = {
-    from: vi.fn().mockReturnValue(mockQuery),
-  } as unknown as SupabaseClient;
+function seedUser(raw: Raw, id: string, role: string): void {
+  insertRow(raw, 'users', {
+    id,
+    airtable_record_id: `air-${id}`,
+    email: `${id}@test.com`,
+    role,
+  });
+  insertRow(raw, 'user_profiles', {
+    id: `p-${id}`,
+    user_id: id,
+    name: `Name ${id}`,
+  });
+}
 
-  return { mockDb, mockQuery };
-};
+function seedMatch(
+  raw: Raw,
+  opts: {
+    userId: string;
+    recommendedUserId: string;
+    score: number;
+    algorithm?: string;
+    summary?: string;
+  }
+): void {
+  const algorithm = opts.algorithm ?? 'tag-based-v1';
+  insertRow(raw, 'user_match_cache', {
+    id: `c-${opts.userId}-${opts.recommendedUserId}-${algorithm}`,
+    user_id: opts.userId,
+    recommended_user_id: opts.recommendedUserId,
+    match_score: opts.score,
+    match_explanation: JSON.stringify({
+      tagOverlap: [{ category: 'technology', tag: 'react' }],
+      stageMatch: true,
+      reputationCompatible: true,
+      summary: opts.summary ?? 'Strong match',
+    }),
+    algorithm_version: algorithm,
+  });
+}
 
 describe('MatchingService', () => {
   let service: MatchingService;
-  let mockDb: SupabaseClient;
-  let mockQuery: any;
+  let raw: Raw;
 
   beforeEach(() => {
-    const mocks = createMockSupabaseClient();
-    mockDb = mocks.mockDb;
-    mockQuery = mocks.mockQuery;
-    service = new MatchingService(mockDb);
-    vi.clearAllMocks();
+    const db = createTestDb();
+    raw = db.raw;
+    service = new MatchingService(db.DB as unknown as D1Database);
   });
 
   describe('getRecommendedMentors', () => {
-    it('should return sorted matches from cache', async () => {
-      const userId = 'mentee-123';
-      const mockUser1 = createMockUser({ id: 'mentor-1', role: 'mentor' });
-      const mockUser2 = createMockUser({ id: 'mentor-2', role: 'mentor' });
-      const mockUser3 = createMockUser({ id: 'mentor-3', role: 'mentor' });
+    it('returns matches sorted by score descending', async () => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      seedUser(raw, 'mentor-1', 'mentor');
+      seedUser(raw, 'mentor-2', 'mentor');
+      seedUser(raw, 'mentor-3', 'mentor');
+      seedMatch(raw, { userId: 'mentee-1', recommendedUserId: 'mentor-1', score: 85 });
+      seedMatch(raw, { userId: 'mentee-1', recommendedUserId: 'mentor-2', score: 72 });
+      seedMatch(raw, { userId: 'mentee-1', recommendedUserId: 'mentor-3', score: 91 });
 
-      const mockMatches = [
-        {
-          match_score: 85,
-          match_explanation: createMockMatchExplanation(),
-          recommended_user: {
-            ...mockUser1,
-            profile: {
-              id: 'profile-1',
-              user_id: mockUser1.id,
-              name: 'Mentor One',
-              title: 'Senior Engineer',
-              company: 'Tech Co',
-              bio: 'Experienced mentor',
-              created_at: mockUser1.created_at.toISOString(),
-              updated_at: mockUser1.updated_at.toISOString(),
-            },
-          },
-        },
-        {
-          match_score: 72,
-          match_explanation: createMockMatchExplanation(),
-          recommended_user: {
-            ...mockUser2,
-            profile: {
-              id: 'profile-2',
-              user_id: mockUser2.id,
-              name: 'Mentor Two',
-              title: 'Lead Developer',
-              company: 'Startup Inc',
-              bio: 'Helpful mentor',
-              created_at: mockUser2.created_at.toISOString(),
-              updated_at: mockUser2.updated_at.toISOString(),
-            },
-          },
-        },
-        {
-          match_score: 91,
-          match_explanation: createMockMatchExplanation(),
-          recommended_user: {
-            ...mockUser3,
-            profile: {
-              id: 'profile-3',
-              user_id: mockUser3.id,
-              name: 'Mentor Three',
-              title: 'CTO',
-              company: 'Big Corp',
-              bio: 'Great mentor',
-              created_at: mockUser3.created_at.toISOString(),
-              updated_at: mockUser3.updated_at.toISOString(),
-            },
-          },
-        },
-      ];
+      const results = await service.getRecommendedMentors('mentee-1', { limit: 10 });
 
-      // Mock the query chain to return data
-      mockQuery.maybeSingle.mockResolvedValue({
-        data: mockMatches,
-        error: null,
+      expect(results.map(r => r.score)).toEqual([91, 85, 72]);
+      expect(results[0].user.id).toBe('mentor-3');
+      expect(results[0].explanation.summary).toBeTypeOf('string');
+    });
+
+    it('respects the limit', async () => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      for (let i = 0; i < 5; i++) {
+        seedUser(raw, `m-${i}`, 'mentor');
+        seedMatch(raw, { userId: 'mentee-1', recommendedUserId: `m-${i}`, score: 50 + i });
+      }
+      const results = await service.getRecommendedMentors('mentee-1', { limit: 2 });
+      expect(results).toHaveLength(2);
+    });
+
+    it('caps the limit at 20', async () => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      for (let i = 0; i < 25; i++) {
+        seedUser(raw, `m-${i}`, 'mentor');
+        seedMatch(raw, { userId: 'mentee-1', recommendedUserId: `m-${i}`, score: 10 + i });
+      }
+      const results = await service.getRecommendedMentors('mentee-1', { limit: 50 });
+      expect(results).toHaveLength(20);
+    });
+
+    it('applies the minScore filter', async () => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      seedUser(raw, 'mentor-1', 'mentor');
+      seedUser(raw, 'mentor-2', 'mentor');
+      seedMatch(raw, { userId: 'mentee-1', recommendedUserId: 'mentor-1', score: 80 });
+      seedMatch(raw, { userId: 'mentee-1', recommendedUserId: 'mentor-2', score: 60 });
+      const results = await service.getRecommendedMentors('mentee-1', { minScore: 75 });
+      expect(results.map(r => r.score)).toEqual([80]);
+    });
+
+    it('filters by algorithm version', async () => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      seedUser(raw, 'mentor-1', 'mentor');
+      seedMatch(raw, { userId: 'mentee-1', recommendedUserId: 'mentor-1', score: 80 });
+      seedMatch(raw, {
+        userId: 'mentee-1',
+        recommendedUserId: 'mentor-1',
+        score: 99,
+        algorithm: 'ml-v2',
       });
-      // For the main query (not using maybeSingle), mock the final result
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: mockMatches, error: null }),
-      } as any);
-
-      const results = await service.getRecommendedMentors(userId);
-
-      expect(results).toHaveLength(3);
-      expect(results[0].score).toBe(85);
-      expect(results[1].score).toBe(72);
-      expect(results[2].score).toBe(91);
-      expect(results[0].user.id).toBe('mentor-1');
-      expect(mockDb.from).toHaveBeenCalledWith('user_match_cache');
-    });
-
-    it('should respect limit option', async () => {
-      const userId = 'mentee-123';
-
-      // Mock empty response
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: [], error: null }),
-      } as any);
-
-      await service.getRecommendedMentors(userId, { limit: 10 });
-
-      expect(mockQuery.limit).toHaveBeenCalledWith(10);
-    });
-
-    it('should cap limit at 20', async () => {
-      const userId = 'mentee-123';
-
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: [], error: null }),
-      } as any);
-
-      await service.getRecommendedMentors(userId, { limit: 50 });
-
-      // Should cap at 20
-      expect(mockQuery.limit).toHaveBeenCalledWith(20);
-    });
-
-    it('should respect minScore filter', async () => {
-      const userId = 'mentee-123';
-
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: [], error: null }),
-      } as any);
-
-      await service.getRecommendedMentors(userId, { minScore: 75 });
-
-      expect(mockQuery.gte).toHaveBeenCalledWith('match_score', 75);
-    });
-
-    it('should respect algorithmVersion filter', async () => {
-      const userId = 'mentee-123';
-
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: [], error: null }),
-      } as any);
-
-      await service.getRecommendedMentors(userId, {
+      const results = await service.getRecommendedMentors('mentee-1', {
         algorithmVersion: 'ml-v2',
       });
-
-      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'ml-v2');
+      expect(results.map(r => r.score)).toEqual([99]);
     });
 
-    it('should return empty array if no matches found', async () => {
-      const userId = 'mentee-123';
-
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: [], error: null }),
-      } as any);
-
-      const results = await service.getRecommendedMentors(userId);
-
-      expect(results).toEqual([]);
-    });
-
-    it('should throw error on database failure', async () => {
-      const userId = 'mentee-123';
-
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) =>
-          resolve({
-            data: null,
-            error: { message: 'Database connection failed' },
-          }),
-      } as any);
-
-      await expect(service.getRecommendedMentors(userId)).rejects.toThrow(
-        'Failed to fetch matches'
-      );
+    it('returns an empty array when there are no matches', async () => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      expect(await service.getRecommendedMentors('mentee-1')).toEqual([]);
     });
   });
 
   describe('getRecommendedMentees', () => {
-    it('should return sorted matches from cache', async () => {
-      const userId = 'mentor-123';
-      const mockUser1 = createMockUser({ id: 'mentee-1', role: 'mentee' });
+    it('returns mentees recommended for a mentor', async () => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      seedUser(raw, 'mentor-1', 'mentor');
+      seedMatch(raw, { userId: 'mentee-1', recommendedUserId: 'mentor-1', score: 80 });
 
-      const mockMatches = [
-        {
-          match_score: 80,
-          match_explanation: createMockMatchExplanation(),
-          recommended_user: {
-            ...mockUser1,
-            profile: {
-              id: 'profile-1',
-              user_id: mockUser1.id,
-              name: 'Mentee One',
-              title: 'Junior Dev',
-              company: 'Startup',
-              bio: 'Eager to learn',
-              created_at: mockUser1.created_at.toISOString(),
-              updated_at: mockUser1.updated_at.toISOString(),
-            },
-          },
-        },
-      ];
-
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: mockMatches, error: null }),
-      } as any);
-
-      const results = await service.getRecommendedMentees(userId);
+      const results = await service.getRecommendedMentees('mentor-1');
 
       expect(results).toHaveLength(1);
       expect(results[0].score).toBe(80);
       expect(results[0].user.role).toBe('mentee');
     });
-
-    it('should use correct algorithm version default', async () => {
-      const userId = 'mentor-123';
-
-      vi.mocked(mockDb.from).mockReturnValue({
-        ...mockQuery,
-        then: async (resolve: any) => resolve({ data: [], error: null }),
-      } as any);
-
-      await service.getRecommendedMentees(userId);
-
-      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'tag-based-v1');
-    });
   });
 
   describe('explainMatch', () => {
-    it('should return explanation for cached match (user1 → user2)', async () => {
-      const userId1 = 'mentee-123';
-      const userId2 = 'mentor-456';
-      const mockExplanation = createMockMatchExplanation({
-        summary: 'Strong match: 5 shared tags, same startup stage, compatible reputation tiers',
+    beforeEach(() => {
+      seedUser(raw, 'mentee-1', 'mentee');
+      seedUser(raw, 'mentor-1', 'mentor');
+      seedMatch(raw, {
+        userId: 'mentee-1',
+        recommendedUserId: 'mentor-1',
+        score: 85,
+        summary: 'Strong match: 5 shared tags',
       });
-
-      mockQuery.maybeSingle.mockResolvedValue({
-        data: { match_explanation: mockExplanation, match_score: 85 },
-        error: null,
-      });
-
-      const result = await service.explainMatch(userId1, userId2);
-
-      expect(result).toEqual(mockExplanation);
-      expect(mockQuery.or).toHaveBeenCalled();
-      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'tag-based-v1');
     });
 
-    it('should return null if no cached match found', async () => {
-      const userId1 = 'mentee-123';
-      const userId2 = 'mentor-456';
-
-      mockQuery.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      const result = await service.explainMatch(userId1, userId2);
-
-      expect(result).toBeNull();
+    it('returns the explanation for a cached match', async () => {
+      const result = await service.explainMatch('mentee-1', 'mentor-1');
+      expect(result?.summary).toBe('Strong match: 5 shared tags');
     });
 
-    it('should handle bidirectional lookup', async () => {
-      const userId1 = 'mentor-456';
-      const userId2 = 'mentee-123';
-      const mockExplanation = createMockMatchExplanation();
-
-      mockQuery.maybeSingle.mockResolvedValue({
-        data: { match_explanation: mockExplanation, match_score: 85 },
-        error: null,
-      });
-
-      const result = await service.explainMatch(userId1, userId2);
-
-      expect(result).toEqual(mockExplanation);
-      // Should use OR query for bidirectional lookup
-      expect(mockQuery.or).toHaveBeenCalledWith(expect.stringContaining('user_id.eq.'));
+    it('resolves bidirectionally (user2 -> user1)', async () => {
+      const result = await service.explainMatch('mentor-1', 'mentee-1');
+      expect(result?.summary).toBe('Strong match: 5 shared tags');
     });
 
-    it('should throw error on database failure', async () => {
-      const userId1 = 'mentee-123';
-      const userId2 = 'mentor-456';
-
-      mockQuery.maybeSingle.mockResolvedValue({
-        data: null,
-        error: { message: 'Connection timeout' },
-      });
-
-      await expect(service.explainMatch(userId1, userId2)).rejects.toThrow(
-        'Failed to fetch match explanation'
-      );
+    it('returns null when no cached match exists', async () => {
+      expect(await service.explainMatch('mentee-1', 'someone-else')).toBeNull();
     });
 
-    it('should respect custom algorithm version', async () => {
-      const userId1 = 'mentee-123';
-      const userId2 = 'mentor-456';
-
-      mockQuery.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      await service.explainMatch(userId1, userId2, 'ml-v2');
-
-      expect(mockQuery.eq).toHaveBeenCalledWith('algorithm_version', 'ml-v2');
+    it('respects a custom algorithm version', async () => {
+      expect(await service.explainMatch('mentee-1', 'mentor-1', 'ml-v2')).toBeNull();
     });
   });
 });

@@ -25,7 +25,7 @@ const mockRepository = {
   findById: vi.fn(),
 };
 
-vi.mock('../repositories/availability.repository', () => ({
+vi.mock('../../../repositories/availability.repository', () => ({
   AvailabilityRepository: vi.fn().mockImplementation(() => mockRepository),
 }));
 
@@ -35,10 +35,7 @@ describe('AvailabilityService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnv = {
-      SUPABASE_URL: 'https://test.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'test-key',
-    } as Env;
+    mockEnv = { DB: {} as D1Database } as Env;
     service = new AvailabilityService(mockEnv);
   });
 

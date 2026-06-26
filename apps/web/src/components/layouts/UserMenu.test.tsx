@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { UserMenu } from './UserMenu';
 import { renderWithProviders, createMockUseCurrentUserResult } from '@/test/test-utils';
 import { createMockUserProfile, mockUserProfiles } from '@/test/fixtures/user';
-import { supabase } from '@/services/supabase';
+import { logout } from '@/services/auth';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 // Mock lucide-react to avoid lazy loading issues in tests
@@ -25,16 +25,10 @@ vi.mock('react-router-dom', async () => {
 // Mock useCurrentUser hook
 vi.mock('@/hooks/useCurrentUser');
 
-// Mock Supabase
-vi.mock('@/services/supabase', () => ({
-  supabase: {
-    auth: {
-      signOut: vi.fn(),
-      onAuthStateChange: vi.fn(() => ({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      })),
-    },
-  },
+// Mock only logout; keep the real session helpers the AuthProvider relies on.
+vi.mock('@/services/auth', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/services/auth')>()),
+  logout: vi.fn(),
 }));
 
 describe('UserMenu', () => {
@@ -45,7 +39,7 @@ describe('UserMenu', () => {
   it('should render avatar with user initials', async () => {
     vi.mocked(useCurrentUser).mockReturnValue(
       createMockUseCurrentUserResult({
-        data: createMockUserProfile()
+        data: createMockUserProfile(),
       })
     );
 
@@ -64,7 +58,7 @@ describe('UserMenu', () => {
     const user = userEvent.setup();
     vi.mocked(useCurrentUser).mockReturnValue(
       createMockUseCurrentUserResult({
-        data: createMockUserProfile({ email: 'john@example.com' })
+        data: createMockUserProfile({ email: 'john@example.com' }),
       })
     );
 
@@ -87,7 +81,7 @@ describe('UserMenu', () => {
     const user = userEvent.setup();
     vi.mocked(useCurrentUser).mockReturnValue(
       createMockUseCurrentUserResult({
-        data: createMockUserProfile()
+        data: createMockUserProfile(),
       })
     );
 
@@ -110,7 +104,7 @@ describe('UserMenu', () => {
     const user = userEvent.setup();
     vi.mocked(useCurrentUser).mockReturnValue(
       createMockUseCurrentUserResult({
-        data: createMockUserProfile()
+        data: createMockUserProfile(),
       })
     );
 
@@ -124,10 +118,10 @@ describe('UserMenu', () => {
     const logoutButton = await screen.findByText('Log out', {}, { timeout: 3000 });
     await user.click(logoutButton);
 
-    // Should call Supabase signOut
+    // Should clear the session
     await waitFor(
       () => {
-        expect(supabase.auth.signOut).toHaveBeenCalled();
+        expect(logout).toHaveBeenCalled();
       },
       { timeout: 3000 }
     );
@@ -144,7 +138,7 @@ describe('UserMenu', () => {
   it('should render avatar fallback when profile exists', async () => {
     vi.mocked(useCurrentUser).mockReturnValue(
       createMockUseCurrentUserResult({
-        data: mockUserProfiles.minimal
+        data: mockUserProfiles.minimal,
       })
     );
 

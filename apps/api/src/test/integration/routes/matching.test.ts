@@ -18,9 +18,9 @@ import type { UserResponse } from '@cf-office-hours/shared';
 // Mock MatchingService
 vi.mock('../../../services/matching.service');
 
-// Mock createSupabaseClient to avoid environment dependency
+// Mock the database accessor to avoid an environment dependency
 vi.mock('../../../lib/db', () => ({
-  createSupabaseClient: vi.fn(() => ({}) as any),
+  getDb: vi.fn(() => ({}) as any),
 }));
 
 // Mock requireAuth middleware to inject a test user with coordinator role
