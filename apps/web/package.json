@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:staging": "tsc && VITE_API_BASE_URL=https://cf-office-hours-api-staging.brettdavies.workers.dev vite build",
+    "build:production": "tsc && VITE_API_BASE_URL=https://api.officehours.youcanjustdothings.io vite build",
+    "deploy:staging": "npm run build:staging && wrangler deploy --env staging",
+    "deploy:production": "npm run build:production && wrangler deploy --env production",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
