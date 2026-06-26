@@ -33,7 +33,8 @@ TARGET_TABLES = [
 # Columns stored as SQLite INTEGER booleans.
 BOOL_COLUMNS = {"is_approved", "is_booked"}
 
-ROWS_PER_INSERT = 100
+# Kept small so each multi-row INSERT stays under D1's per-statement size limit.
+ROWS_PER_INSERT = 10
 
 COPY_HEADER = re.compile(r"^COPY public\.(\w+) \((.*)\) FROM stdin;$")
 PG_TIMESTAMP = re.compile(

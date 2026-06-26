@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-office-hours-web-staging",
+  "compatibility_date": "2026-06-01",
+  "workers_dev": true,
+  // Serve the built SPA as static assets; unknown routes fall back to index.html.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+}

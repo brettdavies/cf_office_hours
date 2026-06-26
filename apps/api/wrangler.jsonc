@@ -26,6 +26,23 @@
     },
   ],
   "env": {
+    "staging": {
+      "name": "cf-office-hours-api-staging",
+      "compatibility_date": "2026-06-01",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "DASHBOARD_URL": "https://cf-office-hours-web-staging.brettdavies.workers.dev",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "cf-office-hours-staging",
+          "database_id": "7ff2c9c4-a98b-4361-a375-a8bcabfaea0e",
+        },
+      ],
+    },
     "production": {
       "name": "cf-office-hours-api",
       "compatibility_date": "2026-06-01",
