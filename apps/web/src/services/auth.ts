@@ -63,17 +63,17 @@ interface LoginResponse {
 }
 
 /**
- * Exchange an allowlisted email for a session token, persisting it.
+ * Demo login: start a session as a random existing user of the chosen role.
  *
- * @param email - The email to authenticate
+ * @param role - The role to sign in as (mentee, mentor, or coordinator)
  * @returns The established session
- * @throws Error with the API message when the email is not on the allowlist
+ * @throws Error with the API message when no such user exists
  */
-export async function login(email: string): Promise<AuthSession> {
-  const res = await fetch(`${apiBase()}/v1/auth/login`, {
+export async function loginAs(role: AuthUser['role']): Promise<AuthSession> {
+  const res = await fetch(`${apiBase()}/v1/auth/demo-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ role }),
   });
 
   if (!res.ok) {

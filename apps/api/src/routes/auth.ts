@@ -1,9 +1,9 @@
 /**
  * Auth API Routes
  *
- * Demo authentication: a fixed allowlist of hardcoded users, no signup. A POST
- * with an allowlisted email returns a Worker-signed session JWT. The email must
- * already exist in the users table (the allowlist); unknown emails are rejected.
+ * Demo authentication for a non-sensitive OSS demo: no signup, no allowlist. The
+ * client picks a role ("login as Mentee/Mentor/Coordinator") and the API starts a
+ * session as a random existing user of that role, returning a Worker-signed JWT.
  */
 
 // External dependencies
@@ -19,8 +19,8 @@ import type { Variables } from '../types/context';
 
 export const authRoutes = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 
-const LoginRequestSchema = z.object({
-  email: z.string().email(),
+const DemoLoginRequestSchema = z.object({
+  role: z.enum(['mentee', 'mentor', 'coordinator']),
 });
 
 const LoginResponseSchema = z.object({
@@ -41,18 +41,18 @@ const ErrorSchema = z.object({
   }),
 });
 
-const loginRoute = createRoute({
+const demoLoginRoute = createRoute({
   method: 'post',
-  path: '/login',
+  path: '/demo-login',
   tags: ['Auth'],
-  summary: 'Exchange an allowlisted email for a session token',
+  summary: 'Start a demo session as a random user of the given role',
   description:
-    'Demo passwordless login. Returns a signed session JWT when the email belongs ' +
-    'to a known user. No account is created for unknown emails.',
+    'Demo login for the OSS demo. Returns a signed session JWT for a randomly ' +
+    'chosen existing user with the requested role.',
   request: {
     body: {
       content: {
-        'application/json': { schema: LoginRequestSchema },
+        'application/json': { schema: DemoLoginRequestSchema },
       },
     },
   },
@@ -61,32 +61,36 @@ const loginRoute = createRoute({
       description: 'Session token and user identity',
       content: { 'application/json': { schema: LoginResponseSchema } },
     },
-    403: {
-      description: 'Email is not on the allowlist',
+    404: {
+      description: 'No user exists for the requested role',
       content: { 'application/json': { schema: ErrorSchema } },
     },
   },
 });
 
-authRoutes.openapi(loginRoute, async c => {
-  const { email } = c.req.valid('json');
+authRoutes.openapi(demoLoginRoute, async c => {
+  const { role } = c.req.valid('json');
   const db = getDb(c.env);
 
   const user = await db
-    .prepare('SELECT id, email, role FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1')
-    .bind(email)
+    .prepare(
+      `SELECT id, email, role FROM users
+       WHERE role = ? AND deleted_at IS NULL
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .bind(role)
     .first<{ id: string; email: string; role: 'mentee' | 'mentor' | 'coordinator' }>();
 
   if (!user) {
     return c.json(
       {
         error: {
-          code: 'FORBIDDEN',
-          message: 'This email is not registered for the demo.',
+          code: 'NO_USER',
+          message: `No ${role} accounts are available in the demo.`,
           timestamp: new Date().toISOString(),
         },
       },
-      403
+      404
     );
   }
 
