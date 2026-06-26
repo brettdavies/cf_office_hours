@@ -30,8 +30,8 @@
   "devDependencies": {
     "@cf-office-hours/config": "*",
     "@cloudflare/workers-types": "^4.20240117.0",
-    "@typescript-eslint/eslint-plugin": "^6.19.0",
-    "@typescript-eslint/parser": "^6.19.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.0",
+    "@typescript-eslint/parser": "^8.62.0",
     "dotenv": "^17.2.3",
     "esbuild": "^0.25.10",
     "eslint": "^8.57.0",
