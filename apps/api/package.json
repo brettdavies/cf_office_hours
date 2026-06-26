@@ -21,7 +21,7 @@
     "@supabase/supabase-js": "^2.39.3",
     "airtable": "^0.12.2",
     "date-fns": "^3.2.0",
-    "googleapis": "^131.0.0",
+    "googleapis": "^173.0.0",
     "hono": "^4.12.25",
     "jose": "^6.1.0",
     "openai": "^6.2.0",
