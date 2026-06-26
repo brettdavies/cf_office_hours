@@ -22,19 +22,16 @@
  * @see docs/architecture/8-backend-architecture.md Lines 1948-2105
  */
 
-// External dependencies
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 // Internal modules
-import type { MatchExplanation } from "./interface";
-import { BaseMatchingEngine, type BaseUserData } from "./base.engine";
+import type { MatchExplanation } from './interface';
+import { BaseMatchingEngine, type BaseUserData } from './base.engine';
 
 /**
  * Tag with category from database
  */
 interface TagWithCategory {
   value: string;
-  category: "industry" | "technology" | "stage";
+  category: 'industry' | 'technology' | 'stage';
 }
 
 /**
@@ -46,6 +43,22 @@ interface UserWithTags extends BaseUserData {
     stage: string | null;
   };
   tags: TagWithCategory[]; // Effective tags with categories from database
+}
+
+/** Flat user+profile row returned by the matching queries. */
+interface UserProfileRow {
+  id: string;
+  email: string;
+  role: BaseUserData['role'];
+  deleted_at: string | null;
+  portfolio_company_id: string | null;
+}
+
+/** Flat entity-tag row (entity_id + taxonomy value/category). */
+interface EntityTagRow {
+  entity_id: string;
+  value: string;
+  category: TagWithCategory['category'];
 }
 
 /**
@@ -61,12 +74,12 @@ interface UserWithTags extends BaseUserData {
  * await engine.recalculateAllMatches({ batchSize: 50 }); // Recalculate for all users
  */
 export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
-  protected readonly ALGORITHM_VERSION = "tag-based-v1";
+  protected readonly ALGORITHM_VERSION = 'tag-based-v1';
 
   // Tag rarity cache: tag value -> usage count
   private tagRarityCache: Map<string, number> = new Map();
 
-  constructor(db: SupabaseClient) {
+  constructor(db: D1Database) {
     super(db);
     // Initialize rarity cache on construction
     this.loadTagRarityData();
@@ -82,25 +95,31 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
    */
   private async loadTagRarityData(): Promise<void> {
     try {
-      const { data, error } = await this.db.rpc("get_tag_usage_counts");
+      const { results } = await this.db
+        .prepare(
+          `SELECT t.value AS tag_value, COUNT(DISTINCT et.entity_id) AS usage_count
+           FROM taxonomy t
+           LEFT JOIN entity_tags et
+             ON et.taxonomy_id = t.id AND et.deleted_at IS NULL
+           WHERE t.is_approved = 1
+           GROUP BY t.id, t.value
+           ORDER BY usage_count DESC`
+        )
+        .all<{ tag_value: string; usage_count: number }>();
 
-      if (!error && data) {
-        data.forEach((row: { tag_value: string; usage_count: number }) => {
-          this.tagRarityCache.set(row.tag_value, row.usage_count);
+      for (const row of results ?? []) {
+        this.tagRarityCache.set(row.tag_value, row.usage_count);
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[MATCHING] Loaded tag rarity data`, {
+          uniqueTags: this.tagRarityCache.size,
         });
-
-        if (process.env.NODE_ENV === "development") {
-          console.log(`[MATCHING] Loaded tag rarity data`, {
-            uniqueTags: this.tagRarityCache.size,
-          });
-        }
       }
     } catch (error) {
-      // Fallback: if RPC doesn't exist, use heuristic-based rarity
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          `[MATCHING] Using heuristic-based rarity (RPC not available)`,
-        );
+      // Fallback: use heuristic-based rarity if the query fails
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[MATCHING] Using heuristic-based rarity`, { error });
       }
     }
   }
@@ -119,82 +138,60 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
    * - [MATCHING] Fetching user with tags { userId }
    * - [MATCHING] Fetched user tags { userId, personalTagCount, companyTagCount }
    */
-  protected async fetchUserWithTags(
-    userId: string,
-  ): Promise<UserWithTags | null> {
-    if (process.env.NODE_ENV === "development") {
+  protected async fetchUserWithTags(userId: string): Promise<UserWithTags | null> {
+    if (process.env.NODE_ENV === 'development') {
       console.log(`[MATCHING] Fetching user with tags`, { userId });
     }
 
     // Fetch user with profile
-    const { data: user, error: userError } = await this.db
-      .from("users")
-      .select("*, user_profiles(*)")
-      .eq("id", userId)
-      .single();
+    const user = await this.db
+      .prepare(
+        `SELECT u.id, u.email, u.role, u.deleted_at,
+                p.portfolio_company_id AS portfolio_company_id
+         FROM users u
+         LEFT JOIN user_profiles p ON p.user_id = u.id
+         WHERE u.id = ?`
+      )
+      .bind(userId)
+      .first<{
+        id: string;
+        email: string;
+        role: BaseUserData['role'];
+        deleted_at: string | null;
+        portfolio_company_id: string | null;
+      }>();
 
-    if (userError || !user) {
-      if (process.env.NODE_ENV === "development") {
-        console.error(`[MATCHING] Failed to fetch user`, {
-          userId,
-          error: userError,
-        });
+    if (!user) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[MATCHING] Failed to fetch user`, { userId });
       }
       return null;
     }
 
     // Fetch personal tags with category from database
-    const { data: personalTagRows, error: tagsError } = await this.db
-      .from("entity_tags")
-      .select("taxonomy_id(value, category)")
-      .eq("entity_type", "user")
-      .eq("entity_id", userId)
-      .is("deleted_at", null);
-
-    if (tagsError) {
-      if (process.env.NODE_ENV === "development") {
-        console.error(`[MATCHING] Failed to fetch tags`, {
-          userId,
-          error: tagsError,
-        });
+    let personalTags: TagWithCategory[];
+    try {
+      personalTags = await this.fetchEntityTags('user', userId);
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[MATCHING] Failed to fetch tags`, { userId, error });
       }
       return null;
     }
 
-    const personalTags: TagWithCategory[] = personalTagRows
-      ?.map((row) => {
-        const taxonomy = row.taxonomy_id as any;
-        return taxonomy?.value && taxonomy?.category
-          ? { value: taxonomy.value, category: taxonomy.category }
-          : null;
-      })
-      .filter((tag): tag is TagWithCategory => tag !== null) || [];
-
     // If mentee with portfolio company: fetch company tags with category
     let companyTags: TagWithCategory[] = [];
-    if (user.role === "mentee" && user.user_profiles?.portfolio_company_id) {
-      const { data: companyTagRows, error: companyTagsError } = await this.db
-        .from("entity_tags")
-        .select("taxonomy_id(value, category)")
-        .eq("entity_type", "portfolio_company")
-        .eq("entity_id", user.user_profiles.portfolio_company_id)
-        .is("deleted_at", null);
-
-      if (!companyTagsError && companyTagRows) {
-        companyTags = companyTagRows
-          .map((row) => {
-            const taxonomy = row.taxonomy_id as any;
-            return taxonomy?.value && taxonomy?.category
-              ? { value: taxonomy.value, category: taxonomy.category }
-              : null;
-          })
-          .filter((tag): tag is TagWithCategory => tag !== null);
+    if (user.role === 'mentee' && user.portfolio_company_id) {
+      try {
+        companyTags = await this.fetchEntityTags('portfolio_company', user.portfolio_company_id);
+      } catch {
+        companyTags = [];
       }
 
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === 'development') {
         console.log(`[MATCHING] Fetched company tags for mentee`, {
           userId,
-          companyId: user.user_profiles.portfolio_company_id,
+          companyId: user.portfolio_company_id,
           companyTagCount: companyTags.length,
         });
       }
@@ -202,14 +199,14 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
 
     // Combine personal + company tags (tag inheritance, deduplicate by value)
     const tagMap = new Map<string, TagWithCategory>();
-    [...personalTags, ...companyTags].forEach((tag) => {
+    [...personalTags, ...companyTags].forEach(tag => {
       if (!tagMap.has(tag.value)) {
         tagMap.set(tag.value, tag);
       }
     });
     const effectiveTags = Array.from(tagMap.values());
 
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === 'development') {
       console.log(`[MATCHING] Fetched user tags`, {
         userId,
         role: user.role,
@@ -224,16 +221,37 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
       email: user.email,
       role: user.role,
       is_active: user.deleted_at === null,
-      last_activity_at: user.last_activity_at
-        ? new Date(user.last_activity_at)
-        : null,
+      last_activity_at: null,
       deleted_at: user.deleted_at ? new Date(user.deleted_at) : null,
       user_profiles: {
-        portfolio_company_id: user.user_profiles?.portfolio_company_id || null,
-        stage: user.user_profiles?.stage || null,
+        portfolio_company_id: user.portfolio_company_id || null,
+        stage: null,
       },
       tags: effectiveTags,
     };
+  }
+
+  /**
+   * Fetch active tags (with category) for a single entity.
+   *
+   * @param entityType - 'user' or 'portfolio_company'
+   * @param entityId - Entity UUID
+   * @returns Tags with their taxonomy category
+   */
+  private async fetchEntityTags(
+    entityType: 'user' | 'portfolio_company',
+    entityId: string
+  ): Promise<TagWithCategory[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT tx.value AS value, tx.category AS category
+         FROM entity_tags et
+         JOIN taxonomy tx ON tx.id = et.taxonomy_id
+         WHERE et.entity_type = ? AND et.entity_id = ? AND et.deleted_at IS NULL`
+      )
+      .bind(entityType, entityId)
+      .all<TagWithCategory>();
+    return results ?? [];
   }
 
   /**
@@ -275,7 +293,7 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
   protected generateExplanation(
     user1: UserWithTags,
     user2: UserWithTags,
-    score: number,
+    score: number
   ): MatchExplanation {
     // Handle case where users have no tags
     const user1HasTags = user1.tags.length > 0;
@@ -284,27 +302,26 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     if (!user1HasTags && !user2HasTags) {
       return {
         tagOverlap: [],
-        summary: "No tags available for matching",
+        summary: 'No tags available for matching',
       };
     }
 
     // Find shared tags (top 5) with categories from database
-    const user2Values = user2.tags.map((t) => t.value);
+    const user2Values = user2.tags.map(t => t.value);
     const sharedTags = user1.tags
-      .filter((tag) => user2Values.includes(tag.value))
+      .filter(tag => user2Values.includes(tag.value))
       .slice(0, 5)
-      .map((tag) => ({
+      .map(tag => ({
         category: tag.category,
         tag: tag.value,
       }));
 
     // Generate summary based on tag overlap only
-    const strength = score >= 40 ? "Strong" : score >= 20 ? "Moderate" : "Weak";
-    const tagSummary = sharedTags.length > 0
-      ? `${sharedTags.length} shared tags (${
-        sharedTags.map((t) => t.tag).join(", ")
-      })`
-      : "no shared tags";
+    const strength = score >= 40 ? 'Strong' : score >= 20 ? 'Moderate' : 'Weak';
+    const tagSummary =
+      sharedTags.length > 0
+        ? `${sharedTags.length} shared tags (${sharedTags.map(t => t.tag).join(', ')})`
+        : 'no shared tags';
 
     const summary = `${strength} match: ${tagSummary}`;
 
@@ -329,11 +346,11 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
    */
   async recalculateMatches(
     userId: string,
-    options?: { chunkSize?: number; chunkDelay?: number },
+    options?: { chunkSize?: number; chunkDelay?: number }
   ): Promise<void> {
     const chunkSize = options?.chunkSize ?? 100;
     const chunkDelay = options?.chunkDelay ?? 0;
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === 'development') {
       console.log(`[MATCHING] recalculateMatches`, {
         userId,
         algorithmVersion: this.ALGORITHM_VERSION,
@@ -343,7 +360,7 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     // Fetch user with tags
     const user = await this.fetchUserWithTags(userId);
     if (!user) {
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === 'development') {
         console.error(`[MATCHING] User not found`, { userId });
       }
       return;
@@ -352,8 +369,8 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     // Fetch potential matches for the user's role
     const potentialMatches = await this.fetchPotentialMatches(userId, user.role);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] Fetched potential matches", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Fetched potential matches', {
         userId,
         potentialMatchCount: potentialMatches.length,
       });
@@ -364,8 +381,8 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[MATCHING] Processing chunk", {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MATCHING] Processing chunk', {
           userId,
           chunkNum: i + 1,
           totalChunks: chunks.length,
@@ -376,15 +393,15 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
 
       // Calculate scores for this chunk and filter out zero scores
       const cacheEntries = chunk
-        .map((matchUser) => {
+        .map(matchUser => {
           const score = this.calculateScore(user, matchUser);
           const explanation = this.generateExplanation(user, matchUser, score);
 
           // Correctly assign roles based on user type
           // user_id should ALWAYS be the mentee (receiving recommendations)
           // recommended_user_id should ALWAYS be the mentor (being recommended)
-          const menteeId = user.role === "mentee" ? userId : matchUser.id;
-          const mentorId = user.role === "mentor" ? userId : matchUser.id;
+          const menteeId = user.role === 'mentee' ? userId : matchUser.id;
+          const mentorId = user.role === 'mentor' ? userId : matchUser.id;
 
           return {
             user_id: menteeId,
@@ -395,7 +412,7 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
             calculated_at: new Date(),
           };
         })
-        .filter((entry) => entry.match_score > 0); // FILTER: Only store non-zero scores
+        .filter(entry => entry.match_score > 0); // FILTER: Only store non-zero scores
 
       // Write chunk to cache (only non-zero scores)
       await this.writeToCacheAtomic(userId, cacheEntries);
@@ -431,39 +448,44 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
    * - [MATCHING] Bulk fetching users { userCount }
    * - [MATCHING] Bulk fetched users and tags { userCount, personalTagCount, companyTagCount }
    */
-  protected async fetchMultipleUsersWithTags(
-    userIds: string[],
-  ): Promise<UserWithTags[]> {
+  protected async fetchMultipleUsersWithTags(userIds: string[]): Promise<UserWithTags[]> {
     if (userIds.length === 0) {
       return [];
     }
 
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === 'development') {
       console.log(`[MATCHING] Bulk fetching users`, {
         userCount: userIds.length,
       });
     }
 
-    // Batch into chunks of 100 to avoid URI length limits
+    // Batch into chunks of 100 to bound the number of bound parameters per query
     const BATCH_SIZE = 100;
-    const allUsers: any[] = [];
-    const allPersonalTagRows: any[] = [];
+    const allUsers: UserProfileRow[] = [];
+    const allPersonalTagRows: EntityTagRow[] = [];
     const allCompanyIds: string[] = [];
 
     for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
       const batch = userIds.slice(i, i + BATCH_SIZE);
+      const placeholders = batch.map(() => '?').join(', ');
 
       // Batch query for users
-      const { data: users, error: usersError } = await this.db
-        .from("users")
-        .select("*, user_profiles(*)")
-        .in("id", batch);
-
-      if (usersError || !users) {
-        if (process.env.NODE_ENV === "development") {
-          console.error(`[MATCHING] Failed to bulk fetch users batch`, {
-            error: usersError,
-          });
+      let users: UserProfileRow[];
+      try {
+        const res = await this.db
+          .prepare(
+            `SELECT u.id, u.email, u.role, u.deleted_at,
+                    p.portfolio_company_id AS portfolio_company_id
+             FROM users u
+             LEFT JOIN user_profiles p ON p.user_id = u.id
+             WHERE u.id IN (${placeholders})`
+          )
+          .bind(...batch)
+          .all<UserProfileRow>();
+        users = res.results ?? [];
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`[MATCHING] Failed to bulk fetch users batch`, { error });
         }
         continue;
       }
@@ -471,45 +493,56 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
       allUsers.push(...users);
 
       // Batch query for personal tags
-      const { data: personalTagRows, error: tagsError } = await this.db
-        .from("entity_tags")
-        .select("entity_id, taxonomy_id(value, category)")
-        .eq("entity_type", "user")
-        .in("entity_id", batch)
-        .is("deleted_at", null);
-
-      if (!tagsError && personalTagRows) {
-        allPersonalTagRows.push(...personalTagRows);
+      try {
+        const res = await this.db
+          .prepare(
+            `SELECT et.entity_id AS entity_id, tx.value AS value, tx.category AS category
+             FROM entity_tags et
+             JOIN taxonomy tx ON tx.id = et.taxonomy_id
+             WHERE et.entity_type = 'user' AND et.deleted_at IS NULL
+               AND et.entity_id IN (${placeholders})`
+          )
+          .bind(...batch)
+          .all<EntityTagRow>();
+        allPersonalTagRows.push(...(res.results ?? []));
+      } catch {
+        // Non-fatal: users without tags simply contribute no overlap.
       }
 
       // Extract company IDs from this batch
-      const menteeUsers = users.filter((u) => u.role === "mentee");
-      const companyIds = menteeUsers
-        .map((u) => u.user_profiles?.portfolio_company_id)
+      const companyIds = users
+        .filter(u => u.role === 'mentee')
+        .map(u => u.portfolio_company_id)
         .filter((id): id is string => id !== null && id !== undefined);
       allCompanyIds.push(...companyIds);
     }
 
     // Fetch company tags in batches
-    const allCompanyTagRows: any[] = [];
+    const allCompanyTagRows: EntityTagRow[] = [];
     const uniqueCompanyIds = Array.from(new Set(allCompanyIds));
 
     for (let i = 0; i < uniqueCompanyIds.length; i += BATCH_SIZE) {
       const batch = uniqueCompanyIds.slice(i, i + BATCH_SIZE);
+      const placeholders = batch.map(() => '?').join(', ');
 
-      const { data, error: companyTagsError } = await this.db
-        .from("entity_tags")
-        .select("entity_id, taxonomy_id(value, category)")
-        .eq("entity_type", "portfolio_company")
-        .in("entity_id", batch)
-        .is("deleted_at", null);
-
-      if (!companyTagsError && data) {
-        allCompanyTagRows.push(...data);
+      try {
+        const res = await this.db
+          .prepare(
+            `SELECT et.entity_id AS entity_id, tx.value AS value, tx.category AS category
+             FROM entity_tags et
+             JOIN taxonomy tx ON tx.id = et.taxonomy_id
+             WHERE et.entity_type = 'portfolio_company' AND et.deleted_at IS NULL
+               AND et.entity_id IN (${placeholders})`
+          )
+          .bind(...batch)
+          .all<EntityTagRow>();
+        allCompanyTagRows.push(...(res.results ?? []));
+      } catch {
+        // Non-fatal: companies without tags contribute no inherited overlap.
       }
     }
 
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === 'development') {
       console.log(`[MATCHING] Bulk fetched users and tags`, {
         userCount: allUsers.length,
         personalTagCount: allPersonalTagRows.length,
@@ -518,11 +551,7 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     }
 
     // Combine data in memory
-    return this.combineUserDataWithTags(
-      allUsers,
-      allPersonalTagRows,
-      allCompanyTagRows,
-    );
+    return this.combineUserDataWithTags(allUsers, allPersonalTagRows, allCompanyTagRows);
   }
 
   /**
@@ -536,63 +565,40 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
    * @returns Array of users with combined tags
    */
   private combineUserDataWithTags(
-    users: any[],
-    personalTagRows: any[],
-    companyTagRows: any[],
+    users: UserProfileRow[],
+    personalTagRows: EntityTagRow[],
+    companyTagRows: EntityTagRow[]
   ): UserWithTags[] {
-    // Map personal tags by entity_id (user_id)
-    const personalTagsByUserId = new Map<string, TagWithCategory[]>();
-    personalTagRows.forEach((row) => {
-      const taxonomy = row.taxonomy_id as any;
-      if (taxonomy?.value && taxonomy?.category) {
-        const tag: TagWithCategory = {
-          value: taxonomy.value,
-          category: taxonomy.category,
-        };
-        const userId = row.entity_id;
-        const tags = personalTagsByUserId.get(userId);
+    const groupByEntity = (rows: EntityTagRow[]): Map<string, TagWithCategory[]> => {
+      const map = new Map<string, TagWithCategory[]>();
+      for (const row of rows) {
+        const tag: TagWithCategory = { value: row.value, category: row.category };
+        const tags = map.get(row.entity_id);
         if (tags) {
           tags.push(tag);
         } else {
-          personalTagsByUserId.set(userId, [tag]);
+          map.set(row.entity_id, [tag]);
         }
       }
-    });
+      return map;
+    };
 
-    // Map company tags by entity_id (portfolio_company_id)
-    const companyTagsByCompanyId = new Map<string, TagWithCategory[]>();
-    companyTagRows.forEach((row) => {
-      const taxonomy = row.taxonomy_id as any;
-      if (taxonomy?.value && taxonomy?.category) {
-        const tag: TagWithCategory = {
-          value: taxonomy.value,
-          category: taxonomy.category,
-        };
-        const companyId = row.entity_id;
-        const tags = companyTagsByCompanyId.get(companyId);
-        if (tags) {
-          tags.push(tag);
-        } else {
-          companyTagsByCompanyId.set(companyId, [tag]);
-        }
-      }
-    });
+    const personalTagsByUserId = groupByEntity(personalTagRows);
+    const companyTagsByCompanyId = groupByEntity(companyTagRows);
 
     // Combine user data with tags
-    return users.map((user) => {
+    return users.map(user => {
       const personalTags = personalTagsByUserId.get(user.id) || [];
       let companyTags: TagWithCategory[] = [];
 
       // Add company tags for mentees
-      if (user.role === "mentee" && user.user_profiles?.portfolio_company_id) {
-        companyTags =
-          companyTagsByCompanyId.get(user.user_profiles.portfolio_company_id) ||
-          [];
+      if (user.role === 'mentee' && user.portfolio_company_id) {
+        companyTags = companyTagsByCompanyId.get(user.portfolio_company_id) || [];
       }
 
       // Combine and deduplicate by value
       const tagMap = new Map<string, TagWithCategory>();
-      [...personalTags, ...companyTags].forEach((tag) => {
+      [...personalTags, ...companyTags].forEach(tag => {
         if (!tagMap.has(tag.value)) {
           tagMap.set(tag.value, tag);
         }
@@ -604,14 +610,11 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
         email: user.email,
         role: user.role,
         is_active: user.deleted_at === null,
-        last_activity_at: user.last_activity_at
-          ? new Date(user.last_activity_at)
-          : null,
+        last_activity_at: null,
         deleted_at: user.deleted_at ? new Date(user.deleted_at) : null,
         user_profiles: {
-          portfolio_company_id: user.user_profiles?.portfolio_company_id ||
-            null,
-          stage: user.user_profiles?.stage || null,
+          portfolio_company_id: user.portfolio_company_id || null,
+          stage: null,
         },
         tags: effectiveTags,
       };
@@ -653,19 +656,16 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
    * @param tags2 - Second user's tags
    * @returns Tag overlap score (0-60)
    */
-  private calculateTagOverlap(
-    tags1: TagWithCategory[],
-    tags2: TagWithCategory[],
-  ): number {
-    const values1 = tags1.map((t) => t.value);
-    const values2 = tags2.map((t) => t.value);
+  private calculateTagOverlap(tags1: TagWithCategory[], tags2: TagWithCategory[]): number {
+    const values1 = tags1.map(t => t.value);
+    const values2 = tags2.map(t => t.value);
 
     // No tags = no match
     if (values1.length === 0 || values2.length === 0) {
       return 0;
     }
 
-    const sharedTags = values1.filter((value) => values2.includes(value));
+    const sharedTags = values1.filter(value => values2.includes(value));
 
     // No overlap = no score
     if (sharedTags.length === 0) {
@@ -697,22 +697,19 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
 
       // Fallback: heuristic-based rarity (when cache not loaded)
       const commonTags = [
-        "cloud_software_infrastructure",
-        "big_data_analytics",
-        "artificial_intelligence",
-        "healthcare",
-        "software",
-        "saas",
+        'cloud_software_infrastructure',
+        'big_data_analytics',
+        'artificial_intelligence',
+        'healthcare',
+        'software',
+        'saas',
       ];
 
       if (commonTags.includes(tag)) {
         return 1.0; // Common tag
       }
 
-      if (
-        tag.includes("quantum") || tag.includes("crypto") ||
-        tag.includes("cannabis")
-      ) {
+      if (tag.includes('quantum') || tag.includes('crypto') || tag.includes('cannabis')) {
         return 2.0; // Rare tag
       }
 
@@ -720,13 +717,10 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     };
 
     // Calculate weighted Jaccard similarity
-    const sharedWeight = sharedTags.reduce(
-      (sum, tag) => sum + getRarityWeight(tag),
-      0,
-    );
+    const sharedWeight = sharedTags.reduce((sum, tag) => sum + getRarityWeight(tag), 0);
     const totalWeight = Array.from(allUniqueTags).reduce(
       (sum, tag) => sum + getRarityWeight(tag),
-      0,
+      0
     );
     const weightedJaccard = sharedWeight / totalWeight;
 
@@ -740,8 +734,7 @@ export class TagBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithTags> {
     const diversityFactor = minTags / maxTags;
 
     // Combined score: 50% weighted overlap + 30% confidence + 20% diversity
-    const combinedScore = (weightedJaccard * 0.5) + (confidence * 0.3) +
-      (diversityFactor * 0.2);
+    const combinedScore = weightedJaccard * 0.5 + confidence * 0.3 + diversityFactor * 0.2;
 
     return Math.round(combinedScore * 60);
   }

@@ -10,16 +10,24 @@
  * - Apply filters (algorithmVersion, minScore, limit)
  * - Return matches sorted by score DESC
  * - NO calculation logic (that's in IMatchingEngine implementations)
- *
- * See: docs/architecture/matching-cache-architecture.md
  */
 
-// External dependencies
-import type { SupabaseClient } from '@supabase/supabase-js';
+// Internal modules
+import { parseJson } from '../lib/d1-utils';
 
 // Types
-import type { MatchExplanation } from '../providers/matching/interface';
-import type { UserResponse } from '@cf-office-hours/shared';
+import type { MatchExplanation, UserResponse } from '@cf-office-hours/shared';
+
+/** Parse a stored match_explanation, filling fields the engines may omit. */
+const toExplanation = (raw: string): MatchExplanation => {
+  const parsed = parseJson<Partial<MatchExplanation>>(raw);
+  return {
+    tagOverlap: parsed?.tagOverlap ?? [],
+    stageMatch: parsed?.stageMatch ?? false,
+    reputationCompatible: parsed?.reputationCompatible ?? false,
+    summary: parsed?.summary ?? '',
+  };
+};
 
 /**
  * Options for customizing match retrieval
@@ -42,29 +50,75 @@ export interface MatchResult {
   explanation: MatchExplanation;
 }
 
+/** Joined cache + user + profile row. */
+interface MatchRow {
+  match_score: number;
+  match_explanation: string;
+  id: string;
+  airtable_record_id: string;
+  email: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+  p_id: string;
+  p_user_id: string;
+  p_name: string;
+  p_title: string | null;
+  p_company: string | null;
+  p_bio: string | null;
+  p_created_at: string;
+  p_updated_at: string;
+}
+
+/** Column list shared by both directions of the recommendation join. */
+const MATCH_USER_COLUMNS = `
+  c.match_score, c.match_explanation,
+  u.id, u.airtable_record_id, u.email, u.role, u.created_at, u.updated_at,
+  p.id AS p_id, p.user_id AS p_user_id, p.name AS p_name, p.title AS p_title,
+  p.company AS p_company, p.bio AS p_bio,
+  p.created_at AS p_created_at, p.updated_at AS p_updated_at`;
+
+const mapMatch = (row: MatchRow): MatchResult => ({
+  user: {
+    id: row.id,
+    airtable_record_id: row.airtable_record_id,
+    email: row.email,
+    role: row.role,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    profile: {
+      id: row.p_id,
+      user_id: row.p_user_id,
+      name: row.p_name,
+      title: row.p_title,
+      company: row.p_company,
+      bio: row.p_bio,
+      created_at: row.p_created_at,
+      updated_at: row.p_updated_at,
+    },
+  } as UserResponse,
+  score: row.match_score,
+  explanation: toExplanation(row.match_explanation),
+});
+
 /**
- * Service for retrieving pre-calculated match recommendations
- *
- * NOTE: This is a plain class (NO interface) because retrieval is NOT polymorphic.
- * Algorithm version is data (column filter), not behavior.
+ * Service for retrieving pre-calculated match recommendations.
  *
  * @logging All methods log in development mode with format: [MATCHING] {operation} { contextData }
  */
 export class MatchingService {
-  constructor(private db: SupabaseClient) {}
+  constructor(private db: D1Database) {}
 
   /**
-   * Internal helper: Fetches matches from cache with common query logic
+   * Fetch matches for a user joining the recommended counterpart in a given direction.
    *
-   * @param userId - User ID to fetch matches for
-   * @param options - Optional filters
-   * @param operationName - Name of the operation for logging (e.g., 'getRecommendedMentors')
-   * @returns Array of matches sorted by score DESC
-   * @throws {Error} If database query fails
-   * @private
+   * @param joinColumn - cache column joined to users (recommended_user_id or user_id)
+   * @param filterColumn - cache column filtered by the supplied id (the other one)
    */
   private async fetchMatches(
-    userId: string,
+    joinColumn: 'recommended_user_id' | 'user_id',
+    filterColumn: 'user_id' | 'recommended_user_id',
+    id: string,
     options: GetRecommendedOptions | undefined,
     operationName: string
   ): Promise<MatchResult[]> {
@@ -74,75 +128,49 @@ export class MatchingService {
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`[MATCHING] ${operationName}`, {
-        userId,
+        id,
         algorithmVersion,
         limit,
         minScore,
       });
     }
 
-    // Single database query with JOIN to users table (no N+1)
-    let query = this.db
-      .from('user_match_cache')
-      .select(
-        `
-        match_score,
-        match_explanation,
-        recommended_user:users!user_match_cache_recommended_user_id_fkey(
-          id,
-          airtable_record_id,
-          email,
-          role,
-          created_at,
-          updated_at,
-          profile:user_profiles(
-            id,
-            user_id,
-            name,
-            title,
-            company,
-            bio,
-            created_at,
-            updated_at
-          )
-        )
-      `
-      )
-      .eq('user_id', userId)
-      .eq('algorithm_version', algorithmVersion)
-      .order('match_score', { ascending: false })
-      .limit(limit);
-
+    const params: Array<string | number> = [id, algorithmVersion];
+    let scoreFilter = '';
     if (minScore !== undefined) {
-      query = query.gte('match_score', minScore);
+      scoreFilter = 'AND c.match_score >= ?';
+      params.push(minScore);
+    }
+    params.push(limit);
+
+    const sql = `
+      SELECT ${MATCH_USER_COLUMNS}
+      FROM user_match_cache c
+      JOIN users u ON u.id = c.${joinColumn}
+      JOIN user_profiles p ON p.user_id = u.id
+      WHERE c.${filterColumn} = ? AND c.algorithm_version = ? ${scoreFilter}
+      ORDER BY c.match_score DESC
+      LIMIT ?`;
+
+    let rows: MatchRow[];
+    try {
+      const res = await this.db
+        .prepare(sql)
+        .bind(...params)
+        .all<MatchRow>();
+      rows = res.results ?? [];
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch matches: ${error instanceof Error ? error.message : 'unknown'}`
+      );
     }
 
-    const { data: matches, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to fetch matches: ${error.message}`);
-    }
-
-    const results: MatchResult[] = (matches || []).map((m: any) => ({
-      user: {
-        id: m.recommended_user.id,
-        airtable_record_id: m.recommended_user.airtable_record_id,
-        email: m.recommended_user.email,
-        role: m.recommended_user.role,
-        created_at: m.recommended_user.created_at,
-        updated_at: m.recommended_user.updated_at,
-        profile: Array.isArray(m.recommended_user.profile)
-          ? m.recommended_user.profile[0]
-          : m.recommended_user.profile,
-      },
-      score: m.match_score,
-      explanation: m.match_explanation,
-    }));
+    const results = rows.map(mapMatch);
 
     if (process.env.NODE_ENV === 'development') {
       const avgScore = results.reduce((sum, r) => sum + r.score, 0) / (results.length || 1);
       console.log('[MATCHING] Found matches', {
-        userId,
+        id,
         matchCount: results.length,
         avgScore: avgScore.toFixed(2),
       });
@@ -152,146 +180,52 @@ export class MatchingService {
   }
 
   /**
-   * Get recommended mentors for a mentee
-   *
-   * Retrieves cached matches from user_match_cache table, sorted by score DESC.
-   * Uses single query with JOIN to avoid N+1 queries.
+   * Get recommended mentors for a mentee (mentee is user_id, mentor is recommended_user_id).
    *
    * @param userId - Mentee user ID
    * @param options - Optional filters (algorithmVersion, limit, minScore)
    * @returns Array of mentor matches sorted by score DESC
-   * @throws {Error} If database query fails
-   *
-   * @logging
-   * - [MATCHING] getRecommendedMentors { userId, algorithmVersion, limit, minScore }
-   * - [MATCHING] Found matches { userId, matchCount, avgScore }
    */
   async getRecommendedMentors(
     userId: string,
     options?: GetRecommendedOptions
   ): Promise<MatchResult[]> {
-    return this.fetchMatches(userId, options, 'getRecommendedMentors');
+    return this.fetchMatches(
+      'recommended_user_id',
+      'user_id',
+      userId,
+      options,
+      'getRecommendedMentors'
+    );
   }
 
   /**
-   * Get recommended mentees for a mentor
-   *
-   * Retrieves cached matches from user_match_cache table WHERE the mentor
-   * appears as recommended_user_id, sorted by score DESC.
-   * Uses reverse lookup since mentors are in recommended_user_id column.
+   * Get recommended mentees for a mentor (reverse lookup: mentor is recommended_user_id).
    *
    * @param mentorId - Mentor user ID
    * @param options - Optional filters (algorithmVersion, limit, minScore)
    * @returns Array of mentee matches sorted by score DESC
-   * @throws {Error} If database query fails
-   *
-   * @logging
-   * - [MATCHING] getRecommendedMentees { mentorId, algorithmVersion, limit, minScore }
-   * - [MATCHING] Found matches { mentorId, matchCount, avgScore }
    */
   async getRecommendedMentees(
     mentorId: string,
     options?: GetRecommendedOptions
   ): Promise<MatchResult[]> {
-    const algorithmVersion = options?.algorithmVersion ?? 'tag-based-v1';
-    const limit = Math.min(options?.limit ?? 5, 20);
-    const minScore = options?.minScore;
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[MATCHING] getRecommendedMentees`, {
-        mentorId,
-        algorithmVersion,
-        limit,
-        minScore,
-      });
-    }
-
-    // Reverse lookup: Find mentees (user_id) who have this mentor (recommended_user_id)
-    let query = this.db
-      .from('user_match_cache')
-      .select(
-        `
-        match_score,
-        match_explanation,
-        mentee_user:users!user_match_cache_user_id_fkey(
-          id,
-          airtable_record_id,
-          email,
-          role,
-          created_at,
-          updated_at,
-          profile:user_profiles(
-            id,
-            user_id,
-            name,
-            title,
-            company,
-            bio,
-            created_at,
-            updated_at
-          )
-        )
-      `
-      )
-      .eq('recommended_user_id', mentorId) // Mentor is in recommended_user_id column
-      .eq('algorithm_version', algorithmVersion)
-      .order('match_score', { ascending: false })
-      .limit(limit);
-
-    if (minScore !== undefined) {
-      query = query.gte('match_score', minScore);
-    }
-
-    const { data: matches, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to fetch mentee matches: ${error.message}`);
-    }
-
-    const results: MatchResult[] = (matches || []).map((m: any) => ({
-      user: {
-        id: m.mentee_user.id,
-        airtable_record_id: m.mentee_user.airtable_record_id,
-        email: m.mentee_user.email,
-        role: m.mentee_user.role,
-        created_at: m.mentee_user.created_at,
-        updated_at: m.mentee_user.updated_at,
-        profile: Array.isArray(m.mentee_user.profile)
-          ? m.mentee_user.profile[0]
-          : m.mentee_user.profile,
-      },
-      score: m.match_score,
-      explanation: m.match_explanation,
-    }));
-
-    if (process.env.NODE_ENV === 'development') {
-      const avgScore = results.reduce((sum, r) => sum + r.score, 0) / (results.length || 1);
-      console.log('[MATCHING] Found matches', {
-        mentorId,
-        matchCount: results.length,
-        avgScore: avgScore.toFixed(2),
-      });
-    }
-
-    return results;
+    return this.fetchMatches(
+      'user_id',
+      'recommended_user_id',
+      mentorId,
+      options,
+      'getRecommendedMentees'
+    );
   }
 
   /**
-   * Get match explanation for a specific user pair
-   *
-   * Performs bidirectional lookup: checks both (user1→user2) and (user2→user1)
-   * since matches can be stored in either direction.
+   * Get match explanation for a specific user pair (bidirectional lookup).
    *
    * @param userId1 - First user ID
    * @param userId2 - Second user ID
    * @param algorithmVersion - Optional algorithm version filter (default: 'tag-based-v1')
    * @returns Match explanation or null if no cached match found
-   * @throws {Error} If database query fails
-   *
-   * @logging
-   * - [MATCHING] explainMatch { userId1, userId2, algorithmVersion }
-   * - [MATCHING] Found explanation { userId1, userId2, score }
-   * - [MATCHING] No cached match found { userId1, userId2 }
    */
   async explainMatch(
     userId1: string,
@@ -302,19 +236,23 @@ export class MatchingService {
       console.log('[MATCHING] explainMatch', { userId1, userId2, algorithmVersion });
     }
 
-    // Bidirectional lookup: check both (user1→user2) and (user2→user1)
-    const { data: match, error } = await this.db
-      .from('user_match_cache')
-      .select('match_explanation, match_score')
-      .or(
-        `and(user_id.eq.${userId1},recommended_user_id.eq.${userId2}),and(user_id.eq.${userId2},recommended_user_id.eq.${userId1})`
-      )
-      .eq('algorithm_version', algorithmVersion)
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Failed to fetch match explanation: ${error.message}`);
+    let match: { match_explanation: string; match_score: number } | null;
+    try {
+      match = await this.db
+        .prepare(
+          `SELECT match_explanation, match_score
+           FROM user_match_cache
+           WHERE algorithm_version = ?
+             AND ((user_id = ? AND recommended_user_id = ?)
+               OR (user_id = ? AND recommended_user_id = ?))
+           LIMIT 1`
+        )
+        .bind(algorithmVersion, userId1, userId2, userId2, userId1)
+        .first<{ match_explanation: string; match_score: number }>();
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch match explanation: ${error instanceof Error ? error.message : 'unknown'}`
+      );
     }
 
     if (!match) {
@@ -332,6 +270,6 @@ export class MatchingService {
       });
     }
 
-    return match.match_explanation;
+    return toExplanation(match.match_explanation);
   }
 }

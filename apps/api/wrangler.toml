@@ -5,16 +5,24 @@ compatibility_date = "2025-03-11"
 compatibility_flags = ["nodejs_compat"]
 
 # Secrets (set via: wrangler secret put SECRET_NAME)
-# - SUPABASE_SERVICE_ROLE_KEY: Service role key for Supabase admin operations
+# - JWT_SECRET: HMAC secret used to sign and verify session JWTs
 # - OPENAI_API_KEY: OpenAI API key for AI-based matching engine
+# - RESEND_API_KEY: email provider key (optional; emails log to console when unset)
 
 [dev]
 port = 8787
 
 [vars]
 ENVIRONMENT = "development"
-SUPABASE_URL = "http://127.0.0.1:54321"
 DASHBOARD_URL = "http://127.0.0.1:3000"
+
+# database_id is a placeholder for local dev; replaced with the real id from
+# `wrangler d1 create` before remote deploy.
+[[d1_databases]]
+binding = "DB"
+database_name = "cf-office-hours"
+database_id = "local-dev-placeholder"
+migrations_dir = "migrations"
 
 # Production Environment Configuration
 [env.production]
@@ -25,8 +33,13 @@ compatibility_flags = ["nodejs_compat"]
 
 [env.production.vars]
 ENVIRONMENT = "production"
-SUPABASE_URL = "https://mwkptgdsoxlvxyeexwbf.supabase.co"
 DASHBOARD_URL = "https://officehours.youcanjustdothings.io"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "cf-office-hours"
+database_id = "local-dev-placeholder"
+migrations_dir = "migrations"
 
 [[env.production.routes]]
 pattern = "api.officehours.youcanjustdothings.io/*"
