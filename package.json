@@ -29,7 +29,7 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/api/.wrangler"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.57.0",
@@ -39,7 +39,7 @@
     "wrangler": "4.102.0"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "npm": ">=10.0.0"
   }
 }

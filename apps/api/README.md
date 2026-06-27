@@ -6,7 +6,7 @@ Hono-based REST API for the Office Hours platform, running on Cloudflare Workers
 
 ### Prerequisites
 
-- Node.js 20+ and npm 10+
+- Node.js 22+ and npm 10+
 - No Cloudflare account required for local development (Wrangler runs a local D1)
 
 ### Local Development
