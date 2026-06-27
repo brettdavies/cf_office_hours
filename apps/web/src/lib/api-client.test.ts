@@ -94,7 +94,7 @@ describe('apiClient', () => {
     });
 
     it('should include Authorization header when token exists', async () => {
-      localStorageMock.setItem('auth_token', 'test-token-123');
+      localStorageMock.setItem('cf_oh_token', 'test-token-123');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
@@ -307,7 +307,7 @@ describe('apiClient', () => {
     it('should fetch availability with correct endpoint and headers', async () => {
       const mockAvailability = [createMockAvailabilityBlock()];
 
-      localStorageMock.setItem('auth_token', 'test-token-123');
+      localStorageMock.setItem('cf_oh_token', 'test-token-123');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
@@ -383,7 +383,7 @@ describe('apiClient', () => {
       const requestData = createMockAvailabilityRequest();
       const mockResponse = createMockAvailabilityBlock({ description: '' });
 
-      localStorageMock.setItem('auth_token', 'test-token-123');
+      localStorageMock.setItem('cf_oh_token', 'test-token-123');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
@@ -538,7 +538,7 @@ describe('apiClient', () => {
         createMockTimeSlot({ id: 'slot-2', start_time: '2025-10-15T10:00:00Z' }),
       ]);
 
-      localStorageMock.setItem('auth_token', 'test-token-123');
+      localStorageMock.setItem('cf_oh_token', 'test-token-123');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
@@ -721,7 +721,7 @@ describe('apiClient', () => {
         status: 'pending',
       });
 
-      localStorageMock.setItem('auth_token', 'test-token-123');
+      localStorageMock.setItem('cf_oh_token', 'test-token-123');
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,

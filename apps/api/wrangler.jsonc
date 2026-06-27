@@ -1,0 +1,69 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-office-hours-api",
+  "main": "src/index.ts",
+  "workers_dev": false,
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Secrets (set via: wrangler secret put SECRET_NAME)
+  // - JWT_SECRET: HMAC secret used to sign and verify session JWTs
+  // - OPENAI_API_KEY: OpenAI API key for the AI-based matching engine
+  // - RESEND_API_KEY: email provider key (optional; emails log to console when unset)
+  "dev": {
+    "port": 8787,
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "DASHBOARD_URL": "http://127.0.0.1:3000",
+  },
+  // database_id is a placeholder for local dev; replaced with the real id from
+  // `wrangler d1 create` before remote deploy.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cf-office-hours",
+      "database_id": "local-dev-placeholder",
+    },
+  ],
+  "env": {
+    "staging": {
+      "name": "cf-office-hours-api-staging",
+      "compatibility_date": "2026-06-01",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "DASHBOARD_URL": "https://cf-office-hours-web-staging.brettdavies.workers.dev",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "cf-office-hours-staging",
+          "database_id": "7ff2c9c4-a98b-4361-a375-a8bcabfaea0e",
+        },
+      ],
+    },
+    "production": {
+      "name": "cf-office-hours-api",
+      "compatibility_date": "2026-06-01",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "DASHBOARD_URL": "https://officehours.youcanjustdothings.io",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "cf-office-hours",
+          "database_id": "local-dev-placeholder",
+        },
+      ],
+      "routes": [
+        {
+          "pattern": "api.officehours.youcanjustdothings.io/*",
+          "zone_name": "youcanjustdothings.io",
+        },
+      ],
+    },
+  },
+}

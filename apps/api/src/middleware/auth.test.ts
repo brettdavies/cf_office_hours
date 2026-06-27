@@ -1,176 +1,101 @@
 // External dependencies
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import * as jose from 'jose';
 
 // Internal modules
 import { requireAuth } from './auth';
-import * as db from '../lib/db';
+import { signJwt } from '../lib/jwt';
+import { createTestDb, insertRow } from '../test/helpers/d1';
 
 // Types
 import type { Env } from '../types/bindings';
 import type { Variables } from '../types/context';
 
-// Mock Supabase client
-vi.mock('../lib/db', () => ({
-  createSupabaseClient: vi.fn(),
-}));
+const JWT_SECRET = 'test-jwt-secret-with-at-least-32-characters-long';
 
-// Helper function to create a valid JWT token for testing
-async function createTestJWT(userId: string, email: string, secret: string): Promise<string> {
-  const secretKey = new TextEncoder().encode(secret);
+function makeEnv(): { env: Env; raw: ReturnType<typeof createTestDb>['raw'] } {
+  const { DB, raw } = createTestDb();
+  return { env: { DB, JWT_SECRET } as unknown as Env, raw };
+}
 
-  return await new jose.SignJWT({
-    sub: userId,
+function seedUser(raw: ReturnType<typeof createTestDb>['raw'], email: string, role: string): void {
+  insertRow(raw, 'users', {
+    id: `id-${email}`,
+    airtable_record_id: `air-${email}`,
     email,
-    role: 'authenticated',
-    aud: 'authenticated',
-    iss: 'http://localhost:54321/auth/v1',
-  })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime('1h')
-    .setIssuedAt()
-    .sign(secretKey);
+    role,
+  });
 }
 
 describe('requireAuth middleware', () => {
   let app: Hono<{ Bindings: Env; Variables: Variables }>;
-  const mockEnv: Env = {
-    SUPABASE_URL: 'http://localhost:54321',
-    SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
-    SUPABASE_JWT_SECRET: 'test-jwt-secret-with-at-least-32-characters-long',
-  };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     app = new Hono<{ Bindings: Env; Variables: Variables }>();
     app.use('/protected', requireAuth);
     app.get('/protected', c => c.json({ message: 'success', user: c.get('user') }));
   });
 
-  it('should return 401 when Authorization header is missing', async () => {
-    const res = await app.request('/protected', {}, { SUPABASE_URL: mockEnv.SUPABASE_URL } as Env);
-    const data = await res.json();
-
+  it('returns 401 when Authorization header is missing', async () => {
+    const { env } = makeEnv();
+    const res = await app.request('/protected', {}, env);
     expect(res.status).toBe(401);
-    expect(data).toEqual({
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Missing or invalid Authorization header',
-        timestamp: expect.any(String),
-      },
-    });
-  });
-
-  it('should return 401 when Authorization header is malformed', async () => {
-    const res = await app.request(
-      '/protected',
-      {
-        headers: { Authorization: 'InvalidFormat' },
-      },
-      { SUPABASE_URL: mockEnv.SUPABASE_URL } as Env
-    );
-    const data = (await res.json()) as { error: { code: string; message: string } };
-
-    expect(res.status).toBe(401);
+    const data = (await res.json()) as { error: { code: string } };
     expect(data.error.code).toBe('UNAUTHORIZED');
-    expect(data.error.message).toContain('Missing or invalid Authorization header');
   });
 
-  it('should return 401 when JWT token is invalid', async () => {
-    const mockSupabase = {
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: null },
-          error: { message: 'Invalid token' },
-        }),
-      },
-    };
-
-    vi.mocked(db.createSupabaseClient).mockReturnValue(mockSupabase as any);
-
+  it('returns 401 when Authorization header is malformed', async () => {
+    const { env } = makeEnv();
     const res = await app.request(
       '/protected',
-      {
-        headers: { Authorization: 'Bearer invalid-token' },
-      },
-      mockEnv
+      { headers: { Authorization: 'InvalidFormat' } },
+      env
     );
-    const data = (await res.json()) as { error: { code: string; message: string } };
-
     expect(res.status).toBe(401);
-    expect(data.error.code).toBe('UNAUTHORIZED');
-    expect(data.error.message).toContain('Invalid or expired token');
   });
 
-  it('should return 403 when user is not whitelisted', async () => {
-    const validToken = await createTestJWT('user-999', 'notwhitelisted@example.com', mockEnv.SUPABASE_JWT_SECRET);
-
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: null, // Not found in email_whitelist view
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
-
-    vi.mocked(db.createSupabaseClient).mockReturnValue(mockSupabase as any);
-
+  it('returns 401 when the JWT is invalid', async () => {
+    const { env } = makeEnv();
     const res = await app.request(
       '/protected',
-      {
-        headers: { Authorization: `Bearer ${validToken}` },
-      },
-      mockEnv
+      { headers: { Authorization: 'Bearer not-a-real-token' } },
+      env
     );
+    expect(res.status).toBe(401);
     const data = (await res.json()) as { error: { code: string; message: string } };
+    expect(data.error.code).toBe('UNAUTHORIZED');
+  });
 
+  it('returns 403 when the user is not on the allowlist', async () => {
+    const { env } = makeEnv();
+    const token = await signJwt(
+      { sub: 'user-999', email: 'notallowed@example.com', role: 'mentee' },
+      env
+    );
+    const res = await app.request(
+      '/protected',
+      { headers: { Authorization: `Bearer ${token}` } },
+      env
+    );
     expect(res.status).toBe(403);
+    const data = (await res.json()) as { error: { code: string } };
     expect(data.error.code).toBe('FORBIDDEN');
-    expect(data.error.message).toContain('Access denied');
   });
 
-  it('should inject user context when JWT token is valid and user is whitelisted', async () => {
-    const validToken = await createTestJWT('user-123', 'mentor@example.com', mockEnv.SUPABASE_JWT_SECRET);
-
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: { email: 'mentor@example.com', role: 'mentor' },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
-
-    vi.mocked(db.createSupabaseClient).mockReturnValue(mockSupabase as any);
-
+  it('injects the user when the token is valid and allowlisted', async () => {
+    const { env, raw } = makeEnv();
+    seedUser(raw, 'mentor@example.com', 'mentor');
+    const token = await signJwt(
+      { sub: 'user-123', email: 'mentor@example.com', role: 'mentor' },
+      env
+    );
     const res = await app.request(
       '/protected',
-      {
-        headers: { Authorization: `Bearer ${validToken}` },
-      },
-      mockEnv
+      { headers: { Authorization: `Bearer ${token}` } },
+      env
     );
-    const data = (await res.json()) as {
-      message: string;
-      user: { id: string; email: string; role: string };
-    };
-
     expect(res.status).toBe(200);
-    expect(data.message).toBe('success');
+    const data = (await res.json()) as { user: { id: string; email: string; role: string } };
     expect(data.user).toEqual({
       id: 'user-123',
       email: 'mentor@example.com',
@@ -178,57 +103,36 @@ describe('requireAuth middleware', () => {
     });
   });
 
-  it('should set role to mentee if found in email_whitelist with mentee role', async () => {
-    const validToken = await createTestJWT('user-456', 'mentee@example.com', mockEnv.SUPABASE_JWT_SECRET);
-
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: { email: 'mentee@example.com', role: 'mentee' },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      }),
-    };
-
-    vi.mocked(db.createSupabaseClient).mockReturnValue(mockSupabase as any);
-
+  it('uses the role from the allowlist (mentee)', async () => {
+    const { env, raw } = makeEnv();
+    seedUser(raw, 'mentee@example.com', 'mentee');
+    const token = await signJwt(
+      { sub: 'user-456', email: 'mentee@example.com', role: 'mentee' },
+      env
+    );
     const res = await app.request(
       '/protected',
-      {
-        headers: { Authorization: `Bearer ${validToken}` },
-      },
-      mockEnv
+      { headers: { Authorization: `Bearer ${token}` } },
+      env
     );
-    const data = (await res.json()) as { user: { id: string; email: string; role: string } };
-
     expect(res.status).toBe(200);
+    const data = (await res.json()) as { user: { role: string } };
     expect(data.user.role).toBe('mentee');
   });
 
-  it('should return 500 when Supabase client throws error', async () => {
-    const validToken = await createTestJWT('user-789', 'error@example.com', mockEnv.SUPABASE_JWT_SECRET);
-
-    vi.mocked(db.createSupabaseClient).mockImplementation(() => {
-      throw new Error('Connection failed');
-    });
-
+  it('returns 500 when the database binding is unavailable', async () => {
+    const env = { JWT_SECRET } as unknown as Env;
+    const token = await signJwt(
+      { sub: 'user-789', email: 'error@example.com', role: 'mentee' },
+      env
+    );
     const res = await app.request(
       '/protected',
-      {
-        headers: { Authorization: `Bearer ${validToken}` },
-      },
-      mockEnv
+      { headers: { Authorization: `Bearer ${token}` } },
+      env
     );
-    const data = (await res.json()) as { error: { code: string; message: string } };
-
     expect(res.status).toBe(500);
+    const data = (await res.json()) as { error: { code: string } };
     expect(data.error.code).toBe('INTERNAL_ERROR');
-    expect(data.error.message).toBe('Authentication failed');
   });
 });

@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/services/supabase';
-import type { Session } from '@supabase/supabase-js';
+import { getSession, onAuthChange, type AuthSession } from '@/services/auth';
 
 /**
  * AuthContext provides session and authentication state.
@@ -11,7 +10,7 @@ import type { Session } from '@supabase/supabase-js';
  * integration with caching, refetching, and error handling.
  */
 export interface AuthState {
-  session: Session | null;
+  session: AuthSession | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -23,60 +22,20 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Session is read synchronously from localStorage, so there is no async load step.
+  const [session, setSession] = useState<AuthSession | null>(() => getSession());
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    console.log('[AUTH_PROVIDER] Initializing auth provider');
-
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('[AUTH_PROVIDER] Error getting initial session:', error);
-        } else {
-          console.log('[AUTH_PROVIDER] Initial session:', !!session);
-          setSession(session);
-        }
-      } catch (error) {
-        console.error('[AUTH_PROVIDER] Error in getInitialSession:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    getInitialSession();
-
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AUTH_PROVIDER] Auth state change:', {
-        event,
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        userId: session?.user?.id,
-      });
-
-      setSession(session);
-
-      // Invalidate user profile query when auth state changes
+    return onAuthChange(() => {
+      setSession(getSession());
       queryClient.invalidateQueries({ queryKey: ['user', 'current'] });
-
-      setIsLoading(false);
     });
-
-    return () => {
-      console.log('[AUTH_PROVIDER] Unsubscribing from auth state changes');
-      subscription.unsubscribe();
-    };
   }, [queryClient]);
 
   const value: AuthState = {
     session,
-    isLoading,
+    isLoading: false,
     isAuthenticated: !!session,
   };
 

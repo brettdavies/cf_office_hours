@@ -12,7 +12,7 @@ This document tracks all production deployments of the Cloudflare Workers API.
 **Story:** 0.18 - Cloudflare Workers API Deployment
 **Deployment ID:** `39b724d8-2587-4023-b5c9-6dcc47782e3b`
 **Git Commit:** `e36697ca825a1fb1e8d662bfa9824c6cbd3c1703`
-**Deployed By:** Brett (with James AI assistant)
+**Deployed By:** Maintainer (with James AI assistant)
 **Status:** ✅ Success
 
 ### Configuration

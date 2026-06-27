@@ -12,23 +12,20 @@
  * - Logging is dev-only (NODE_ENV === 'development')
  */
 
-// External dependencies
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 // Internal modules
-import { TagBasedMatchingEngineV1 } from "../providers/matching/tag-based.engine";
+import { TagBasedMatchingEngineV1 } from '../providers/matching/tag-based.engine';
 
 /**
  * Reusable logging utilities for matching operations
  */
 const createLogger = (module: string) => ({
   info: (operation: string, context: Record<string, any>) => {
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === 'development') {
       console.log(`[${module}] ${operation}`, context);
     }
   },
   error: (operation: string, context: Record<string, any>) => {
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === 'development') {
       console.error(`[${module}] ${operation}`, context);
     }
   },
@@ -41,7 +38,7 @@ const withErrorHandling = <T extends any[], R>(
   fn: (...args: T) => Promise<R>,
   operation: string,
   contextExtractor: (...args: T) => Record<string, any>,
-  logger: ReturnType<typeof createLogger>,
+  logger: ReturnType<typeof createLogger>
 ) => {
   return async (...args: T): Promise<R | void> => {
     try {
@@ -59,16 +56,12 @@ const withErrorHandling = <T extends any[], R>(
 /**
  * Engine factory for consistent engine creation and usage
  */
-const createMatchEngine = (db: SupabaseClient) =>
-  new TagBasedMatchingEngineV1(db);
+const createMatchEngine = (db: D1Database) => new TagBasedMatchingEngineV1(db);
 
 /**
  * Recalculate matches for a single user
  */
-const recalculateUserMatches = async (
-  userId: string,
-  db: SupabaseClient,
-): Promise<void> => {
+const recalculateUserMatches = async (userId: string, db: D1Database): Promise<void> => {
   const engine = createMatchEngine(db);
   await engine.recalculateMatches(userId);
 };
@@ -78,7 +71,7 @@ const recalculateUserMatches = async (
  */
 const recalculateMultipleUserMatches = async (
   userIds: string[],
-  db: SupabaseClient,
+  db: D1Database
 ): Promise<number> => {
   const engine = createMatchEngine(db);
   let processed = 0;
@@ -89,8 +82,8 @@ const recalculateMultipleUserMatches = async (
       processed++;
     } catch (error) {
       // Log individual failures but continue processing
-      if (process.env.NODE_ENV === "development") {
-        console.error("[MATCHING] Mentee recalculation failed", {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[MATCHING] Mentee recalculation failed', {
           userId,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -108,7 +101,7 @@ const recalculateMultipleUserMatches = async (
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param userId - User ID whose profile was updated
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handleUserProfileUpdate { userId }
@@ -116,17 +109,17 @@ const recalculateMultipleUserMatches = async (
  * - [MATCHING] Profile update recalculation failed { userId, error }
  */
 export const handleUserProfileUpdate = withErrorHandling(
-  async (userId: string, db: SupabaseClient) => {
-    const logger = createLogger("MATCHING");
-    logger.info("handleUserProfileUpdate", { userId });
+  async (userId: string, db: D1Database) => {
+    const logger = createLogger('MATCHING');
+    logger.info('handleUserProfileUpdate', { userId });
 
     await recalculateUserMatches(userId, db);
 
-    logger.info("Profile update triggered recalculation", { userId });
+    logger.info('Profile update triggered recalculation', { userId });
   },
-  "Profile update recalculation",
-  (userId) => ({ userId }),
-  createLogger("MATCHING"),
+  'Profile update recalculation',
+  userId => ({ userId }),
+  createLogger('MATCHING')
 );
 
 /**
@@ -136,7 +129,7 @@ export const handleUserProfileUpdate = withErrorHandling(
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param userId - User ID whose tags were changed
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handleUserTagsChange { userId }
@@ -144,17 +137,17 @@ export const handleUserProfileUpdate = withErrorHandling(
  * - [MATCHING] Tag change recalculation failed { userId, error }
  */
 export const handleUserTagsChange = withErrorHandling(
-  async (userId: string, db: SupabaseClient) => {
-    const logger = createLogger("MATCHING");
-    logger.info("handleUserTagsChange", { userId });
+  async (userId: string, db: D1Database) => {
+    const logger = createLogger('MATCHING');
+    logger.info('handleUserTagsChange', { userId });
 
     await recalculateUserMatches(userId, db);
 
-    logger.info("Tag change triggered recalculation", { userId });
+    logger.info('Tag change triggered recalculation', { userId });
   },
-  "Tag change recalculation",
-  (userId) => ({ userId }),
-  createLogger("MATCHING"),
+  'Tag change recalculation',
+  userId => ({ userId }),
+  createLogger('MATCHING')
 );
 
 /**
@@ -165,7 +158,7 @@ export const handleUserTagsChange = withErrorHandling(
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param companyId - Portfolio company ID whose tags were changed
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handlePortfolioCompanyTagsChange { companyId }
@@ -175,46 +168,41 @@ export const handleUserTagsChange = withErrorHandling(
  * - [MATCHING] Company tag change recalculation failed { companyId, error }
  */
 export const handlePortfolioCompanyTagsChange = withErrorHandling(
-  async (companyId: string, db: SupabaseClient) => {
-    const logger = createLogger("MATCHING");
-    logger.info("handlePortfolioCompanyTagsChange", { companyId });
+  async (companyId: string, db: D1Database) => {
+    const logger = createLogger('MATCHING');
+    logger.info('handlePortfolioCompanyTagsChange', { companyId });
 
     // Fetch all mentees linked to this portfolio company
-    const { data: mentees, error } = await db
-      .from("user_profiles")
-      .select("user_id")
-      .eq("portfolio_company_id", companyId)
-      .is("deleted_at", null);
-
-    if (error) {
-      throw new Error(`Failed to fetch linked mentees: ${error.message}`);
-    }
+    const { results: mentees } = await db
+      .prepare('SELECT user_id FROM user_profiles WHERE portfolio_company_id = ?')
+      .bind(companyId)
+      .all<{ user_id: string }>();
 
     if (!mentees || mentees.length === 0) {
-      logger.info("No linked mentees found", { companyId });
+      logger.info('No linked mentees found', { companyId });
       return;
     }
 
-    logger.info("Found linked mentees", {
+    logger.info('Found linked mentees', {
       companyId,
       menteeCount: mentees.length,
     });
 
     // Recalculate matches for each mentee
     const processed = await recalculateMultipleUserMatches(
-      mentees.map((m) => m.user_id),
-      db,
+      mentees.map(m => m.user_id),
+      db
     );
 
-    logger.info("Company tag change triggered recalculation", {
+    logger.info('Company tag change triggered recalculation', {
       companyId,
       menteesProcessed: processed,
       totalMentees: mentees.length,
     });
   },
-  "Company tag change recalculation",
-  (companyId) => ({ companyId }),
-  createLogger("MATCHING"),
+  'Company tag change recalculation',
+  companyId => ({ companyId }),
+  createLogger('MATCHING')
 );
 
 /**
@@ -224,7 +212,7 @@ export const handlePortfolioCompanyTagsChange = withErrorHandling(
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param userId - User ID whose reputation tier was changed
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handleReputationTierChange { userId }
@@ -232,15 +220,15 @@ export const handlePortfolioCompanyTagsChange = withErrorHandling(
  * - [MATCHING] Reputation change recalculation failed { userId, error }
  */
 export const handleReputationTierChange = withErrorHandling(
-  async (userId: string, db: SupabaseClient) => {
-    const logger = createLogger("MATCHING");
-    logger.info("handleReputationTierChange", { userId });
+  async (userId: string, db: D1Database) => {
+    const logger = createLogger('MATCHING');
+    logger.info('handleReputationTierChange', { userId });
 
     await recalculateUserMatches(userId, db);
 
-    logger.info("Reputation change triggered recalculation", { userId });
+    logger.info('Reputation change triggered recalculation', { userId });
   },
-  "Reputation change recalculation",
-  (userId) => ({ userId }),
-  createLogger("MATCHING"),
+  'Reputation change recalculation',
+  userId => ({ userId }),
+  createLogger('MATCHING')
 );

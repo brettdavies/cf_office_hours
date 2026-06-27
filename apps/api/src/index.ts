@@ -21,16 +21,24 @@ const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 // Global middleware
 app.use('*', logger());
 app.use('*', loggingMiddleware); // Custom logging middleware (Story 0.16.1)
+const STATIC_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://officehours.youcanjustdothings.io',
+];
 app.use(
   '*',
   cors({
-    origin: [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'https://officehours.youcanjustdothings.io',
-    ],
+    // Allow the known app origins plus any *.workers.dev (staging deploys).
+    origin: origin => {
+      if (!origin) return undefined;
+      if (STATIC_ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.workers.dev')) {
+        return origin;
+      }
+      return undefined;
+    },
     credentials: true,
   })
 );
@@ -56,7 +64,7 @@ app.doc('/api/openapi.json', {
   info: {
     title: 'CF Office Hours API',
     version: '1.0.0',
-    description: 'API for Capital Factory Office Hours platform',
+    description: 'API for the Office Hours platform',
   },
   servers: [
     {

@@ -19,6 +19,7 @@ export const BookingResponseSchema = z.object({
   mentor_id: z.string().uuid(),
   mentee_id: z.string().uuid(),
   meeting_goal: z.string(),
+  location: z.string(),
   status: z.enum(['pending', 'confirmed', 'completed', 'canceled', 'expired']),
   meeting_start_time: z.string().datetime(),
   meeting_end_time: z.string().datetime(),

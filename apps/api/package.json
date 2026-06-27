@@ -1,6 +1,6 @@
 {
   "name": "@cf-office-hours/api",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "build": "esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js",
     "deploy": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
     "test": "vitest run",
     "test:watch": "vitest",
     "tail": "wrangler tail",
@@ -16,27 +17,22 @@
   },
   "dependencies": {
     "@cf-office-hours/shared": "*",
-    "@hono/swagger-ui": "^0.5.2",
+    "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^0.9.5",
-    "@supabase/supabase-js": "^2.39.3",
-    "airtable": "^0.12.2",
-    "date-fns": "^3.2.0",
-    "googleapis": "^173.0.0",
-    "hono": "^4.12.25",
+    "date-fns": "^4.4.0",
+    "hono": "^4.0.2",
     "jose": "^6.1.0",
-    "openai": "^6.2.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
     "@cloudflare/workers-types": "^4.20240117.0",
-    "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "@typescript-eslint/parser": "^8.62.0",
-    "dotenv": "^17.2.3",
-    "esbuild": "^0.25.10",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "esbuild": "^0.28.1",
     "eslint": "^8.57.0",
     "tsx": "^4.19.2",
-    "vitest": "^4.1.9",
-    "wrangler": "^4.105.0"
+    "vitest": "^3.0.0",
+    "wrangler": "4.102.0"
   }
 }

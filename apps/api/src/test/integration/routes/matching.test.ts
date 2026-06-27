@@ -18,9 +18,9 @@ import type { UserResponse } from '@cf-office-hours/shared';
 // Mock MatchingService
 vi.mock('../../../services/matching.service');
 
-// Mock createSupabaseClient to avoid environment dependency
+// Mock the database accessor to avoid an environment dependency
 vi.mock('../../../lib/db', () => ({
-  createSupabaseClient: vi.fn(() => ({}) as any),
+  getDb: vi.fn(() => ({}) as any),
 }));
 
 // Mock requireAuth middleware to inject a test user with coordinator role
@@ -34,7 +34,7 @@ vi.mock('../../../middleware/auth', () => ({
     return await next();
   }),
   requireRole: vi.fn(() =>
-    vi.fn(async (c, next) => {
+    vi.fn(async (_c, next) => {
       return await next();
     })
   ),
@@ -88,6 +88,8 @@ describe('Matching API Routes', () => {
           { category: 'technology', tag: 'react' },
           { category: 'industry', tag: 'fintech' },
         ],
+        stageMatch: false,
+        reputationCompatible: false,
         summary: 'Strong match: 2 shared tags (react, fintech)',
       },
     },
@@ -106,6 +108,8 @@ describe('Matching API Routes', () => {
       score: 30,
       explanation: {
         tagOverlap: [{ category: 'industry', tag: 'fintech' }],
+        stageMatch: false,
+        reputationCompatible: false,
         summary: 'Moderate match: 1 shared tags (fintech)',
       },
     },
@@ -151,6 +155,8 @@ describe('Matching API Routes', () => {
           score: 30,
           explanation: {
             tagOverlap: [{ category: 'technology', tag: 'react' }],
+            stageMatch: false,
+            reputationCompatible: false,
             summary: 'Moderate match: 1 shared tags (react)',
           },
         },
@@ -245,6 +251,8 @@ describe('Matching API Routes', () => {
           { category: 'technology', tag: 'react' },
           { category: 'industry', tag: 'fintech' },
         ],
+        stageMatch: false,
+        reputationCompatible: false,
         summary: 'Strong match: 2 shared tags (react, fintech)',
       };
 

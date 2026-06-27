@@ -45,9 +45,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   CALENDAR_PROVIDER_ERROR: 'Failed to connect to your calendar provider. Please try again.',
   CALENDAR_TOKEN_EXPIRED: 'Your calendar connection has expired. Please reconnect.',
 
-  // Airtable Sync
-  AIRTABLE_SYNC_ERROR: 'Failed to sync data from Airtable.',
-
   // Validation
   VALIDATION_ERROR: 'Please check your input and try again.',
   MISSING_REQUIRED_FIELD: 'Please fill in all required fields.',

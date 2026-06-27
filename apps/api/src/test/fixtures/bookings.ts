@@ -34,6 +34,7 @@ export const createMockBooking = (overrides?: Partial<BookingResponse>): Booking
   mentor_id: 'mentor-123',
   mentee_id: 'mentee-123',
   meeting_goal: 'Discuss product-market fit strategy for early-stage SaaS startup',
+  location: 'online',
   status: 'pending',
   meeting_start_time: '2025-10-15T19:00:00Z', // 2:00 PM CDT
   meeting_end_time: '2025-10-15T19:30:00Z', // 2:30 PM CDT

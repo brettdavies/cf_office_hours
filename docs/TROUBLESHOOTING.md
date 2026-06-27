@@ -7,6 +7,7 @@ Quick reference for common development issues and their solutions.
 ### API Not Accessible / CORS Errors
 
 **Symptoms:**
+
 - Browser console shows CORS errors
 - Requests to API fail
 - Profile page stuck loading
@@ -14,12 +15,14 @@ Quick reference for common development issues and their solutions.
 **Solutions:**
 
 1. **Check API is running on correct port (8787)**
+
    ```bash
    lsof -ti:8787
    # Should show a process ID
    ```
 
 2. **Verify wrangler.toml has fixed port**
+
    ```bash
    cat apps/api/wrangler.toml | grep -A2 "\[dev\]"
    # Should show:
@@ -28,6 +31,7 @@ Quick reference for common development issues and their solutions.
    ```
 
 3. **Restart API server**
+
    ```bash
    pkill -f "wrangler dev"
    npm run dev:api
@@ -36,10 +40,12 @@ Quick reference for common development issues and their solutions.
 ### Double `/v1` in API URLs
 
 **Symptoms:**
+
 - Browser DevTools shows requests to `http://localhost:8787/v1/v1/users/me`
 - API returns 404 Not Found
 
 **Solution:**
+
 ```bash
 # Check apps/web/.env
 cat apps/web/.env | grep VITE_API_BASE_URL
@@ -58,14 +64,15 @@ sed -i '' 's|8787/v1|8787|g' apps/web/.env
 ### User Not Found After Login
 
 **Symptoms:**
+
 - Magic link login succeeds
 - User redirected to dashboard
 - Profile page shows "Profile not found" error
 
-**Root Cause:**
-UUID mismatch between `auth.users` and `public.users` tables.
+**Root Cause:** UUID mismatch between `auth.users` and `public.users` tables.
 
 **Diagnosis:**
+
 ```bash
 # Check if triggers exist
 psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c \
@@ -86,6 +93,7 @@ EOF
 ```
 
 **Solution:**
+
 ```bash
 # If triggers missing or UUIDs mismatched, reset database
 supabase db reset
@@ -99,20 +107,24 @@ supabase db reset
 ### Cannot Request Magic Link
 
 **Symptoms:**
+
 - Error: "Database error finding user"
 - Login form fails to send magic link
 
 **Diagnosis:**
+
 ```bash
 # Check Supabase auth logs
 docker logs supabase_auth_cf_oh 2>&1 | tail -20
 ```
 
 **Common causes:**
+
 1. Manually created test users with NULL required fields
 2. Missing confirmation_token, recovery_token columns
 
 **Solution:**
+
 ```bash
 # Delete manually created test users
 psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" <<EOF
@@ -130,10 +142,12 @@ EOF
 ### Migrations Fail
 
 **Symptoms:**
+
 - `supabase db reset` fails
 - Error: "constraint violation" or "column does not exist"
 
 **Solution:**
+
 ```bash
 # Check migration order
 ls -la supabase/migrations/
@@ -151,15 +165,17 @@ supabase db reset
 ### Seed Data Fails
 
 **Symptoms:**
+
 - Database reset succeeds but seed data fails
 - Error: "violates check constraint"
 
 **Common Issues:**
+
 1. **Taxonomy source constraint**: ETL uses `'airtable_via_raw'` but constraint only allows `'airtable'`, `'user'`, etc.
 2. **Missing parent references**: Seed data references entities that don't exist yet
 
-**Solution:**
-Check the specific constraint in the error message and update either:
+**Solution:** Check the specific constraint in the error message and update either:
+
 - The migration that creates the constraint, OR
 - The seed data to use valid values
 
@@ -211,18 +227,21 @@ rm -rf node_modules/.cache
 ### Slow Page Loads
 
 1. **Check database query performance**
+
    ```bash
    # Enable query logging in Supabase Studio
    # Dashboard → Settings → Database → Query Performance
    ```
 
 2. **Check API response times**
+
    ```bash
    # Use wrangler tail to see request durations
    npm run tail --workspace=apps/api
    ```
 
 3. **Profile frontend bundle**
+
    ```bash
    npm run build:web
    # Check dist folder size
@@ -234,23 +253,26 @@ rm -rf node_modules/.cache
 If these solutions don't resolve your issue:
 
 1. **Check recent changes**
+
    ```bash
    git log --oneline -10
    git diff HEAD~5
    ```
 
 2. **Search for similar issues**
-   - GitHub Issues
-   - Project documentation
 
-3. **Provide context when asking for help**
-   - Error messages (full stack trace)
-   - Steps to reproduce
-   - Environment (OS, Node version, etc.)
-   - Recent changes made
+- GitHub Issues
+- Project documentation
+
+1. **Provide context when asking for help**
+
+- Error messages (full stack trace)
+- Steps to reproduce
+- Environment (OS, Node version, etc.)
+- Recent changes made
 
 ## Related Documentation
 
-- [Development Workflow](architecture/10-development-workflow.md) - Complete setup guide
-- [Database Migrations](architecture/10-development-workflow.md#1016-database-migrations) - Migration best practices
-- [ETL Workflow](etl-workflow-readme.md) - Raw data processing
+- [Deployment Guide](deployment/DEPLOYMENT_INSTRUCTIONS.md) - Deploying the API and web Workers
+- Setup and commands: the project [README](../README.md) and the per-app READMEs (`apps/api`, `apps/web`)
+- Detailed engineering docs (architecture, migrations, stories) live under `docs/` on the `dev` branch

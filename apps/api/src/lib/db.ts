@@ -1,24 +1,19 @@
-// External dependencies
-import { createClient } from '@supabase/supabase-js';
-
 // Types
 import type { Env } from '../types/bindings';
 
 /**
- * Creates a Supabase client for server-side operations.
+ * Returns the Cloudflare D1 database binding.
  *
- * Uses the service role key which bypasses Row Level Security (RLS) policies.
- * This is needed for server-side operations while JWT verification still
- * validates user identity.
+ * Server-side queries run with full access; authorization is enforced in the
+ * auth middleware and service layer rather than at the database.
  *
  * @param env - Cloudflare Workers environment bindings
- * @returns Configured Supabase client instance
+ * @returns The D1 database handle
+ * @throws If the `DB` binding is not configured (fail fast at first use)
  */
-export const createSupabaseClient = (env: Env) => {
-  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+export const getDb = (env: Env): D1Database => {
+  if (!env.DB) {
+    throw new Error('D1 database binding "DB" is not configured');
+  }
+  return env.DB;
 };

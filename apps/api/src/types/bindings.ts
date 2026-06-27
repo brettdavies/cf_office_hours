@@ -1,11 +1,24 @@
 export interface Env {
-  // Environment variables (from wrangler.toml or secrets)
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-  SUPABASE_JWT_SECRET: string;
-  DASHBOARD_URL?: string; // Optional, defaults to production URL
+  // Cloudflare D1 database binding
+  DB: D1Database;
 
-  // KV Namespaces (optional for Epic 0, used in Epic 1)
+  // HMAC secret used to sign and verify session JWTs (wrangler secret)
+  JWT_SECRET: string;
+
+  // OpenAI API key for the AI-based matching engine (optional)
+  OPENAI_API_KEY?: string;
+
+  // Email provider (Resend) key and sender; emails log to console when unset
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
+
+  // Deployment environment name (development | production)
+  ENVIRONMENT?: string;
+
+  // Dashboard base URL for links in notification emails
+  DASHBOARD_URL?: string;
+
+  // KV Namespaces (optional)
   CACHE?: KVNamespace;
   RATE_LIMIT?: KVNamespace;
 }

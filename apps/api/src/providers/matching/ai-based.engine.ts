@@ -22,12 +22,9 @@
  * - Returns 0 if either bio or company description is null
  */
 
-// External dependencies
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 // Internal modules
-import type { MatchExplanation } from "./interface";
-import { BaseMatchingEngine, type BaseUserData } from "./base.engine";
+import type { MatchExplanation } from './interface';
+import { BaseMatchingEngine, type BaseUserData } from './base.engine';
 
 /**
  * User with profile and company data (enriched for AI matching)
@@ -56,38 +53,35 @@ interface AIMatchResponse {
  * Uses OpenAI to evaluate mentor-mentee compatibility based on bios and company descriptions.
  *
  * @example
- * const engine = new AiBasedMatchingEngineV1(supabaseClient, openaiApiKey);
+ * const engine = new AiBasedMatchingEngineV1(db, openaiApiKey);
  * await engine.recalculateMatches('user-123'); // Recalculate for one user
  * await engine.recalculateAllMatches({ batchSize: 10 }); // Slower due to API calls
  */
-export class AiBasedMatchingEngineV1
-  extends BaseMatchingEngine<UserWithProfile> {
-  protected readonly ALGORITHM_VERSION = "ai-based-v1";
+export class AiBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithProfile> {
+  protected readonly ALGORITHM_VERSION = 'ai-based-v1';
 
   /**
    * Creates an AI-based matching engine instance
    *
-   * @param db - Supabase client for database operations
+   * @param db - D1 database for database operations
    * @param openaiApiKey - OpenAI API key for AI scoring (required)
    * @throws {Error} If OpenAI API key is not provided
    *
    * @example
    * const engine = new AiBasedMatchingEngineV1(
-   *   supabaseClient,
+   *   db,
    *   process.env.OPENAI_API_KEY
    * );
    */
   constructor(
-    db: SupabaseClient,
-    private readonly openaiApiKey: string,
+    db: D1Database,
+    private readonly openaiApiKey: string
   ) {
     super(db);
 
     // Validate OpenAI API key
-    if (!openaiApiKey || openaiApiKey.trim() === "") {
-      throw new Error(
-        "[MATCHING:AI] OPENAI_API_KEY is required for AI-based matching engine",
-      );
+    if (!openaiApiKey || openaiApiKey.trim() === '') {
+      throw new Error('[MATCHING:AI] OPENAI_API_KEY is required for AI-based matching engine');
     }
   }
 
@@ -101,40 +95,44 @@ export class AiBasedMatchingEngineV1
    * @param userId - User ID to fetch
    * @returns User with profile/company, or null if not found
    */
-  protected async fetchUserWithTags(
-    userId: string,
-  ): Promise<UserWithProfile | null> {
-    if (process.env.NODE_ENV === "development") {
+  protected async fetchUserWithTags(userId: string): Promise<UserWithProfile | null> {
+    if (process.env.NODE_ENV === 'development') {
       console.log(`[MATCHING:AI] Fetching user with profile`, { userId });
     }
 
     // Fetch user with profile
-    const { data: user, error: userError } = await this.db
-      .from("users")
-      .select("*, user_profiles(*)")
-      .eq("id", userId)
-      .single();
+    const user = await this.db
+      .prepare(
+        `SELECT u.id, u.email, u.role, u.deleted_at,
+                p.bio AS bio, p.portfolio_company_id AS portfolio_company_id
+         FROM users u
+         LEFT JOIN user_profiles p ON p.user_id = u.id
+         WHERE u.id = ?`
+      )
+      .bind(userId)
+      .first<{
+        id: string;
+        email: string;
+        role: BaseUserData['role'];
+        deleted_at: string | null;
+        bio: string | null;
+        portfolio_company_id: string | null;
+      }>();
 
-    if (userError || !user) {
-      if (process.env.NODE_ENV === "development") {
-        console.error(`[MATCHING:AI] Failed to fetch user`, {
-          userId,
-          error: userError,
-        });
+    if (!user) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[MATCHING:AI] Failed to fetch user`, { userId });
       }
       return null;
     }
 
     // Fetch portfolio company if mentee
-    let portfolioCompany = null;
-    if (user.role === "mentee" && user.user_profiles?.portfolio_company_id) {
-      const { data: company } = await this.db
-        .from("portfolio_companies")
-        .select("description")
-        .eq("id", user.user_profiles.portfolio_company_id)
-        .single();
-
-      portfolioCompany = company || null;
+    let portfolioCompany: { description: string | null } | null = null;
+    if (user.role === 'mentee' && user.portfolio_company_id) {
+      portfolioCompany = await this.db
+        .prepare(`SELECT description FROM portfolio_companies WHERE id = ?`)
+        .bind(user.portfolio_company_id)
+        .first<{ description: string | null }>();
     }
 
     return {
@@ -142,13 +140,11 @@ export class AiBasedMatchingEngineV1
       email: user.email,
       role: user.role,
       is_active: user.deleted_at === null,
-      last_activity_at: user.last_activity_at
-        ? new Date(user.last_activity_at)
-        : null,
+      last_activity_at: null,
       deleted_at: user.deleted_at ? new Date(user.deleted_at) : null,
       user_profiles: {
-        bio: user.user_profiles?.bio || null,
-        portfolio_company_id: user.user_profiles?.portfolio_company_id || null,
+        bio: user.bio || null,
+        portfolio_company_id: user.portfolio_company_id || null,
       },
       portfolio_company: portfolioCompany,
     };
@@ -163,18 +159,18 @@ export class AiBasedMatchingEngineV1
    */
   private async calculateScoreAsync(
     user1: UserWithProfile,
-    user2: UserWithProfile,
+    user2: UserWithProfile
   ): Promise<number> {
     // Determine mentor and mentee
-    const mentor = user1.role === "mentor" ? user1 : user2;
-    const mentee = user1.role === "mentee" ? user1 : user2;
+    const mentor = user1.role === 'mentor' ? user1 : user2;
+    const mentee = user1.role === 'mentee' ? user1 : user2;
 
     // Check required data
     const mentorBio = mentor.user_profiles.bio;
     const companyDescription = mentee.portfolio_company?.description;
 
     if (!mentorBio || !companyDescription) {
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === 'development') {
         console.log(`[MATCHING:AI] Missing data for AI scoring`, {
           user1Id: user1.id,
           user2Id: user2.id,
@@ -190,7 +186,7 @@ export class AiBasedMatchingEngineV1
       const score = await this.callOpenAI(mentorBio, companyDescription);
       return score;
     } catch (error) {
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === 'development') {
         console.error(`[MATCHING:AI] OpenAI call failed`, { error });
       }
       return 0;
@@ -206,10 +202,7 @@ export class AiBasedMatchingEngineV1
    * @param _user2 - Second user (unused)
    * @returns Always returns 0 (not used)
    */
-  protected calculateScore(
-    _user1: UserWithProfile,
-    _user2: UserWithProfile,
-  ): number {
+  protected calculateScore(_user1: UserWithProfile, _user2: UserWithProfile): number {
     // Stub - actual scoring happens in calculateScoreAsync via recalculateMatches override
     return 0;
   }
@@ -235,14 +228,14 @@ export class AiBasedMatchingEngineV1
    */
   async recalculateMatches(
     userId: string,
-    options?: { chunkSize?: number; chunkDelay?: number },
+    options?: { chunkSize?: number; chunkDelay?: number }
   ): Promise<void> {
     // Use smaller defaults for API rate limiting (5 per chunk, 500ms delay)
     const chunkSize = options?.chunkSize ?? 5;
     const chunkDelay = options?.chunkDelay ?? 500;
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING:AI] recalculateMatches", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING:AI] recalculateMatches', {
         userId,
         algorithmVersion: this.ALGORITHM_VERSION,
       });
@@ -251,20 +244,17 @@ export class AiBasedMatchingEngineV1
     // Fetch user with required data
     const user = await this.fetchUserWithTags(userId);
     if (!user) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[MATCHING:AI] User not found or inactive", { userId });
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[MATCHING:AI] User not found or inactive', { userId });
       }
       return;
     }
 
     // Fetch potential matches
-    const potentialMatches = await this.fetchPotentialMatches(
-      userId,
-      user.role,
-    );
+    const potentialMatches = await this.fetchPotentialMatches(userId, user.role);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING:AI] Fetched potential matches", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING:AI] Fetched potential matches', {
         userId,
         potentialMatchCount: potentialMatches.length,
       });
@@ -275,8 +265,8 @@ export class AiBasedMatchingEngineV1
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[MATCHING:AI] Processing chunk", {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MATCHING:AI] Processing chunk', {
           userId,
           chunkNum: i + 1,
           totalChunks: chunks.length,
@@ -286,7 +276,7 @@ export class AiBasedMatchingEngineV1
 
       // Calculate scores for this chunk (ASYNC)
       const cacheEntries = await Promise.all(
-        chunk.map(async (matchUser) => {
+        chunk.map(async matchUser => {
           const score = await this.calculateScoreAsync(user, matchUser);
           const explanation = this.generateExplanation(user, matchUser, score);
 
@@ -298,7 +288,7 @@ export class AiBasedMatchingEngineV1
             algorithm_version: this.ALGORITHM_VERSION,
             calculated_at: new Date(),
           };
-        }),
+        })
       );
 
       // Write chunk to cache
@@ -322,19 +312,14 @@ export class AiBasedMatchingEngineV1
   protected generateExplanation(
     user1: UserWithProfile,
     user2: UserWithProfile,
-    score: number,
+    score: number
   ): MatchExplanation {
-    const strength = score >= 70
-      ? "Excellent"
-      : score >= 50
-      ? "Good"
-      : score >= 30
-      ? "Fair"
-      : "Weak";
+    const strength =
+      score >= 70 ? 'Excellent' : score >= 50 ? 'Good' : score >= 30 ? 'Fair' : 'Weak';
 
     // Determine mentor and mentee
-    const mentor = user1.role === "mentor" ? user1 : user2;
-    const mentee = user1.role === "mentee" ? user1 : user2;
+    const mentor = user1.role === 'mentor' ? user1 : user2;
+    const mentee = user1.role === 'mentee' ? user1 : user2;
 
     const mentorBio = mentor.user_profiles.bio;
     const companyDescription = mentee.portfolio_company?.description;
@@ -342,14 +327,13 @@ export class AiBasedMatchingEngineV1
     if (!mentorBio || !companyDescription) {
       return {
         tagOverlap: [], // No tags in AI-based matching
-        summary: "AI matching unavailable (missing bio or company description)",
+        summary: 'AI matching unavailable (missing bio or company description)',
       };
     }
 
     return {
       tagOverlap: [], // AI-based matching doesn't use tags
-      summary:
-        `${strength} AI match: Mentor expertise aligns with company needs`,
+      summary: `${strength} AI match: Mentor expertise aligns with company needs`,
     };
   }
 
@@ -382,12 +366,8 @@ export class AiBasedMatchingEngineV1
    * );
    * // score: 85 (high alignment)
    */
-  private async callOpenAI(
-    mentorBio: string,
-    companyDescription: string,
-  ): Promise<number> {
-    const prompt =
-      `You are a matching expert for a mentorship platform. Evaluate how well a mentor and mentee would work together.
+  private async callOpenAI(mentorBio: string, companyDescription: string): Promise<number> {
+    const prompt = `You are a matching expert for a mentorship platform. Evaluate how well a mentor and mentee would work together.
 
 Mentor's Bio:
 ${mentorBio}
@@ -408,35 +388,30 @@ Respond ONLY with a JSON object in this exact format:
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.openaiApiKey}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-5",
-            messages: [
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
-            temperature: 0.3, // Lower temperature for more consistent scoring
-            max_tokens: 200,
-          }),
-          signal: controller.signal,
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.openaiApiKey}`,
         },
-      );
+        body: JSON.stringify({
+          model: 'gpt-5',
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: 0.3, // Lower temperature for more consistent scoring
+          max_tokens: 200,
+        }),
+        signal: controller.signal,
+      });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(
-          `OpenAI API error: ${response.status} ${response.statusText}`,
-        );
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
       }
 
       const data = (await response.json()) as {
@@ -445,13 +420,13 @@ Respond ONLY with a JSON object in this exact format:
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {
-        throw new Error("No content in OpenAI response");
+        throw new Error('No content in OpenAI response');
       }
 
       const parsed: AIMatchResponse = JSON.parse(content);
       const score = Math.max(0, Math.min(100, parsed.score)); // Clamp to 0-100
 
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === 'development') {
         console.log(`[MATCHING:AI] AI score received`, {
           score,
           reasoning: parsed.reasoning,
@@ -460,11 +435,11 @@ Respond ONLY with a JSON object in this exact format:
 
       return score;
     } catch (error) {
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === 'development') {
         const errorMessage =
-          error instanceof Error && error.name === "AbortError"
-            ? "OpenAI API timeout (10s)"
-            : "OpenAI call failed";
+          error instanceof Error && error.name === 'AbortError'
+            ? 'OpenAI API timeout (10s)'
+            : 'OpenAI call failed';
         console.error(`[MATCHING:AI] ${errorMessage}`, { error });
       }
       return 0;

@@ -2,18 +2,18 @@
 import type { Context, Next } from 'hono';
 
 // Internal modules
-import { createSupabaseClient } from '../lib/db';
-import { verifySupabaseJWT } from '../lib/jwt';
+import { getDb } from '../lib/db';
+import { verifyJwt } from '../lib/jwt';
 
 // Types
 import type { Env } from '../types/bindings';
 import type { Variables } from '../types/context';
 
 /**
- * Authentication middleware that verifies Supabase JWT tokens.
+ * Authentication middleware that verifies the Worker-issued session JWT.
  *
- * Extracts the JWT token from the Authorization header, verifies it using
- * Supabase Auth, and injects the authenticated user into the request context.
+ * Extracts the JWT from the Authorization header, verifies it locally with the
+ * shared secret, and injects the authenticated user into the request context.
  *
  * @param c - Hono context
  * @param next - Next middleware function
@@ -54,8 +54,8 @@ export const requireAuth = async (
   const token = authHeader.substring(7); // Remove "Bearer " prefix
 
   try {
-    // Verify JWT locally using the JWT secret (faster than network call to Supabase)
-    const claims = await verifySupabaseJWT(token, c.env);
+    // Verify the session JWT locally using the shared HMAC secret
+    const claims = await verifyJwt(token, c.env);
 
     // Extract user information from JWT claims
     const userId = claims.sub;
@@ -79,22 +79,18 @@ export const requireAuth = async (
       );
     }
 
-    // Check if user is whitelisted using email_whitelist view
-    // Use service role client for database queries (bypasses RLS)
-    const supabase = createSupabaseClient(c.env);
-    const { data: whitelistEntry, error: whitelistError } = await supabase
-      .from('email_whitelist')
-      .select('email, role')
-      .eq('email', userEmail)
-      .limit(1)
-      .maybeSingle();
+    // Allowlist check: the email must belong to a known (non-deleted) user.
+    const db = getDb(c.env);
+    const whitelistEntry = await db
+      .prepare('SELECT email, role FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1')
+      .bind(userEmail)
+      .first<{ email: string; role: 'mentee' | 'mentor' | 'coordinator' }>();
 
-    if (whitelistError || !whitelistEntry) {
-      // User authenticated with Supabase but not whitelisted
+    if (!whitelistEntry) {
+      // Authenticated but not on the allowlist
       console.warn('[AUTH] User not whitelisted', {
         userId,
         email: userEmail,
-        error: whitelistError?.message,
         timestamp: new Date().toISOString(),
       });
 

@@ -65,9 +65,8 @@ temp/
 # Commented out: Needed for Cloudflare Pages build (no API server during build)
 # packages/shared/src/types/api.generated.ts
 
-# Production seed data (may contain PII)
-supabase/seeds/production/*.sql
-!supabase/seeds/production/seed_all_production.sql
+# D1 seed generated from the backup (contains PII; regenerate via scripts/convert_backup_to_d1.py)
+apps/api/seeds/*.sql
 
 # Playwright
 test-results/
