@@ -10,13 +10,16 @@ import { errorHandler } from './middleware/error-handler';
 import { requireAuth } from './middleware/auth';
 import { loggingMiddleware } from './middleware/logging';
 import { routes } from './routes';
+import { runSeedDateBump } from './seed-date-bump';
 
 // Types
 import type { Env } from './types/bindings';
 import type { Variables } from './types/context';
 
-// Create OpenAPI-enabled Hono app with Cloudflare bindings and variables
-const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
+// Create OpenAPI-enabled Hono app with Cloudflare bindings and variables.
+// Exported for integration tests (app.request); the default export below is the
+// Worker handler (fetch + scheduled).
+export const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
 app.use('*', logger());
@@ -98,4 +101,10 @@ app.notFound(c => {
   );
 });
 
-export default app;
+// Cron Trigger: weekly re-anchor of the demo seed's dates onto the current date
+// (configured in wrangler.jsonc env.staging / env.production triggers.crons).
+const scheduled: ExportedHandlerScheduledHandler<Env> = async (_event, env) => {
+  await runSeedDateBump(env);
+};
+
+export default { fetch: app.fetch, scheduled };

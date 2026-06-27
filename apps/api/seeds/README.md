@@ -23,9 +23,9 @@ For the remote database, swap `--local` for `--remote` (requires `CLOUDFLARE_API
 
 The seed is self-correcting: `convert_backup_to_d1.py` appends a footer that shapes the raw dump into a realistic demo
 (a demand-driven booking rate, ~20% confirmed / ~80% pending) and anchors every timestamp to load time, so a freshly
-loaded database needs no manual fixes. The date portion lives in `scripts/bump-seed-dates.sql`, which a scheduled
-workflow (`.github/workflows/bump-seed-dates.yml`) also runs weekly against staging and production to keep an
-already-loaded demo current. See `docs/stories/0.20.story.md` for the intended shape.
+loaded database needs no manual fixes. The date portion lives in `scripts/bump-seed-dates.sql`, which the API Worker's
+weekly Cron Trigger also runs against staging and production (the `scheduled` handler in `apps/api/src/index.ts`) to
+keep an already-loaded demo current. See `docs/stories/0.20.story.md` for the intended shape.
 
 `--replace old=new` applies a global substring scrub to every text field; `--email-map old=new` rewrites whole email
 addresses. Use them to keep real names and emails out of the demo data.

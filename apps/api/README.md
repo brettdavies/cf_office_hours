@@ -108,7 +108,8 @@ Tests run against an in-memory D1 shim backed by `node:sqlite` (Node 22+), so no
 ```text
 apps/api/
 ├── src/
-│   ├── index.ts                # Main Hono app entry point
+│   ├── index.ts                # Hono app entry point + scheduled (cron) handler
+│   ├── seed-date-bump.ts       # Weekly seed date re-anchor (runs bump-seed-dates.sql)
 │   ├── routes/                 # API endpoints (incl. auth demo-login)
 │   ├── middleware/
 │   │   ├── error-handler.ts    # Global error handling
@@ -137,6 +138,10 @@ npm run deploy:production     # Deploy to production
 
 Deploys authenticate with a Cloudflare API token supplied via the environment (`CLOUDFLARE_API_TOKEN`); the token is
 never committed. See the repository deployment docs for the full procedure.
+
+Each environment registers a weekly Cron Trigger (`0 9 * * 1`, configured in `wrangler.jsonc`). Its `scheduled` handler
+re-anchors the demo seed's dates onto the current date by running `scripts/bump-seed-dates.sql`, so the
+upcoming-meetings window never drifts into the past.
 
 ## Technology Stack
 
