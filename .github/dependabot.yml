@@ -9,6 +9,8 @@ updates:
       timezone: America/Chicago
     target-branch: dev
     open-pull-requests-limit: 10
+    # In-range updates only (minor/patch); majors are handled deliberately, not by Dependabot.
+    versioning-strategy: lockfile-only
     labels:
       - dependencies
     groups:
