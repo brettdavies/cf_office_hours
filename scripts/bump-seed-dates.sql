@@ -13,8 +13,10 @@
 -- Used two ways, both first-party (no manual post-seed step):
 --   1. scripts/convert_backup_to_d1.py appends this file to the generated seed,
 --      so a freshly loaded database is already dated to load time.
---   2. .github/workflows/bump-seed-dates.yml runs it weekly against staging and
---      production to keep an already-loaded demo current:
+--   2. The API Worker's weekly Cron Trigger runs it against staging and
+--      production to keep an already-loaded demo current (the scheduled handler
+--      in apps/api/src/index.ts batches these statements). To run it by hand
+--      against a remote database:
 --        wrangler d1 execute <db> --env <env> --remote --file=scripts/bump-seed-dates.sql
 
 DROP TABLE IF EXISTS _reanchor_shift;

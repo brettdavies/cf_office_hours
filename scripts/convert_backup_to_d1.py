@@ -50,7 +50,7 @@ _UNESCAPE = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\"}
 
 # Appended to every generated seed so a freshly loaded database is correct with no
 # manual post-seed step: a demand-driven booking shape, then the date bump read
-# from bump-seed-dates.sql (the same file the weekly scheduled job runs).
+# from bump-seed-dates.sql (the same file the API Worker's weekly Cron Trigger runs).
 BOOKING_SHAPE_SQL = """\
 -- Seed shape: demand-driven booking rate + status mix. The raw backup books ~50%
 -- of all slots and assigns a random mentee, which over-subscribes the small
@@ -81,7 +81,8 @@ DROP TABLE _keep_count;
 def seed_corrections() -> str:
     """Self-correcting footer for the generated seed: the demand-driven booking
     shape, then the date bump read from bump-seed-dates.sql (the same file the
-    weekly scheduled job runs). A freshly loaded seed needs no manual fixes."""
+    API Worker's weekly Cron Trigger runs). A freshly loaded seed needs no
+    manual fixes."""
     bump_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bump-seed-dates.sql")
     with open(bump_path, "r", encoding="utf-8") as fh:
         bump_sql = fh.read()
