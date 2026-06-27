@@ -42,7 +42,7 @@ describe('OverridesErrorState', () => {
     const onRetry = vi.fn();
     const { container } = render(<OverridesErrorState onRetry={onRetry} />);
 
-    const icon = container.querySelector('.lucide-alert-circle');
+    const icon = container.querySelector('.lucide-circle-alert');
     expect(icon).toBeInTheDocument();
   });
 
