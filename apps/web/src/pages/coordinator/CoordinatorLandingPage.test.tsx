@@ -59,21 +59,23 @@ vi.mock('@/data/coordinatorMetricsConfig', () => ({
 
 // Mock MetricFactory
 vi.mock('@/components/coordinator/metrics/MetricFactory', () => ({
-  MetricFactory: ({ config }: { config: any }) => (
-    <div data-testid={`metric-${config.id}`}>
-      {config.title}
-    </div>
+  MetricFactory: ({ config }: { config: { id: string; title: string } }) => (
+    <div data-testid={`metric-${config.id}`}>{config.title}</div>
   ),
 }));
 
 // Mock OverrideRequestCard
 vi.mock('@/components/coordinator/OverrideRequestCard', () => ({
-  OverrideRequestCard: ({ request, variant, onClick }: any) => (
-    <div
-      data-testid={`override-card-${request.id}`}
-      data-variant={variant}
-      onClick={onClick}
-    >
+  OverrideRequestCard: ({
+    request,
+    variant,
+    onClick,
+  }: {
+    request: TierOverrideRequest;
+    variant?: string;
+    onClick?: () => void;
+  }) => (
+    <div data-testid={`override-card-${request.id}`} data-variant={variant} onClick={onClick}>
       {request.mentee.profile.name} → {request.mentor.profile.name}
     </div>
   ),
@@ -118,9 +120,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should render page header', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -134,7 +136,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -146,9 +148,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should render favorite metrics section with link', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(['metric1', 'metric2']),
@@ -162,7 +164,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -172,9 +174,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should render urgent overrides section with link', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -188,7 +190,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -198,9 +200,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should show empty state when no favorite metrics', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -214,20 +216,18 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
-    expect(
-      screen.getByText(/You haven't starred any metrics yet/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/You haven't starred any metrics yet/)).toBeInTheDocument();
   });
 
   it('should show empty state when no pending overrides', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -241,20 +241,18 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
-    expect(
-      screen.getByText(/No pending override requests at this time/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/No pending override requests at this time/)).toBeInTheDocument();
   });
 
   it('should limit favorite metrics to 6', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     // Mock 7 favorites but only 3 metrics exist in config
     vi.mocked(useFavoriteMetrics).mockReturnValue({
@@ -269,7 +267,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -281,9 +279,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should limit urgent overrides to 6', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -302,7 +300,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -315,9 +313,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should sort overrides by expiration (soonest first)', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -338,7 +336,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -352,9 +350,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should render override cards with summary variant', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -370,7 +368,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -382,7 +380,7 @@ describe('CoordinatorLandingPage', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
       data: undefined,
       isLoading: true,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -396,7 +394,7 @@ describe('CoordinatorLandingPage', () => {
       isLoading: true,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
@@ -405,9 +403,9 @@ describe('CoordinatorLandingPage', () => {
 
   it('should show error state for overrides', () => {
     vi.mocked(useCurrentUser).mockReturnValue({
-      data: { id: 'user-1', role: 'coordinator' } as any,
+      data: { id: 'user-1', role: 'coordinator' },
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useCurrentUser>);
 
     vi.mocked(useFavoriteMetrics).mockReturnValue({
       favorites: new Set(),
@@ -421,12 +419,10 @@ describe('CoordinatorLandingPage', () => {
       isLoading: false,
       error: new Error('Failed to fetch'),
       refetch: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useTierOverrides>);
 
     renderWithRouter(<CoordinatorLandingPage />);
 
-    expect(
-      screen.getByText(/Failed to load override requests/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Failed to load override requests/)).toBeInTheDocument();
   });
 });

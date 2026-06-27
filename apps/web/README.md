@@ -17,7 +17,7 @@ React-based frontend for the Office Hours platform, served as static assets from
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - npm 10+
 
 ### Installation

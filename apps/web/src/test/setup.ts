@@ -18,7 +18,7 @@ vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8787');
 if (typeof globalThis.localStorage === 'undefined') {
   const store = new Map<string, string>();
   const localStorageMock = {
-    getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+    getItem: (key: string) => (store.has(key) ? (store.get(key) ?? null) : null),
     setItem: (key: string, value: string) => {
       store.set(key, String(value));
     },

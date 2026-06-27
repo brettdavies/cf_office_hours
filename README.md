@@ -7,7 +7,7 @@
 The platform connects entrepreneurs with experienced mentors using AI-powered matching algorithms based on industry
 expertise, company stage alignment, and reputation-based access tiers, replacing a legacy scheduling tool.
 
-## 🎯 What It Does
+## What It Does
 
 ### For Mentees (Entrepreneurs)
 
@@ -31,7 +31,7 @@ expertise, company stage alignment, and reputation-based access tiers, replacing
 - **Analytics Dashboard**: Track platform usage, meeting success rates, and user engagement
 - **Content Moderation**: Review and approve user profiles, tags, and meeting feedback
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 A modern fullstack application running entirely on Cloudflare:
 
@@ -46,29 +46,21 @@ graph TB
 Authentication is a Worker-issued session JWT (verified locally with `jose`); the SPA signs in via role-based demo
 login. Live booking updates come from React Query polling.
 
-## 📚 Complete Documentation
+## Documentation
 
-### 🚀 Quick Start Guides
+### Guides
 
-- **[Development Setup](docs/architecture/10-development-workflow.md)** - Local development environment setup
-- **[Deployment Guide](docs/deployment/DEPLOYMENT_INSTRUCTIONS.md)** - Deployment instructions
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** ⭐ - Common issues and solutions
+- **[Deployment Guide](docs/deployment/DEPLOYMENT_INSTRUCTIONS.md)** - Deploying the API and web Workers
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- Per-app setup: [`apps/api`](apps/api/README.md) and [`apps/web`](apps/web/README.md)
 
-### 📋 Product Documentation
+### Engineering Documentation
 
-- **[Product Requirements (PRD)](docs/prd/index.md)** - Functional and non-functional requirements
-- **[User Stories](docs/stories/)** - Feature breakdown by implementation order
+Detailed engineering docs live under `docs/` on the `dev` branch and are not published to `main`: architecture
+(`docs/architecture/`), product requirements (`docs/prd/`), and user stories (`docs/stories/`). Some of these pages
+describe a Supabase/Pages stack and do not reflect the current Cloudflare D1 + Workers implementation.
 
-### 🏛️ Technical Architecture
-
-- **[Complete Architecture Guide](docs/architecture/index.md)** - Full technical architecture documentation
-- **[Backend Architecture](docs/architecture/8-backend-architecture.md)** - Cloudflare Workers API design
-- **[API Specification](docs/architecture/5-api-specification.md)** - API endpoint documentation
-
-> **Note:** some pages under `docs/` describe a Supabase/Pages stack that does not reflect the current Cloudflare D1 +
-> Workers implementation.
-
-## 🛠️ Technical Stack
+## Technical Stack
 
 | Component                | Technology                          | Purpose                              |
 | ------------------------ | ----------------------------------- | ------------------------------------ |
@@ -83,9 +75,9 @@ login. Live booking updates come from React Query polling.
 | **Testing**              | Vitest 3.x + Playwright 1.50.x      | Unit and end-to-end testing          |
 | **Monorepo**             | npm workspaces                      | Package management and orchestration |
 
-## 🏗️ Project Structure
+## Project Structure
 
-```
+```text
 cf-office-hours/
 ├── apps/
 │   ├── web/                    # React frontend (Cloudflare Workers static assets)
@@ -111,7 +103,7 @@ cf-office-hours/
 └── node_modules/              # Dependencies (monorepo)
 ```
 
-## 🚀 Development Commands
+## Development Commands
 
 ```bash
 # Environment Setup
@@ -144,7 +136,7 @@ npm run type-check              # TypeScript type checking
 npm run generate:api-types      # Generate TypeScript types from the API OpenAPI spec
 ```
 
-## 🔧 Environment Configuration
+## Environment Configuration
 
 The web reads `VITE_API_BASE_URL` at **build time** (baked into the bundle by the `build:staging` / `build:production`
 scripts). The API reads `JWT_SECRET` at runtime; deploys read a Cloudflare API token.
@@ -169,9 +161,9 @@ npx wrangler d1 migrations apply cf-office-hours --local
 npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
 ```
 
-## 🎯 Key Features
+## Key Features
 
-### 🤖 AI-Powered Matching
+### AI-Powered Matching
 
 - **Tag-based scoring** with industry, technology, and stage alignment
 - **Reputation tiers** controlling mentor access levels
@@ -180,20 +172,20 @@ npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
 - **Pluggable algorithms** via the `IMatchingEngine` interface, supporting multiple algorithms simultaneously for A/B
   testing and gradual rollouts
 
-### 📅 Advanced Scheduling
+### Advanced Scheduling
 
 - **Multi-provider calendar integration** (Google Calendar, Microsoft Outlook)
 - **Recurring availability** with flexible time slot management
 - **Automatic conflict prevention** via an atomic booking transaction (UNIQUE slot guard)
 - **Google Meet integration** with automatic link generation
 
-### 🔐 Security
+### Security
 
 - **App-layer authorization** with role checks (mentee / mentor / coordinator) enforced in API middleware
 - **Worker-signed session JWTs** (HS256 via `jose`), verified locally on every request
 - **Audit columns** (`created_by` / `updated_by` / soft-delete) on records
 
-## 🏗️ Architecture Patterns
+## Architecture Patterns
 
 ### Interface-Driven Design
 
@@ -213,7 +205,7 @@ npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
 - **Background Processing**: match recalculation and notification delivery handled asynchronously
 - **Cache Invalidation**: smart cache management ensuring data consistency across algorithm updates
 
-## 🎨 Development Philosophy
+## Development Philosophy
 
 This project follows a **documentation-driven development** approach where decisions, requirements, and architectural
 choices are documented before implementation. The documentation serves as:
@@ -222,3 +214,7 @@ choices are documented before implementation. The documentation serves as:
 - **Onboarding guide** for new contributors
 - **Quality assurance** framework ensuring consistent implementation
 - **Living architecture** that evolves with the codebase
+
+## License
+
+Dual-licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT), at your option.

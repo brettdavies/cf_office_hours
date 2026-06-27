@@ -4,7 +4,7 @@
  * Development Setup Script
  *
  * This script automates the initial development environment setup:
- * - Copies .env.example files to .env for each app
+ * - Seeds each app's local env file (web .env, api .dev.vars) from its template
  * - Installs all dependencies
  */
 
@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 const ENV_EXAMPLE_FILES = [
   { from: 'apps/web/.env.example', to: 'apps/web/.env' },
-  { from: 'apps/api/.env.example', to: 'apps/api/.env' },
+  { from: 'apps/api/.dev.vars.example', to: 'apps/api/.dev.vars' },
 ];
 
 function setupEnvironmentFiles() {

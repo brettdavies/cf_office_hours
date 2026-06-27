@@ -9,9 +9,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { MatchingService } from '../../../services/matching.service';
 import { createTestDb, insertRow } from '../../helpers/d1';
 
-// Types
-import type { Env } from '../../../types/bindings';
-
 type Raw = ReturnType<typeof createTestDb>['raw'];
 
 function seedUser(raw: Raw, id: string, role: string): void {

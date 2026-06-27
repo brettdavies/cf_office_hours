@@ -52,13 +52,7 @@ vi.mock('@/data/coordinatorMetricsConfig', () => ({
 
 // Mock MetricSection
 vi.mock('@/components/coordinator/metrics/MetricSection', () => ({
-  MetricSection: ({
-    title,
-    children,
-  }: {
-    title: string;
-    children: React.ReactNode;
-  }) => (
+  MetricSection: ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div data-testid={`section-${title.replace(/\s+/g, '-').toLowerCase()}`}>
       <h2>{title}</h2>
       {children}
@@ -68,10 +62,8 @@ vi.mock('@/components/coordinator/metrics/MetricSection', () => ({
 
 // Mock MetricFactory
 vi.mock('@/components/coordinator/metrics/MetricFactory', () => ({
-  MetricFactory: ({ config }: { config: any }) => (
-    <div data-testid={`metric-${config.id}`}>
-      {config.title}
-    </div>
+  MetricFactory: ({ config }: { config: { id: string; title: string } }) => (
+    <div data-testid={`metric-${config.id}`}>{config.title}</div>
   ),
 }));
 
