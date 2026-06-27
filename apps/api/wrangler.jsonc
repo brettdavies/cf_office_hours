@@ -55,7 +55,7 @@
         {
           "binding": "DB",
           "database_name": "cf-office-hours",
-          "database_id": "local-dev-placeholder",
+          "database_id": "1fe61687-b4c9-494f-bb6f-cc53d91ce51f",
         },
       ],
       "routes": [
