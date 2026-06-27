@@ -1,13 +1,13 @@
 # CF Office Hours API
 
-Hono-based REST API for the Capital Factory Office Hours platform, running on Cloudflare Workers.
+Hono-based REST API for the Office Hours platform, running on Cloudflare Workers with a Cloudflare D1 (SQLite) database.
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 20+ and npm 10+
-- No Cloudflare account required for local development
+- No Cloudflare account required for local development (Wrangler runs a local D1)
 
 ### Local Development
 
@@ -15,247 +15,49 @@ Hono-based REST API for the Capital Factory Office Hours platform, running on Cl
 # Install dependencies (from project root)
 npm install
 
-# Start local development server
+# Apply migrations and seed a local D1 database
 cd apps/api
+npx wrangler d1 migrations apply cf-office-hours --local
+npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
+
+# Start the local development server
 npm run dev
 ```
 
-The API will be available at `http://localhost:8787`
+The API is available at `http://localhost:8787`. The local server auto-reloads on code changes.
 
-### Hot Reload
+## Authentication
 
-The local server automatically reloads when you make changes to the code. No restart needed!
+The API issues its own session JWT (HS256, signed with `JWT_SECRET` via `jose`) and verifies it locally on each request.
+There is no signup or user creation: the database holds a fixed allowlist of demo users.
+
+**POST /v1/auth/demo-login** — body `{ "role": "mentee" | "mentor" | "coordinator" }`. Selects a random existing user
+with that role and returns a signed JWT. The SPA's "Login as …" buttons call this endpoint.
+
+Protected routes require an `Authorization: Bearer <jwt>` header. Missing or invalid tokens return `401`.
 
 ## Available Endpoints
 
 ### Health Check
 
-**GET /health**
-
-Returns the API health status. No authentication required.
-
-**Response:**
+**GET /health** — returns API health status. No authentication required.
 
 ```json
-{
-  "status": "ok",
-  "timestamp": "2025-10-05T12:34:56.789Z"
-}
+{ "status": "ok", "timestamp": "2025-10-05T12:34:56.789Z" }
 ```
-
-**Example:**
 
 ```bash
 curl http://localhost:8787/health
 ```
 
-### Protected Route (Test Endpoint)
+### OpenAPI
 
-**GET /protected**
+The full route surface is documented via OpenAPI at `GET /api/openapi.json` (Swagger UI mounted alongside). Frontend
+types are generated from this spec with `npm run generate:api-types` (root).
 
-Test endpoint that requires authentication. Returns authenticated user information.
+### Error Responses
 
-**Headers:**
-
-- `Authorization: Bearer <jwt_token>` (required)
-
-**Response (200 OK):**
-
-```json
-{
-  "message": "Authenticated",
-  "user": {
-    "id": "user-123",
-    "email": "user@example.com",
-    "role": "mentee"
-  }
-}
-```
-
-**Response (401 Unauthorized):**
-
-```json
-{
-  "error": {
-    "code": "UNAUTHORIZED",
-    "message": "Missing or invalid Authorization header",
-    "timestamp": "2025-10-05T12:34:56.789Z"
-  }
-}
-```
-
-**Example:**
-
-```bash
-# Without token (will fail)
-curl http://localhost:8787/protected
-
-# With valid token
-curl -H "Authorization: Bearer <your-jwt-token>" http://localhost:8787/protected
-```
-
-### 404 Not Found
-
-Any non-existent route returns a structured error response.
-
-**Response (404):**
-
-```json
-{
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "The requested resource was not found",
-    "timestamp": "2025-10-05T12:34:56.789Z"
-  }
-}
-```
-
-**Example:**
-
-```bash
-curl http://localhost:8787/nonexistent
-```
-
-## Testing
-
-### Run Tests
-
-```bash
-npm run test         # Run all tests once
-npm run test:watch   # Run tests in watch mode
-```
-
-### Test Endpoints Locally
-
-```bash
-# Health check
-curl http://localhost:8787/health
-
-# Test CORS headers
-curl -I -H "Origin: http://localhost:3000" http://localhost:8787/health
-
-# Test 404 handling
-curl http://localhost:8787/invalid
-```
-
-## Environment Variables
-
-### Local Development Setup
-
-The API now requires Supabase for authentication. Follow these steps:
-
-**1. Start Local Supabase:**
-
-```bash
-npx supabase start
-```
-
-This will output the credentials you need, including:
-
-- API URL (typically `http://localhost:54321`)
-- Service role key
-- JWT secret
-
-**2. Configure Environment Variables:**
-
-Copy the example file:
-
-```bash
-cd apps/api
-cp .dev.vars.example .dev.vars
-```
-
-Edit `.dev.vars` and add your local Supabase credentials:
-
-```bash
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-from-supabase-start
-SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-start
-```
-
-**3. Obtain a JWT Token for Testing:**
-
-Option 1: Use Supabase Studio (http://localhost:54323)
-
-- Create a test user via Authentication UI
-- Sign in to get a JWT token
-
-Option 2: Use the Supabase CLI:
-
-```bash
-# Create a user
-npx supabase db seed
-
-# Or use Supabase client to generate token programmatically
-```
-
-**Environment Variables Reference:**
-
-| Variable                    | Location        | Description                               |
-| --------------------------- | --------------- | ----------------------------------------- |
-| `SUPABASE_URL`              | `wrangler.toml` | Local Supabase API URL (committed)        |
-| `SUPABASE_SERVICE_ROLE_KEY` | `.dev.vars`     | Service role key (NOT committed)          |
-| `SUPABASE_JWT_SECRET`       | `.dev.vars`     | JWT secret for validation (NOT committed) |
-
-**Note:** The `.dev.vars` file is gitignored and should never be committed.
-
-## Project Structure
-
-```
-apps/api/
-├── src/
-│   ├── index.ts                    # Main Hono app entry point
-│   ├── middleware/
-│   │   ├── error-handler.ts        # Global error handling
-│   │   └── auth.ts                 # Authentication middleware
-│   ├── lib/
-│   │   └── db.ts                   # Supabase client utility
-│   └── types/
-│       ├── bindings.ts             # Cloudflare Workers bindings types
-│       └── context.ts              # Hono context variables types
-├── wrangler.toml                   # Cloudflare Workers configuration
-├── .dev.vars.example               # Environment variables template
-├── package.json
-└── README.md                       # This file
-```
-
-## Middleware
-
-The API includes the following middleware:
-
-### Global Middleware (applied to all routes)
-
-- **Logger** (`hono/logger`) - Request/response logging
-- **CORS** (`hono/cors`) - Cross-origin resource sharing
-  - Allowed origins: `http://localhost:3000`, `https://officehours.youcanjustdothings.io`
-  - Credentials: enabled
-- **Pretty JSON** (`hono/pretty-json`) - Formatted JSON responses
-
-### Authentication Middleware
-
-- **requireAuth** (`src/middleware/auth.ts`) - JWT token verification
-  - Verifies Supabase JWT tokens from Authorization header
-  - Injects user context into request: `c.get('user')`
-  - Returns 401 for missing/invalid tokens
-  - Applied to protected routes only
-
-**Usage Example:**
-
-```typescript
-import { requireAuth } from './middleware/auth';
-
-// Apply to specific route
-app.get('/protected', requireAuth, c => {
-  const user = c.get('user');
-  return c.json({ user });
-});
-
-// Apply to route group
-app.use('/api/*', requireAuth);
-```
-
-## Error Handling
-
-All errors return JSON responses with the following structure:
+All errors return a structured JSON body:
 
 ```json
 {
@@ -267,46 +69,79 @@ All errors return JSON responses with the following structure:
 }
 ```
 
-Common error codes:
+Common codes: `NOT_FOUND` (404), `UNAUTHORIZED` (401), `INTERNAL_ERROR` (500).
 
-- `NOT_FOUND` (404) - Resource not found
-- `UNAUTHORIZED` (401) - Missing or invalid authentication
-- `INTERNAL_ERROR` (500) - Server error
+## Environment Variables
+
+The API reads one secret at runtime. For local development, copy the example file and set a value:
+
+```bash
+cd apps/api
+cp .dev.vars.example .dev.vars
+```
+
+```bash
+# apps/api/.dev.vars (gitignored, never committed)
+JWT_SECRET=your-local-jwt-secret
+```
+
+| Variable     | Location         | Description                                             |
+| ------------ | ---------------- | ------------------------------------------------------- |
+| `JWT_SECRET` | `.dev.vars`      | Secret used to sign/verify session JWTs (NOT committed) |
+| `DB`         | `wrangler.jsonc` | D1 database binding                                     |
+
+For deployed environments, set the secret with `npx wrangler secret put JWT_SECRET --env <staging|production>`.
+
+## Testing
+
+```bash
+npm run test         # Run all tests once
+npm run test:watch   # Run tests in watch mode
+```
+
+Tests run against an in-memory D1 shim backed by `node:sqlite` (Node 22+), so no Wrangler or remote database is needed.
+
+## Project Structure
+
+```text
+apps/api/
+├── src/
+│   ├── index.ts                # Main Hono app entry point
+│   ├── routes/                 # API endpoints (incl. auth demo-login)
+│   ├── middleware/
+│   │   ├── error-handler.ts    # Global error handling
+│   │   └── auth.ts             # JWT verification middleware
+│   ├── repositories/           # D1 data access
+│   ├── services/               # Business logic
+│   ├── providers/              # Pluggable matching / calendar / notification engines
+│   ├── events/                 # Event-driven match recalculation triggers
+│   └── lib/
+│       ├── db.ts               # D1 binding accessor
+│       ├── jwt.ts              # Sign / verify session JWTs
+│       └── d1-utils.ts         # Shared D1 helpers
+├── migrations/                 # D1 (SQLite) schema migrations
+├── seeds/                      # D1 seed data (generated; gitignored)
+├── wrangler.jsonc              # Cloudflare Workers + D1 configuration
+├── .dev.vars.example           # Environment variables template
+└── package.json
+```
 
 ## Deployment
 
-### Local Development (Current)
-
-The API runs locally via Wrangler dev server. No deployment or Cloudflare account required.
-
-### Production Deployment (Future Story)
-
-Production deployment will be handled in a separate story and will require:
-
-- Cloudflare account setup
-- `wrangler login` authentication
-- Environment variable configuration
-- Custom domain setup (optional)
-
-**Deployment commands (future):**
-
 ```bash
-npm run deploy              # Deploy to production
-npm run deploy:staging      # Deploy to staging environment
+npm run deploy:staging       # Deploy to the staging environment
+npm run deploy:production     # Deploy to production
 ```
 
-## Development Workflow
-
-1. Make code changes in `src/`
-2. Changes auto-reload in local server
-3. Test endpoints with curl or browser
-4. Run tests: `npm test`
-5. Commit when all tests pass
+Deploys authenticate with a Cloudflare API token supplied via the environment (`CLOUDFLARE_API_TOKEN`); the token is
+never committed. See the repository deployment docs for the full procedure.
 
 ## Technology Stack
 
-- **Framework:** Hono 4.x
-- **Runtime:** Cloudflare Workers (Node.js compatibility mode)
+- **Framework:** Hono 4.x (`@hono/zod-openapi`)
+- **Runtime:** Cloudflare Workers
+- **Database:** Cloudflare D1 (SQLite)
+- **Auth:** Worker-issued session JWT (`jose`)
 - **Testing:** Vitest 3.x
 - **TypeScript:** 5.7.x
 
@@ -314,4 +149,5 @@ npm run deploy:staging      # Deploy to staging environment
 
 - [Hono Documentation](https://hono.dev/)
 - [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
+- [Cloudflare D1 Docs](https://developers.cloudflare.com/d1/)
 - [Wrangler CLI Docs](https://developers.cloudflare.com/workers/wrangler/)

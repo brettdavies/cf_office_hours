@@ -64,7 +64,7 @@ app.doc('/api/openapi.json', {
   info: {
     title: 'CF Office Hours API',
     version: '1.0.0',
-    description: 'API for Capital Factory Office Hours platform',
+    description: 'API for the Office Hours platform',
   },
   servers: [
     {

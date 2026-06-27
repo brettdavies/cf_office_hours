@@ -44,8 +44,8 @@ export class NotificationService {
   /**
    * Sends booking confirmation emails to both mentor and mentee.
    *
-   * Epic 0: Logs email content to console for development/testing.
-   * Production email integration (Supabase/SendGrid) deferred to Epic 4.
+   * Logs email content to console for development/testing.
+   * Production email-provider integration is deferred.
    *
    * @param booking - Created booking with time slot details
    * @param mentor - Mentor recipient information
@@ -73,8 +73,7 @@ export class NotificationService {
       // Generate email for mentee
       const menteeEmail = this.formatBookingConfirmationEmail(booking, mentee, mentor);
 
-      // Epic 0: Log emails to console
-      // Production: Replace with Supabase/SendGrid integration in Epic 4
+      // Production: replace console logging with an email-provider integration
       console.log('[EMAIL] Booking Confirmation - Mentor', {
         to: mentorEmail.to,
         subject: mentorEmail.subject,
