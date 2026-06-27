@@ -10,10 +10,10 @@ import type { Env } from '../types/bindings';
 import type { Variables } from '../types/context';
 
 /**
- * Authentication middleware that verifies Supabase JWT tokens.
+ * Authentication middleware that verifies the Worker-issued session JWT.
  *
- * Extracts the JWT token from the Authorization header, verifies it using
- * Supabase Auth, and injects the authenticated user into the request context.
+ * Extracts the JWT from the Authorization header, verifies it locally with the
+ * shared secret, and injects the authenticated user into the request context.
  *
  * @param c - Hono context
  * @param next - Next middleware function

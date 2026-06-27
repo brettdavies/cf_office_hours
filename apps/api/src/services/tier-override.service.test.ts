@@ -21,7 +21,7 @@ describe('TierOverrideService', () => {
   let mockRepo: any;
 
   beforeEach(() => {
-    const mockEnv = { SUPABASE: {} };
+    const mockEnv = { DB: {} };
     // @ts-expect-error - Mocking environment
     service = new TierOverrideService(mockEnv);
     mockRepo = (service as any).tierOverrideRepo;
@@ -65,7 +65,7 @@ describe('TierOverrideService', () => {
       expect(result[0].id).toBe('req-1');
       expect(result[1].id).toBe('req-3');
       // Expired request should be filtered out
-      expect(result.find((r) => r.id === 'req-2')).toBeUndefined();
+      expect(result.find(r => r.id === 'req-2')).toBeUndefined();
     });
 
     it('should return empty array when all requests are expired', async () => {

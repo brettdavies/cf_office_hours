@@ -69,7 +69,7 @@ interface EntityTagRow {
  * Reputation scoring not yet implemented.
  *
  * @example
- * const engine = new TagBasedMatchingEngineV1(supabaseClient);
+ * const engine = new TagBasedMatchingEngineV1(db);
  * await engine.recalculateMatches('user-123'); // Recalculate for one user
  * await engine.recalculateAllMatches({ batchSize: 50 }); // Recalculate for all users
  */

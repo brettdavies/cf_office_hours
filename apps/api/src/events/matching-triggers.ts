@@ -101,7 +101,7 @@ const recalculateMultipleUserMatches = async (
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param userId - User ID whose profile was updated
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handleUserProfileUpdate { userId }
@@ -129,7 +129,7 @@ export const handleUserProfileUpdate = withErrorHandling(
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param userId - User ID whose tags were changed
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handleUserTagsChange { userId }
@@ -158,7 +158,7 @@ export const handleUserTagsChange = withErrorHandling(
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param companyId - Portfolio company ID whose tags were changed
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handlePortfolioCompanyTagsChange { companyId }
@@ -212,7 +212,7 @@ export const handlePortfolioCompanyTagsChange = withErrorHandling(
  * This is a fire-and-forget operation - errors are logged but not thrown.
  *
  * @param userId - User ID whose reputation tier was changed
- * @param db - Supabase client instance
+ * @param db - D1 database instance
  *
  * @logging
  * - [MATCHING] handleReputationTierChange { userId }

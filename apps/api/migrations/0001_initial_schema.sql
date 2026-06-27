@@ -1,11 +1,11 @@
 -- CF Office Hours - D1 (SQLite) schema
--- Translated from the Supabase Postgres migrations. SQLite mappings:
+-- SQLite type affinities:
 --   uuid -> TEXT (app generates via crypto.randomUUID; DB default is a fallback)
---   timestamptz/date/time -> TEXT (ISO-8601, UTC)
---   jsonb -> TEXT (JSON), boolean -> INTEGER (0/1), numeric -> REAL
--- RLS, plpgsql functions/triggers, ETL/raw tables and the auth-sync chain are
--- intentionally omitted: authorization lives in app middleware and the app is a
--- fixed-allowlist demo with no signup. updated_at is maintained explicitly in app code.
+--   timestamp/date/time -> TEXT (ISO-8601, UTC)
+--   json -> TEXT (JSON), boolean -> INTEGER (0/1), numeric -> REAL
+-- Authorization lives in app middleware (no row-level security, no stored
+-- procedures/triggers) and the app is a fixed-allowlist demo with no signup.
+-- updated_at is maintained explicitly in app code.
 
 -- A UUIDv4 generator used only as an INSERT fallback; repositories pass an explicit id.
 -- Expression repeated per column because SQLite has no scalar UDFs.

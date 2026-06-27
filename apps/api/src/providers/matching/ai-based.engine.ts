@@ -53,7 +53,7 @@ interface AIMatchResponse {
  * Uses OpenAI to evaluate mentor-mentee compatibility based on bios and company descriptions.
  *
  * @example
- * const engine = new AiBasedMatchingEngineV1(supabaseClient, openaiApiKey);
+ * const engine = new AiBasedMatchingEngineV1(db, openaiApiKey);
  * await engine.recalculateMatches('user-123'); // Recalculate for one user
  * await engine.recalculateAllMatches({ batchSize: 10 }); // Slower due to API calls
  */
@@ -63,13 +63,13 @@ export class AiBasedMatchingEngineV1 extends BaseMatchingEngine<UserWithProfile>
   /**
    * Creates an AI-based matching engine instance
    *
-   * @param db - Supabase client for database operations
+   * @param db - D1 database for database operations
    * @param openaiApiKey - OpenAI API key for AI scoring (required)
    * @throws {Error} If OpenAI API key is not provided
    *
    * @example
    * const engine = new AiBasedMatchingEngineV1(
-   *   supabaseClient,
+   *   db,
    *   process.env.OPENAI_API_KEY
    * );
    */

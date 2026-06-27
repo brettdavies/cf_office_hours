@@ -2,7 +2,7 @@
  * React Query hook for fetching user's bookings.
  *
  * Provides server state management for bookings with automatic
- * caching, refetching, and real-time updates via Supabase Realtime.
+ * caching, refetching, and live updates via polling.
  */
 
 // External dependencies
