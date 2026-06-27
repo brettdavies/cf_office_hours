@@ -46,6 +46,11 @@ npx wrangler d1 execute cf-office-hours --env staging --remote --file=seeds/d1_s
 
 Repeat with `--env production` against the production database.
 
+The seed is self-correcting: the generated file ends with a footer that shapes the bookings and anchors all dates to
+load time, so no separate fix step is needed. After deploy, the API Worker's weekly Cron Trigger (`0 9 * * 1`,
+configured in `wrangler.jsonc`) re-runs `scripts/bump-seed-dates.sql` against staging and production so the
+upcoming-meetings window never drifts into the past.
+
 ### 3. Set secrets
 
 The API signs and verifies its session JWT with `JWT_SECRET`. Set it per environment without printing it:
