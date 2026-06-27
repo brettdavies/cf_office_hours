@@ -101,6 +101,7 @@ UPDATE bookings SET updated_at = created_at;
 -- The seed leaves confirmed_at NULL even for status = 'confirmed' rows; pending
 -- requests keep confirmed_at NULL. updated_at follows the confirmation, since
 -- that is the row's most recent change.
+UPDATE bookings SET confirmed_at = NULL WHERE status <> 'confirmed';
 UPDATE bookings
   SET confirmed_at = strftime('%Y-%m-%dT%H:%M:%fZ', julianday(created_at) + (abs(random() % 1000000) / 1000000.0) * (julianday('now') - julianday(created_at)))
   WHERE status = 'confirmed';
