@@ -20,13 +20,13 @@
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^0.9.5",
     "date-fns": "^4.4.0",
-    "hono": "^4.0.2",
+    "hono": "^4.12.27",
     "jose": "^6.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
-    "@cloudflare/workers-types": "^4.20240117.0",
+    "@cloudflare/workers-types": "^4.20260627.1",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "esbuild": "^0.28.1",
