@@ -4,6 +4,77 @@
  */
 
 export interface paths {
+    "/v1/auth/demo-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a demo session as a random user of the given role
+         * @description Demo login for the OSS demo. Returns a signed session JWT for a randomly chosen existing user with the requested role.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        role: "mentee" | "mentor" | "coordinator";
+                    };
+                };
+            };
+            responses: {
+                /** @description Session token and user identity */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            access_token: string;
+                            /** @enum {string} */
+                            token_type: "bearer";
+                            user: {
+                                id: string;
+                                email: string;
+                                /** @enum {string} */
+                                role: "mentee" | "mentor" | "coordinator";
+                            };
+                        };
+                    };
+                };
+                /** @description No user exists for the requested role */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/users/me": {
         parameters: {
             query?: never;
@@ -849,6 +920,7 @@ export interface paths {
                             /** Format: uuid */
                             mentee_id: string;
                             meeting_goal: string;
+                            location: string;
                             /** @enum {string} */
                             status: "pending" | "confirmed" | "completed" | "canceled" | "expired";
                             /** Format: date-time */

@@ -1,0 +1,21 @@
+# Caller for the centralized guard-main-docs reusable workflow.
+# extra_paths extends the reusable's base list with this repo's dev-only doc
+# directories (product requirements, QA gates, user stories) and the loose
+# dev-only files at docs/ root; user-facing docs (README, docs/deployment,
+# docs/TROUBLESHOOTING.md) stay allowed on main. Directory entries end with `/`
+# (prefix match); file entries are matched by exact path.
+name: Guard main from engineering docs
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  guard-docs:
+    uses: brettdavies/.github/.github/workflows/guard-main-docs.yml@main
+    with:
+      extra_paths: >-
+        docs/prd/,docs/qa/,docs/stories/,docs/auth-fix-summary.md,docs/sprint-change-proposal-2025-10-06.md,docs/etl-workflow-readme.md,docs/DOCUMENTATION-GUIDE.md

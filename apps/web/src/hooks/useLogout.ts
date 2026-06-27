@@ -1,15 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/services/supabase';
+import { logout as clearSession } from '@/services/auth';
 
 /**
  * Hook for logging out the current user.
  *
- * Provides a centralized logout function that handles all cleanup:
- * - Signs out from Supabase
+ * Centralizes logout cleanup:
  * - Clears React Query cache
- * - Clears localStorage auth tokens
- * - Navigates to login page
+ * - Clears the stored session token
+ * - Navigates to the login page
  *
  * @returns Object containing logout function
  *
@@ -22,16 +21,8 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   const logout = async () => {
-    // Clear all React Query caches
     queryClient.clear();
-
-    // Clear localStorage auth token
-    localStorage.removeItem('auth_token');
-
-    // Sign out from Supabase
-    await supabase.auth.signOut();
-
-    // Navigate to login page
+    clearSession();
     navigate('/auth/login');
   };
 

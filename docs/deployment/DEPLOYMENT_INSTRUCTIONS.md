@@ -1,315 +1,139 @@
-# Story 0.19: Frontend Deployment Instructions
+# Deployment Instructions
 
-## Status: Ready for Manual Deployment
+The platform runs entirely on Cloudflare as two Workers:
 
-All code preparation is complete. This document provides step-by-step instructions to deploy the React frontend to Cloudflare Pages.
+- **API** (`cf-office-hours-api`): Hono application bound to a Cloudflare D1 (SQLite) database.
+- **Web** (`cf-office-hours-web`): the built React SPA served as static assets, with SPA routing via
+  `not_found_handling`.
 
----
+Each Worker defines a `staging` and a `production` environment in its `wrangler.jsonc`. Staging deploys to a
+`*.workers.dev` URL; production deploys to custom domains. Deployment is driven by Wrangler (locally or from CI); there
+is no Git/Pages integration.
 
-## Quick Start
+## Prerequisites
 
-**What's Ready:**
-- ✅ CORS configured for production frontend
-- ✅ `_redirects` file created for SPA routing
-- ✅ Build configuration verified
-- ✅ Comprehensive deployment documentation created
-
-**What You Need:**
-1. Cloudflare account with Pages access
-2. GitHub repository access
-3. Supabase production credentials (from Story 0.17)
-4. DNS access for `youcanjustdothings.io` domain
-
----
-
-## Step-by-Step Deployment
-
-### Step 1: Commit Code Changes
+- A Cloudflare account with Workers and D1 enabled.
+- Node.js 22+ and npm 10+.
+- A Cloudflare API token with Workers Scripts, D1, and Workers Routes permissions. Provide it to Wrangler via the
+  `CLOUDFLARE_API_TOKEN` environment variable; never commit it.
+- DNS for `youcanjustdothings.io` managed in the same Cloudflare account (for the production custom domains).
 
 ```bash
-# Review changes
-git status
-
-# Add all deployment preparation files
-git add .
-
-# Commit changes
-git commit -m "feat(deploy): prepare Story 0.19 - Cloudflare Pages frontend deployment
-
-- Add _redirects file for SPA routing
-- Create comprehensive deployment documentation
-- Verify CORS configuration for production frontend
-- Update Supabase runbook with frontend URL
-
-Ready for manual deployment via Cloudflare Dashboard.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-
-# Push to main (this will trigger automatic deployment once Pages is configured)
-git push origin main
+# Wrangler reads CLOUDFLARE_API_TOKEN from the environment for headless deploys.
+export CLOUDFLARE_API_TOKEN="<token>"
 ```
 
-### Step 2: Create Cloudflare Pages Project
+## One-Time Setup
 
-1. **Login to Cloudflare Dashboard**
-   - Navigate to: https://dash.cloudflare.com
-   - Go to: Workers & Pages > Create application > Pages > Connect to Git
+### 1. Create the D1 database
 
-2. **Connect GitHub Repository**
-   - Select your GitHub account
-   - Choose repository: `cf-office-hours` (or your actual repo name)
-   - Authorize Cloudflare access to repository
+```bash
+cd apps/api
+npx wrangler d1 create cf-office-hours
+```
 
-3. **Initial Project Setup**
-   - Project name: `cf-office-hours`
-   - Production branch: `main`
-   - Click "Save and Deploy"
-   - ⚠️ **Note:** Initial deployment will fail - this is expected until build settings are configured
+Copy the returned `database_id` into the matching `d1_databases` binding in `apps/api/wrangler.jsonc` for the target
+environment.
 
-### Step 3: Configure Build Settings
+### 2. Apply migrations and seed
 
-1. **Navigate to Settings**
-   - Pages project > Settings > Build & deployments
+```bash
+cd apps/api
+npx wrangler d1 migrations apply cf-office-hours --env staging --remote
+# Optional: load seed data (the seed file is generated and gitignored; see scripts/convert_backup_to_d1.py)
+npx wrangler d1 execute cf-office-hours --env staging --remote --file=seeds/d1_seed.sql
+```
 
-2. **Set Build Configuration**
-   - Framework preset: `None` (custom monorepo)
-   - Build command: `npm run build --workspace=apps/web`
-   - Build output directory: `apps/web/dist`
-   - Root directory: `/` (leave blank or enter `/`)
+Repeat with `--env production` against the production database.
 
-3. **Set Node Version**
-   - Environment variables > Add variable
-   - Variable name: `NODE_VERSION`
-   - Value: `20`
-   - Save
+### 3. Set secrets
 
-### Step 4: Set Environment Variables
+The API signs and verifies its session JWT with `JWT_SECRET`. Set it per environment without printing it:
 
-1. **Navigate to Environment Variables**
-   - Pages project > Settings > Environment variables
+```bash
+cd apps/api
+openssl rand -hex 32 | npx wrangler secret put JWT_SECRET --env staging
+openssl rand -hex 32 | npx wrangler secret put JWT_SECRET --env production
+```
 
-2. **Add Production Variables**
-   - Select "Production" environment for each variable:
+### 4. Custom domains (production)
 
-   ```
-   VITE_API_BASE_URL=https://api.officehours.youcanjustdothings.io/v1
-   VITE_SUPABASE_URL=https://mwkptgdsoxlvxyeexwbf.supabase.co
-   VITE_SUPABASE_ANON_KEY=[your-anon-key-from-story-0.17]
-   ```
+Production routes are declared in `wrangler.jsonc`:
 
-3. **Get Supabase Credentials**
-   - Supabase Dashboard: https://app.supabase.com/project/mwkptgdsoxlvxyeexwbf
-   - Settings > API > Project URL (already shown above)
-   - Settings > API > anon/public key (copy and paste)
+- API: `api.officehours.youcanjustdothings.io` (route)
+- Web: `officehours.youcanjustdothings.io` (custom domain)
 
-4. **Save Environment Variables**
+Wrangler provisions the DNS records and TLS certificates on first production deploy.
 
-### Step 5: Configure Custom Domain
+## Deploying
 
-1. **Add Custom Domain**
-   - Pages project > Custom domains > Set up a custom domain
-   - Enter domain: `officehours.youcanjustdothings.io`
-   - Cloudflare will automatically create DNS record (CNAME)
+The web bundle bakes `VITE_API_BASE_URL` at build time, so each environment has its own build-and-deploy script.
 
-2. **Activate Domain**
-   - Click "Activate domain"
-   - SSL certificate will be automatically provisioned (~1-2 minutes)
-   - Wait for SSL status to show "Active"
+```bash
+# Staging
+npm run deploy:staging --workspace=apps/api
+npm run deploy:staging --workspace=apps/web
 
-3. **Verify Domain**
-   - Visit: https://officehours.youcanjustdothings.io
-   - Should see Cloudflare "Deploy in progress" page initially
+# Production
+npm run deploy:production --workspace=apps/api
+npm run deploy:production --workspace=apps/web
+```
 
-### Step 6: Trigger Production Deployment
+Resulting URLs:
 
-1. **Retry Deployment**
-   - Pages project > Deployments
-   - Click "Retry deployment" on the failed deployment
-   - OR push a new commit to main branch (already done in Step 1)
+| Environment | API                                                         | Web                                                         |
+| ----------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
+| Staging     | `https://cf-office-hours-api-staging.<account>.workers.dev` | `https://cf-office-hours-web-staging.<account>.workers.dev` |
+| Production  | `https://api.officehours.youcanjustdothings.io`             | `https://officehours.youcanjustdothings.io`                 |
 
-2. **Watch Build Logs**
-   - Click on the deployment to view live build logs
-   - Wait for build to complete (~2-3 minutes)
-   - Look for green checkmark and "Success" status
+Replace `<account>` with your Workers `workers.dev` subdomain.
 
-3. **Note Deployment Details**
-   - Deployment ID: [copy from dashboard]
-   - Deployment URL: `https://[deployment-id].cf-office-hours.pages.dev`
-   - Production URL: `https://officehours.youcanjustdothings.io`
+## Verification
 
-### Step 7: Verify Deployment
+After deploying:
 
-1. **Open Production URL**
-   - Navigate to: https://officehours.youcanjustdothings.io
-   - Expected: Login page loads without errors
+1. **API health:** `curl https://<api-url>/health` returns `{ "status": "ok", ... }`.
+2. **Web loads:** open the web URL; the login page renders with the three role buttons.
+3. **Demo login:** click a role button; the network tab shows `POST /v1/auth/demo-login` returning a JWT, and the app
+   lands on the dashboard.
+4. **Authenticated data:** a protected call (e.g. `GET /v1/availability`) succeeds with the `Authorization: Bearer`
+   header and no CORS errors.
 
-2. **Check DevTools Console**
-   - Open DevTools (F12) > Console tab
-   - Expected: Only expected logs, no errors
-   - Look for: `[AUTH] Initializing auth hook`
+## Rollback
 
-3. **Check Network Tab**
-   - DevTools > Network tab
-   - Verify static assets load from Cloudflare CDN
-   - Check: `index.html`, `assets/index-*.js`, `assets/index-*.css` (all 200 OK)
+Wrangler keeps prior versions of each Worker. To roll back:
 
-4. **Test Magic Link Login**
-   - Enter whitelisted email (from Story 0.17 seed data)
-   - Click "Send Magic Link"
-   - Check Network tab: `POST /v1/auth/magic-link` should be 200 OK
-   - Check email for magic link (Supabase Inbucket or actual inbox)
-
-5. **Test Full User Flow**
-   - Click magic link to authenticate
-   - Should redirect to `/dashboard`
-   - Navigate to `/availability` (mentor) or `/mentors` (mentee)
-   - Verify data loads from production API
-   - Test creating availability or booking meeting
-
-6. **Verify CORS**
-   - Check Console tab during API calls
-   - Expected: NO CORS errors
-   - CORS already configured in API (apps/api/src/index.ts:32)
-
-### Step 8: Update Deployment Log
-
-1. **Open Deployment Log**
-   - File: `docs/deployment/frontend-deployment-log.md`
-
-2. **Fill in Deployment Record**
-   - Update "Deployment 1" section with actual values:
-     - Date
-     - Deployment ID
-     - Git commit hash
-     - Build time
-     - Your name
-     - Status (Success/Failed)
-     - Any notes
-
-3. **Commit Documentation Update**
-   ```bash
-   git add docs/deployment/frontend-deployment-log.md
-   git commit -m "docs: record successful frontend deployment"
-   git push origin main
-   ```
-
----
-
-## Verification Checklist
-
-Use the comprehensive checklist: `docs/deployment/production-launch-checklist.md`
-
-**Quick Verification:**
-- [ ] Frontend loads at https://officehours.youcanjustdothings.io
-- [ ] No console errors (only expected logs)
-- [ ] Static assets load from CDN
-- [ ] Magic link login works
-- [ ] Dashboard displays data
-- [ ] API calls succeed (check Network tab)
-- [ ] No CORS errors
-- [ ] Full user flow works (auth → availability → booking)
-
----
+```bash
+cd apps/api   # or apps/web
+npx wrangler deployments list --env production
+npx wrangler rollback --env production [<version-id>]
+```
 
 ## Troubleshooting
 
-### Build Fails: "npm ERR! missing script: build"
-**Cause:** Incorrect build command
-**Fix:** Verify build command is exactly: `npm run build --workspace=apps/web`
+### CORS error: origin not allowed
 
-### Build Fails: "Environment variable VITE_API_BASE_URL is undefined"
-**Cause:** Environment variable not set in Pages dashboard
-**Fix:** Add variable in Settings > Environment variables (Production)
+The API allows configured static origins plus any `*.workers.dev` origin (`apps/api/src/index.ts`). Confirm the web
+origin matches an allowed origin and that the production web domain is included.
 
-### CORS Error: "Origin not allowed"
-**Cause:** Should not occur - CORS already configured
-**Fix:** Verify `apps/api/src/index.ts` line 32 includes `https://officehours.youcanjustdothings.io`
+### 401 on every authenticated request
 
-### 404 on Page Refresh
-**Cause:** SPA routing not configured
-**Fix:** Should not occur - `_redirects` file already created in `apps/web/public/_redirects`
+`JWT_SECRET` differs between the token issuer and verifier, or is unset. Re-run `wrangler secret put JWT_SECRET` for the
+environment and redeploy the API.
 
-### Assets Fail to Load (404)
-**Cause:** Incorrect build output directory
-**Fix:** Verify "Build output directory" is exactly: `apps/web/dist`
+### Web calls the wrong API
 
----
+`VITE_API_BASE_URL` is baked at build time. Confirm you deployed with the matching `deploy:staging` /
+`deploy:production` script rather than a plain `npm run build`.
 
-## Rollback Procedures
+### D1 errors on first request
 
-### Quick Rollback (via Dashboard)
-1. Pages > cf-office-hours > Deployments
-2. Find previous working deployment
-3. Click "..." > "Rollback to this deployment"
-4. Wait 1-2 minutes
-5. Verify at production URL
+Migrations were not applied to the remote database for that environment. Re-run `wrangler d1 migrations apply
+cf-office-hours --env <env> --remote`.
 
-### Full Rollback Documentation
-See: `docs/deployment/frontend-deployment-log.md` (Rollback Procedures section)
+## Resources
 
----
-
-## Success Criteria
-
-**Story 0.19 is complete when:**
-- [ ] Frontend deployed to Cloudflare Pages
-- [ ] Production URL accessible: https://officehours.youcanjustdothings.io
-- [ ] SSL certificate active (automatic)
-- [ ] All smoke tests pass
-- [ ] Full user flow verified (auth → booking)
-- [ ] No CORS errors
-- [ ] Deployment documented
-
-**Epic 0 is complete when:**
-- [ ] Story 0.19 complete (this story)
-- [ ] All Epic 0 features working end-to-end in production
-- [ ] Walking Skeleton live and accessible to users
-- [ ] Production launch checklist fully verified
-
----
-
-## Next Steps After Deployment
-
-1. **Mark Story Complete**
-   - Update story status to "Ready for Review"
-   - Complete production launch checklist
-
-2. **Announce Launch**
-   - Internal team notification
-   - Early user invitations
-   - Prepare feedback channels
-
-3. **Monitor Production**
-   - Cloudflare Workers metrics (API)
-   - Cloudflare Pages analytics (Frontend)
-   - Supabase dashboard (Database)
-   - Watch for errors/issues first 24 hours
-
-4. **Plan Epic 1**
-   - Gather user feedback
-   - Triage issues
-   - Prioritize next features
-
----
-
-## Need Help?
-
-**Documentation:**
-- Deployment Log: [docs/deployment/frontend-deployment-log.md](docs/deployment/frontend-deployment-log.md)
-- Launch Checklist: [docs/deployment/production-launch-checklist.md](docs/deployment/production-launch-checklist.md)
-- Supabase Runbook: [docs/deployment/supabase-production-runbook.md](docs/deployment/supabase-production-runbook.md)
-
-**Cloudflare Resources:**
-- [Cloudflare Pages Docs](https://developers.cloudflare.com/pages/)
-- [Pages Build Configuration](https://developers.cloudflare.com/pages/platform/build-configuration/)
-- [Pages Custom Domains](https://developers.cloudflare.com/pages/platform/custom-domains/)
-
-**Support:**
-- Cloudflare Discord: https://discord.cloudflare.com
-- Supabase Discord: https://discord.supabase.com
-
----
-
-**Good luck with the deployment! 🚀**
+- [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
+- [Cloudflare D1 Docs](https://developers.cloudflare.com/d1/)
+- [Wrangler CLI Docs](https://developers.cloudflare.com/workers/wrangler/)
+- [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/)

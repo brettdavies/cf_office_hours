@@ -4,67 +4,68 @@ import * as jose from 'jose';
 // Types
 import type { Env } from '../types/bindings';
 
-/**
- * Supabase JWT claims structure
- */
-export interface SupabaseJWTClaims {
-  sub: string; // User ID
-  email?: string;
-  phone?: string;
-  role: string;
-  aal?: string;
-  session_id?: string;
-  is_anonymous?: boolean;
+/** Session JWT claims issued and verified by the Worker. */
+export interface JwtClaims {
+  sub: string; // User ID (D1 users.id)
+  email: string;
+  role: 'mentee' | 'mentor' | 'coordinator';
   iss?: string;
   aud?: string | string[];
   exp?: number;
   iat?: number;
 }
 
+const ALG = 'HS256';
+const ISSUER = 'cf-office-hours';
+const AUDIENCE = 'authenticated';
+const DEFAULT_TTL = '12h';
+
+const secretKey = (env: Env): Uint8Array => {
+  if (!env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  return new TextEncoder().encode(env.JWT_SECRET);
+};
+
 /**
- * Verifies a Supabase JWT token using the JWT secret.
+ * Signs a session JWT for an authenticated user.
  *
- * This function verifies the JWT locally without making a network request to Supabase,
- * making it faster and more reliable for authentication checks.
- *
- * @param token - The JWT token to verify
+ * @param claims - User identity to embed (sub, email, role)
  * @param env - Cloudflare Workers environment bindings
- * @returns The decoded and verified JWT claims
- * @throws {Error} If the token is invalid, expired, or verification fails
- *
- * @example
- * ```typescript
- * try {
- *   const claims = await verifySupabaseJWT(token, c.env);
- *   console.log('User ID:', claims.sub);
- * } catch (error) {
- *   console.error('Invalid token:', error);
- * }
- * ```
+ * @param ttl - Token lifetime (jose duration string, default 12h)
+ * @returns Signed compact JWT
  */
-export async function verifySupabaseJWT(
-  token: string,
-  env: Env
-): Promise<SupabaseJWTClaims> {
+export async function signJwt(
+  claims: Pick<JwtClaims, 'sub' | 'email' | 'role'>,
+  env: Env,
+  ttl: string = DEFAULT_TTL
+): Promise<string> {
+  return new jose.SignJWT({ email: claims.email, role: claims.role })
+    .setProtectedHeader({ alg: ALG })
+    .setSubject(claims.sub)
+    .setIssuer(ISSUER)
+    .setAudience(AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime(ttl)
+    .sign(secretKey(env));
+}
+
+/**
+ * Verifies a session JWT locally and returns its claims.
+ *
+ * @param token - The JWT to verify
+ * @param env - Cloudflare Workers environment bindings
+ * @returns The decoded and verified claims
+ * @throws If the token is invalid, expired, or verification fails
+ */
+export async function verifyJwt(token: string, env: Env): Promise<JwtClaims> {
   try {
-    // Convert the JWT secret to Uint8Array for jose
-    const secret = new TextEncoder().encode(env.SUPABASE_JWT_SECRET);
-
-    // Verify the JWT and extract claims
-    // jose will automatically check:
-    // - Signature validity
-    // - Expiration (exp claim)
-    // - Not before (nbf claim)
-    const { payload } = await jose.jwtVerify(token, secret, {
-      // Optionally verify the issuer matches your Supabase project
-      // issuer: env.SUPABASE_URL + '/auth/v1',
-      // Optionally verify the audience
-      // audience: 'authenticated',
+    const { payload } = await jose.jwtVerify(token, secretKey(env), {
+      issuer: ISSUER,
+      audience: AUDIENCE,
     });
-
-    return payload as SupabaseJWTClaims;
+    return payload as unknown as JwtClaims;
   } catch (error) {
-    // jose throws JWTExpired, JWTInvalid, etc.
     if (error instanceof Error) {
       throw new Error(`JWT verification failed: ${error.message}`);
     }

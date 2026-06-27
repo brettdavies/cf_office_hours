@@ -1,6 +1,6 @@
 {
   "name": "cf-office-hours",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Capital Factory Office Hours Platform - Monorepo",
   "workspaces": [
@@ -29,17 +29,17 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/api/.wrangler"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "@typescript-eslint/parser": "^8.62.0",
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.57.0",
     "openapi-typescript": "^7.4.0",
     "prettier": "^3.2.4",
     "typescript": "^5.7.2",
-    "wrangler": "^4.105.0"
+    "wrangler": "4.102.0"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "npm": ">=10.0.0"
   }
 }

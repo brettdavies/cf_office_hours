@@ -1,0 +1,2 @@
+# Allow free-form issues; this repo has no upstream/community to route to.
+blank_issues_enabled: true

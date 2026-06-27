@@ -39,15 +39,9 @@
  * @see TagBasedMatchingEngineV1 for a concrete implementation example
  */
 
-// External dependencies
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 // Internal modules
-import type {
-  BulkRecalculationOptions,
-  IMatchingEngine,
-  MatchExplanation,
-} from "./interface";
+import { newId, stringifyJson } from '../../lib/d1-utils';
+import type { BulkRecalculationOptions, IMatchingEngine, MatchExplanation } from './interface';
 
 /**
  * Cache entry for bulk insert operations
@@ -67,7 +61,7 @@ export interface CacheEntry {
 export interface BaseUserData {
   id: string;
   email: string;
-  role: "mentor" | "mentee" | "coordinator";
+  role: 'mentor' | 'mentee' | 'coordinator';
   is_active: boolean; // Computed as deleted_at === null
   last_activity_at: Date | null;
   deleted_at: Date | null;
@@ -78,8 +72,9 @@ export interface BaseUserData {
  *
  * Provides common infrastructure and enforces implementation of core matching logic.
  */
-export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
-  implements IMatchingEngine {
+export abstract class BaseMatchingEngine<
+  TUserData extends BaseUserData,
+> implements IMatchingEngine {
   // ============================================================================
   // CONFIGURATION (Override in subclass if needed)
   // ============================================================================
@@ -120,7 +115,7 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
   // CONSTRUCTOR
   // ============================================================================
 
-  constructor(protected readonly db: SupabaseClient) {}
+  constructor(protected readonly db: D1Database) {}
 
   // ============================================================================
   // PUBLIC INTERFACE (IMatchingEngine implementation)
@@ -141,13 +136,13 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    */
   async recalculateMatches(
     userId: string,
-    options?: { chunkSize?: number; chunkDelay?: number },
+    options?: { chunkSize?: number; chunkDelay?: number }
   ): Promise<void> {
     const chunkSize = options?.chunkSize ?? this.DEFAULT_CHUNK_SIZE;
     const chunkDelay = options?.chunkDelay ?? this.DEFAULT_CHUNK_DELAY_MS;
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] recalculateMatches", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] recalculateMatches', {
         userId,
         algorithmVersion: this.ALGORITHM_VERSION,
       });
@@ -156,20 +151,17 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
     // Fetch user with required data
     const user = await this.fetchUserWithTags(userId);
     if (!user) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[MATCHING] User not found or inactive", { userId });
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[MATCHING] User not found or inactive', { userId });
       }
       return;
     }
 
     // Fetch potential matches
-    const potentialMatches = await this.fetchPotentialMatches(
-      userId,
-      user.role,
-    );
+    const potentialMatches = await this.fetchPotentialMatches(userId, user.role);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] Fetched potential matches", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Fetched potential matches', {
         userId,
         potentialMatchCount: potentialMatches.length,
       });
@@ -180,8 +172,8 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[MATCHING] Processing chunk", {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MATCHING] Processing chunk', {
           userId,
           chunkNum: i + 1,
           totalChunks: chunks.length,
@@ -191,7 +183,7 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
       }
 
       // Calculate scores for this chunk
-      const cacheEntries: CacheEntry[] = chunk.map((matchUser) => {
+      const cacheEntries: CacheEntry[] = chunk.map(matchUser => {
         const score = this.calculateScore(user, matchUser);
         const explanation = this.generateExplanation(user, matchUser, score);
 
@@ -220,47 +212,43 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    *
    * @param options - Batch size and delay configuration
    */
-  async recalculateAllMatches(
-    options?: BulkRecalculationOptions,
-  ): Promise<void> {
+  async recalculateAllMatches(options?: BulkRecalculationOptions): Promise<void> {
     const limit = options?.limit;
     const batchSize = options?.batchSize ?? this.DEFAULT_BATCH_SIZE;
-    const delayBetweenBatches = options?.delayBetweenBatches ??
-      this.DEFAULT_BATCH_DELAY_MS;
+    const delayBetweenBatches = options?.delayBetweenBatches ?? this.DEFAULT_BATCH_DELAY_MS;
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] recalculateAllMatches", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] recalculateAllMatches', {
         algorithmVersion: this.ALGORITHM_VERSION,
         options: { limit, batchSize, delayBetweenBatches },
       });
     }
 
     // Fetch all active users
-    let query = this.db
-      .from("users")
-      .select("id")
-      .is("deleted_at", null)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: true });
-
-    if (limit) {
-      query = query.limit(limit);
+    const baseSql = 'SELECT id FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC';
+    let users: Array<{ id: string }> | null;
+    try {
+      const stmt = limit
+        ? this.db.prepare(`${baseSql} LIMIT ?`).bind(limit)
+        : this.db.prepare(baseSql);
+      const res = await stmt.all<{ id: string }>();
+      users = res.results;
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[MATCHING] Failed to fetch users', { error });
+      }
+      return;
     }
 
-    const { data: users, error } = await query;
-
-    if (error || !users) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[MATCHING] Failed to fetch users", { error });
-      }
+    if (!users) {
       return;
     }
 
     // Process users in batches
     const batches = this.chunkArray(users, batchSize);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] Starting batch processing", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Starting batch processing', {
         totalUsers: users.length,
         batchSize,
         totalBatches: batches.length,
@@ -271,8 +259,8 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[MATCHING] Processing batch", {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MATCHING] Processing batch', {
           currentBatch: i + 1,
           totalBatches: batches.length,
           batchSize: batch.length,
@@ -282,15 +270,13 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
       }
 
       // Process batch in parallel - use allSettled to isolate failures
-      const results = await Promise.allSettled(
-        batch.map((user) => this.recalculateMatches(user.id)),
-      );
+      const results = await Promise.allSettled(batch.map(user => this.recalculateMatches(user.id)));
 
       // Log any failures in development
-      if (process.env.NODE_ENV === "development") {
-        const failures = results.filter((r) => r.status === "rejected");
+      if (process.env.NODE_ENV === 'development') {
+        const failures = results.filter(r => r.status === 'rejected');
         if (failures.length > 0) {
-          console.error("[MATCHING] Batch processing failures", {
+          console.error('[MATCHING] Batch processing failures', {
             failureCount: failures.length,
             batchNum: i + 1,
           });
@@ -315,10 +301,7 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    * @param user2 - Second user (potential match)
    * @returns Match score (typically 0-100, but can vary by algorithm)
    */
-  protected abstract calculateScore(
-    user1: TUserData,
-    user2: TUserData,
-  ): number;
+  protected abstract calculateScore(user1: TUserData, user2: TUserData): number;
 
   /**
    * Generate explanation for a match
@@ -331,7 +314,7 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
   protected abstract generateExplanation(
     user1: TUserData,
     user2: TUserData,
-    score: number,
+    score: number
   ): MatchExplanation;
 
   /**
@@ -340,9 +323,7 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    * @param userId - User ID to fetch
    * @returns User data or null if not found/inactive
    */
-  protected abstract fetchUserWithTags(
-    userId: string,
-  ): Promise<TUserData | null>;
+  protected abstract fetchUserWithTags(userId: string): Promise<TUserData | null>;
 
   // ============================================================================
   // COMMON INFRASTRUCTURE (used by subclasses)
@@ -360,20 +341,20 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    */
   protected async fetchPotentialMatches(
     userId: string,
-    userRole: "mentor" | "mentee" | "coordinator",
+    userRole: 'mentor' | 'mentee' | 'coordinator'
   ): Promise<TUserData[]> {
     // Determine target role (mentors match with mentees and vice versa)
-    const targetRole = userRole === "mentor" ? "mentee" : "mentor";
+    const targetRole = userRole === 'mentor' ? 'mentee' : 'mentor';
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] Determined target role", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Determined target role', {
         userId,
         userRole,
         targetRole,
       });
     }
 
-    if (userRole === "coordinator") {
+    if (userRole === 'coordinator') {
       // Coordinators don't get matched
       return [];
     }
@@ -382,25 +363,24 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
     const dormancyCutoff = new Date();
     dormancyCutoff.setDate(dormancyCutoff.getDate() - this.DORMANCY_DAYS);
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] Fetching potential matches", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Fetching potential matches', {
         userId,
         targetRole,
       });
     }
 
     // Fetch users of target role (excluding self)
-    const { data: users, error } = await this.db
-      .from("users")
-      .select("id")
-      .eq("role", targetRole)
-      .neq("id", userId)
-      .is("deleted_at", null)
-      .is("deleted_at", null);
-
-    if (error || !users) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[MATCHING] Failed to fetch potential matches", {
+    let users: Array<{ id: string }> | null;
+    try {
+      const res = await this.db
+        .prepare('SELECT id FROM users WHERE role = ? AND id != ? AND deleted_at IS NULL')
+        .bind(targetRole, userId)
+        .all<{ id: string }>();
+      users = res.results;
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[MATCHING] Failed to fetch potential matches', {
           userId,
           error,
         });
@@ -408,15 +388,19 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
       return [];
     }
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] Fetched potential match IDs", {
+    if (!users) {
+      return [];
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Fetched potential match IDs', {
         userId,
         count: users.length,
       });
     }
 
     // Bulk fetch all users with their data
-    const userIds = users.map((u) => u.id);
+    const userIds = users.map(u => u.id);
     return this.fetchMultipleUsersWithTags(userIds);
   }
 
@@ -429,9 +413,7 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    * @param userIds - Array of user IDs to fetch
    * @returns Array of users with tags
    */
-  protected async fetchMultipleUsersWithTags(
-    userIds: string[],
-  ): Promise<TUserData[]> {
+  protected async fetchMultipleUsersWithTags(userIds: string[]): Promise<TUserData[]> {
     // Default implementation: fetch one by one (subclasses should override for efficiency)
     const users: TUserData[] = [];
     for (const userId of userIds) {
@@ -451,47 +433,52 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    * @param userId - User ID whose matches are being written
    * @param cacheEntries - Array of cache entries to write
    */
-  protected async writeToCacheAtomic(
-    userId: string,
-    cacheEntries: CacheEntry[],
-  ): Promise<void> {
-    // Delete existing cache entries for this user
-    const { error: deleteError } = await this.db
-      .from("user_match_cache")
-      .delete()
-      .eq("user_id", userId)
-      .eq("algorithm_version", this.ALGORITHM_VERSION);
+  protected async writeToCacheAtomic(userId: string, cacheEntries: CacheEntry[]): Promise<void> {
+    // Delete existing entries for this user, then insert the new set in one transaction.
+    const statements: D1PreparedStatement[] = [
+      this.db
+        .prepare('DELETE FROM user_match_cache WHERE user_id = ? AND algorithm_version = ?')
+        .bind(userId, this.ALGORITHM_VERSION),
+    ];
 
-    if (deleteError) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[MATCHING] Failed to delete old cache entries", {
+    const insert = this.db.prepare(
+      `INSERT INTO user_match_cache
+         (id, user_id, recommended_user_id, match_score, match_explanation, algorithm_version, calculated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const entry of cacheEntries) {
+      const calculatedAt =
+        entry.calculated_at instanceof Date
+          ? entry.calculated_at.toISOString()
+          : entry.calculated_at;
+      statements.push(
+        insert.bind(
+          newId(),
+          entry.user_id,
+          entry.recommended_user_id,
+          entry.match_score,
+          stringifyJson(entry.match_explanation),
+          entry.algorithm_version,
+          calculatedAt
+        )
+      );
+    }
+
+    try {
+      await this.db.batch(statements);
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[MATCHING] Failed to write cache entries', {
           userId,
-          error: deleteError,
+          count: cacheEntries.length,
+          error,
         });
       }
-      throw deleteError;
+      throw error;
     }
 
-    // Insert new cache entries (if any)
-    if (cacheEntries.length > 0) {
-      const { error: insertError } = await this.db
-        .from("user_match_cache")
-        .insert(cacheEntries);
-
-      if (insertError) {
-        if (process.env.NODE_ENV === "development") {
-          console.error("[MATCHING] Failed to insert new cache entries", {
-            userId,
-            count: cacheEntries.length,
-            error: insertError,
-          });
-        }
-        throw insertError;
-      }
-    }
-
-    if (process.env.NODE_ENV === "development") {
-      console.log("[MATCHING] Wrote cache entries", {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MATCHING] Wrote cache entries', {
         userId,
         count: cacheEntries.length,
       });
@@ -523,6 +510,6 @@ export abstract class BaseMatchingEngine<TUserData extends BaseUserData>
    * @param ms - Milliseconds to delay
    */
   protected delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

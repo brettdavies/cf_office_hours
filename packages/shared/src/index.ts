@@ -10,15 +10,17 @@
 // export * from './types/api.generated';
 
 // Export schemas (single source of truth for types via z.infer)
-export * from "./schemas/user";
-export * from "./schemas/availability";
-export * from "./schemas/booking";
-export * from "./schemas/matching";
-export * from "./schemas/common";
+export * from './schemas/user';
+export * from './schemas/availability';
+export * from './schemas/booking';
+export * from './schemas/matching';
+export * from './schemas/common';
 
 // Export constants
-export * from "./constants/errors";
-export * from "./constants/tiers";
+export * from './constants/errors';
+// ReputationTier comes from ./schemas/user; re-export only the tier values/helpers here
+// to avoid an ambiguous duplicate export.
+export { TIER_VALUES, TIER_LABELS, ALL_TIERS, getTierDifference } from './constants/tiers';
 
 // Export utilities when they are created
 // export * from './utils';
