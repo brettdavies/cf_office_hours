@@ -214,3 +214,7 @@ choices are documented before implementation. The documentation serves as:
 - **Onboarding guide** for new contributors
 - **Quality assurance** framework ensuring consistent implementation
 - **Living architecture** that evolves with the codebase
+
+## License
+
+Dual-licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT), at your option.
