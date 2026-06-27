@@ -19,7 +19,7 @@
     "@cf-office-hours/shared": "*",
     "@hono/swagger-ui": "^0.5.2",
     "@hono/zod-openapi": "^0.9.5",
-    "date-fns": "^3.2.0",
+    "date-fns": "^4.4.0",
     "hono": "^4.0.2",
     "jose": "^6.1.0",
     "zod": "^3.23.8"
