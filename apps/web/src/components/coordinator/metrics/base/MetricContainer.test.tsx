@@ -23,7 +23,7 @@ vi.mock('@/hooks/useFavoriteMetrics', () => ({
 
 // Mock InfoTooltip component
 vi.mock('../InfoTooltip', () => ({
-  InfoTooltip: ({ metricInfo }: { metricInfo?: any }) =>
+  InfoTooltip: ({ metricInfo }: { metricInfo?: unknown }) =>
     metricInfo ? <div data-testid="info-tooltip">Info</div> : null,
 }));
 
