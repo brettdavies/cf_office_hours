@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@cf-office-hours/shared": "*",
-    "@hono/swagger-ui": "^0.5.2",
+    "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^0.9.5",
     "date-fns": "^4.4.0",
     "hono": "^4.0.2",
