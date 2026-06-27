@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Internal modules
-import app from '../../../index';
+import { app } from '../../../index';
 import { BookingService } from '../../../services/booking.service';
 import { createMockBooking } from '../../../test/fixtures/bookings';
 import { AppError } from '../../../lib/errors';

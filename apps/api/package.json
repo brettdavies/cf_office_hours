@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "build": "esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js",
+    "build": "esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js --loader:.sql=text",
     "deploy": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env staging",
     "deploy:production": "wrangler deploy --env production",

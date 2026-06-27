@@ -161,6 +161,9 @@ npx wrangler d1 migrations apply cf-office-hours --local
 npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
 ```
 
+The seed is self-correcting: a footer in the generated file shapes the bookings to a realistic per-mentee count and
+anchors every date to load time, so no follow-up steps are needed. See `apps/api/seeds/README.md` for details.
+
 ## Key Features
 
 ### AI-Powered Matching

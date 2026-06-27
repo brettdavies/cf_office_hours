@@ -2,17 +2,20 @@
 
 ## Document Purpose
 
-This document serves as the **planning and decision record** for the event-driven cached matching system implemented across Stories 0.22-0.25.
+This document serves as the **planning and decision record** for the event-driven cached matching system implemented
+across Stories 0.22-0.25.
 
-**Status:** ✅ Architecture Complete - Content migrated to SoT documents
-**Last Updated:** 2025-10-07
-**Implementation Stories:** 0.22, 0.23, 0.24, 0.25
+**Status:** ✅ Architecture Complete - Content migrated to SoT documents **Last Updated:** 2025-10-07 **Implementation
+Stories:** 0.22, 0.23, 0.24, 0.25
 
 **⚠️ Note:** Most content from this planning document has been migrated to the authoritative sources:
+
 - **Requirements:** [2-requirements.md](../prd/2-requirements.md) (FR13, FR13a, FR13b, FR14, FR17)
-- **Interface Specs:** [4-technical-constraints-and-integration.md](../prd/4-technical-constraints-and-integration.md) (IMatchingEngine Interface)
+- **Interface Specs:** [4-technical-constraints-and-integration.md](../prd/4-technical-constraints-and-integration.md)
+  (IMatchingEngine Interface)
 - **Data Models:** [4-data-models.md](4-data-models.md) (Section 4.8: Matching & Recommendation Models)
-- **Backend Architecture:** [8-backend-architecture.md](8-backend-architecture.md) (Section 8.8: IMatchingEngine Interface)
+- **Backend Architecture:** [8-backend-architecture.md](8-backend-architecture.md) (Section 8.6: Matching Providers and
+  Events)
 - **API Specification:** [5-api-specification.md](5-api-specification.md) (Section 8: Matching & Recommendations)
 - **Testing Strategy:** [13-testing-strategy.md](13-testing-strategy.md) (Epic 6: Matching & Discovery)
 - **Story Details:** [5-epic-and-story-structure.md](../prd/5-epic-and-story-structure.md) (Stories 0.22-0.25)
@@ -23,11 +26,13 @@ This document serves as the **planning and decision record** for the event-drive
 
 ### The Problem
 
-Original design had coordinators waiting 2-5 seconds for match calculations every time they loaded the UI. This creates poor UX and doesn't scale.
+Original design had coordinators waiting 2-5 seconds for match calculations every time they loaded the UI. This creates
+poor UX and doesn't scale.
 
 ### The Solution
 
 **Event-driven pre-calculation with cached retrieval:**
+
 1. Matching algorithms calculate scores in the background when data changes
 2. Results stored in `user_match_cache` table
 3. UI retrieval is instant (simple database SELECT)
@@ -38,6 +43,7 @@ Original design had coordinators waiting 2-5 seconds for match calculations ever
 **ONE interface (`IMatchingEngine`) for calculation, NO interface for retrieval**
 
 **Rationale:**
+
 - Calculation is polymorphic (TagBased vs ML vs Realtime algorithms)
 - Retrieval is NOT polymorphic (always same SQL query regardless of algorithm)
 - Algorithm version is data (column filter), not behavior
@@ -49,12 +55,14 @@ Original design had coordinators waiting 2-5 seconds for match calculations ever
 ### 1. Two Fundamentally Different Operations
 
 **Operation A: CALCULATE match scores** (polymorphic)
+
 - Input: User A, User B, algorithm logic
 - Output: Score (0-100), explanation
 - Expensive, logic varies by algorithm
 - **Needs interface** ✅
 
 **Operation B: RETRIEVE pre-calculated scores** (NOT polymorphic)
+
 - Input: User ID, optional filters
 - Output: Cached MatchResults
 - Always cheap (database SELECT)
@@ -64,6 +72,7 @@ Original design had coordinators waiting 2-5 seconds for match calculations ever
 ### 2. When Operations Happen
 
 **Calculation (Background, Asynchronous):**
+
 - User profile updated → Recalculate matches for that user
 - User tags changed → Recalculate matches for that user
 - Portfolio company tags changed → Recalculate matches for linked mentees
@@ -72,6 +81,7 @@ Original design had coordinators waiting 2-5 seconds for match calculations ever
 - Admin-triggered recalculation
 
 **Retrieval (On-Demand, Synchronous):**
+
 - Coordinator loads matching UI → API call → Query cache table
 - Always fast (< 100ms)
 
@@ -87,7 +97,8 @@ ORDER BY match_score DESC;
 -- NOT a polymorphic interface method
 ```
 
-This is the same query whether the algorithm is TagBased, ML, or Realtime. The algorithm that calculated the data is stored as metadata.
+This is the same query whether the algorithm is TagBased, ML, or Realtime. The algorithm that calculated the data is
+stored as metadata.
 
 ---
 
@@ -104,21 +115,26 @@ This is the same query whether the algorithm is TagBased, ML, or Realtime. The a
 ### SOLID Principles
 
 **Single Responsibility:**
+
 - `IMatchingEngine` → Calculation logic
 - `MatchingService` → Retrieval logic
 - Event handlers → Trigger recalculation
 
 **Open/Closed:**
+
 - Open for extension: Add new `IMatchingEngine` implementations
 - Closed for modification: MatchingService doesn't change when algorithms change
 
 **Liskov Substitution:**
+
 - Can swap `TagBasedV1` for `MLV2` without breaking system
 
 **Interface Segregation:**
+
 - No unnecessary abstraction (retrieval doesn't need interface)
 
 **Dependency Inversion:**
+
 - High-level modules depend on `IMatchingEngine` abstraction
 
 ---
@@ -127,9 +143,11 @@ This is the same query whether the algorithm is TagBased, ML, or Realtime. The a
 
 ### Adding MLMatchingEngineV2 (Long-Running ML Algorithms)
 
-**⚠️ Important:** Future ML algorithms that call external APIs (>30s response time) should use **Cloudflare Workflows** instead of standard Workers.
+**⚠️ Important:** Future ML algorithms that call external APIs (>30s response time) should use **Cloudflare Workflows**
+instead of standard Workers.
 
 **Why Workflows for ML:**
+
 - ✅ **Wall clock time unlimited** (external API waits don't count as CPU time)
 - ✅ **Step-based execution** (each step can run up to 5 minutes CPU)
 - ✅ **Automatic retries** (built-in error handling)
@@ -267,11 +285,13 @@ const mlMatches = await matchingService.getRecommendedMentors(userId, {
 
 ## Performance & Testing
 
-**Performance targets, optimizations, and scalability roadmap** have been moved to the authoritative testing strategy document:
+**Performance targets, optimizations, and scalability roadmap** have been moved to the authoritative testing strategy
+document:
 
 👉 **See:** [13-testing-strategy.md](13-testing-strategy.md) - Epic 6: Performance Targets (Stories 0.23-0.24)
 
 Key targets:
+
 - Cache Write (single user): < 500ms
 - Cache Write (100 users): < 1 minute
 - Cache Read (coordinator UI): < 100ms
@@ -284,9 +304,10 @@ Key targets:
 
 **✅ CORRECT Understanding:**
 
-The matching engine runs entirely on **Cloudflare Workers** and implements a **bulk worker pattern** optimized for edge computing:
+The matching engine runs entirely on **Cloudflare Workers** and implements a **bulk worker pattern** optimized for edge
+computing:
 
-```
+```text
 Cloudflare Worker (tag-based.engine.ts)
   ├─ Bulk Fetch (3-4 HTTP requests via Supabase-js)
   ├─ Parallel Calculate (in-memory, Promise.all)
@@ -304,16 +325,19 @@ Cloudflare Worker (tag-based.engine.ts)
 ### Why This is Optimal for Cloudflare Workers
 
 **✅ Bulk Fetching:**
+
 - `fetchMultipleUsersWithTags()` reduces 501 queries → 3-4 HTTP requests
 - Supabase-js over HTTP has no connection pooling concerns
 - Unlimited concurrent queries (HTTP-based, not persistent connections)
 
 **✅ Parallel Processing:**
+
 - `Promise.all()` for batch calculations (50 users at a time)
 - CPU time only counts active processing, not I/O wait
 - In-memory scoring is fast (<1ms per calculation)
 
 **✅ Bulk Writing:**
+
 - `writeToCacheAtomic()` writes all scores in single INSERT
 - Minimizes database round-trips
 - HTTP-based, no transaction overhead
@@ -322,11 +346,12 @@ Cloudflare Worker (tag-based.engine.ts)
 
 **❌ INCORRECT Pattern (Multi-Tier):**
 
-```
+```text
 API Worker → Queue → Calculation Worker → Database
 ```
 
 This adds unnecessary complexity:
+
 - Extra network hops (latency)
 - Queue infrastructure (cost)
 - Serialization overhead
@@ -335,6 +360,7 @@ This adds unnecessary complexity:
 **❌ External Service for Calculations:**
 
 Sending simple math operations to another service is anti-pattern on Workers:
+
 - Tag overlap calculation: Simple set intersection
 - Stage matching: Lookup in ordered array
 - Reputation matching: Numeric comparison
@@ -343,16 +369,19 @@ Sending simple math operations to another service is anti-pattern on Workers:
 ### Cloudflare Workers Limits (2025)
 
 **Connection Limits:**
+
 - 6 concurrent TCP connections per invocation
 - **Does NOT apply to Supabase-js** (uses HTTP fetch, not TCP)
 - No practical limit for database queries
 
 **CPU Time:**
+
 - 50ms per request (Free/Pro)
 - Database I/O doesn't count toward CPU time
 - Parallel Promise.all for sync code is unlimited
 
 **Memory:**
+
 - 128MB per invocation
 - Chunked processing prevents exhaustion
 - Default chunk size: 100 matches
@@ -360,24 +389,29 @@ Sending simple math operations to another service is anti-pattern on Workers:
 ### Performance Improvements (v1.1)
 
 **Database Queries:**
+
 - Before: 501 queries (N+1 problem)
 - After: 3-4 queries (99% reduction)
 
 **Processing Speed:**
+
 - Before: Sequential processing
 - After: Parallel chunks (10-50x faster)
 
 **Memory Usage:**
+
 - Before: Load all matches at once
 - After: Chunked (100 matches per chunk)
 
 **Reliability:**
+
 - Before: All-or-nothing (one failure blocks all)
 - After: Individual error isolation (partial success)
 
 ### Reference Implementation
 
 See `apps/api/src/providers/matching/tag-based.engine.ts`:
+
 - `fetchMultipleUsersWithTags()` - Bulk fetch with 3-4 queries
 - `recalculateMatches()` - Chunked parallel processing
 - `recalculateAllMatches()` - Batch processing with error isolation
@@ -390,22 +424,26 @@ See `apps/api/src/providers/matching/tag-based.engine.ts`:
 ## References to SoT Documents
 
 **PRD Documents:**
+
 - [2-requirements.md](../prd/2-requirements.md) - FR13, FR13a, FR13b (event-driven cache requirements)
-- [4-technical-constraints-and-integration.md](../prd/4-technical-constraints-and-integration.md) - IMatchingEngine interface definition
+- [4-technical-constraints-and-integration.md](../prd/4-technical-constraints-and-integration.md) - IMatchingEngine
+  interface definition
 - [5-epic-and-story-structure.md](../prd/5-epic-and-story-structure.md) - Stories 0.22-0.25 acceptance criteria
 
 **Architecture Documents:**
+
 - [4-data-models.md](4-data-models.md) - Section 4.8: user_match_cache table schema
 - [5-api-specification.md](5-api-specification.md) - Section 8: POST /matching/find-matches, POST /matching/explain
-- [8-backend-architecture.md](8-backend-architecture.md) - Section 8.8: IMatchingEngine interface & TagBasedMatchingEngineV1 implementation
+- [8-backend-architecture.md](8-backend-architecture.md) - Section 8.6: Matching Providers and Events (IMatchingEngine
+  interface & TagBasedMatchingEngineV1)
 - [13-testing-strategy.md](13-testing-strategy.md) - Epic 6: Matching test strategy with examples
 
 ---
 
 ## Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-10-07 | 1.0 | Initial architecture plan created after first principles analysis | Scrum Master (Bob) |
-| 2025-10-07 | 2.0 | Migrated content to SoT documents, streamlined to core decisions only | Winston (Architect) |
-| 2025-10-07 | 2.1 | Added Cloudflare Workers bulk processing architecture section (Story 0.23 v1.1) | James (Developer) |
+| Date       | Version | Description                                                                     | Author              |
+| ---------- | ------- | ------------------------------------------------------------------------------- | ------------------- |
+| 2025-10-07 | 1.0     | Initial architecture plan created after first principles analysis               | Scrum Master (Bob)  |
+| 2025-10-07 | 2.0     | Migrated content to SoT documents, streamlined to core decisions only           | Winston (Architect) |
+| 2025-10-07 | 2.1     | Added Cloudflare Workers bulk processing architecture section (Story 0.23 v1.1) | James (Developer)   |

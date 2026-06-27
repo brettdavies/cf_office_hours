@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Internal modules
-import app from '../../../index';
+import { app } from '../../../index';
 import { AvailabilityService } from '../../../services/availability.service';
 import {
   createMockAvailabilityBlock,
