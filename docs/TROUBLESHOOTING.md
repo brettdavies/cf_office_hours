@@ -273,6 +273,5 @@ If these solutions don't resolve your issue:
 
 ## Related Documentation
 
-- [Deployment Guide](deployment/DEPLOYMENT_INSTRUCTIONS.md) - Deploying the API and web Workers
-- Setup and commands: the project [README](../README.md) and the per-app READMEs (`apps/api`, `apps/web`)
-- Detailed engineering docs (architecture, migrations, stories) live under `docs/` on the `dev` branch
+- [Development Workflow](architecture/10-development-workflow.md) - Complete setup guide
+- [Database Migrations](architecture/10-development-workflow.md#1016-database-migrations) - Migration best practices

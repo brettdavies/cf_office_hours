@@ -42,6 +42,10 @@
           "database_id": "7ff2c9c4-a98b-4361-a375-a8bcabfaea0e",
         },
       ],
+      // Weekly re-anchor of the demo seed's dates (scheduled handler in src/index.ts).
+      "triggers": {
+        "crons": ["0 9 * * 1"],
+      },
     },
     "production": {
       "name": "cf-office-hours-api",
@@ -55,7 +59,7 @@
         {
           "binding": "DB",
           "database_name": "cf-office-hours",
-          "database_id": "local-dev-placeholder",
+          "database_id": "1fe61687-b4c9-494f-bb6f-cc53d91ce51f",
         },
       ],
       "routes": [
@@ -64,6 +68,10 @@
           "zone_name": "youcanjustdothings.io",
         },
       ],
+      // Weekly re-anchor of the demo seed's dates (scheduled handler in src/index.ts).
+      "triggers": {
+        "crons": ["0 9 * * 1"],
+      },
     },
   },
 }
