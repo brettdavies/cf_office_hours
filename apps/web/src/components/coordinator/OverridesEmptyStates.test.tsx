@@ -23,7 +23,7 @@ describe('OverridesEmptyStates', () => {
     it('should show checkmark icon', () => {
       const { container } = render(<OverridesEmptyStates variant="no-data" />);
 
-      const icon = container.querySelector('.lucide-check-circle');
+      const icon = container.querySelector('.lucide-circle-check-big');
       expect(icon).toBeInTheDocument();
     });
 
@@ -45,7 +45,7 @@ describe('OverridesEmptyStates', () => {
     it('should show filter icon', () => {
       const { container } = render(<OverridesEmptyStates variant="filtered" />);
 
-      const icon = container.querySelector('.lucide-filter');
+      const icon = container.querySelector('.lucide-funnel');
       expect(icon).toBeInTheDocument();
     });
 
@@ -87,7 +87,7 @@ describe('OverridesEmptyStates', () => {
     it('should show checkmark icon', () => {
       const { container } = render(<OverridesEmptyStates variant="all-processed" />);
 
-      const icon = container.querySelector('.lucide-check-circle');
+      const icon = container.querySelector('.lucide-circle-check-big');
       expect(icon).toBeInTheDocument();
     });
 
