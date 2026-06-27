@@ -20,6 +20,10 @@ cd apps/api
 npx wrangler d1 migrations apply cf-office-hours --local
 npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
 
+# Re-anchor the seed's dates onto today (the seed is generated relative to a
+# fixed past "now"; this slides the whole distribution onto the current date).
+npx wrangler d1 execute cf-office-hours --local --file=../../scripts/reanchor-seed-dates.sql
+
 # Start the local development server
 npm run dev
 ```
