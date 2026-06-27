@@ -9,9 +9,14 @@ affinity to coerce the quoted values.
 
 Usage:
   convert_backup_to_d1.py <backup.sql> <out.sql> [--email-map old=new ...]
+
+The generated seed ends with a self-correcting footer (a demand-driven booking
+shape, then bump-seed-dates.sql) so a freshly loaded database needs no manual
+post-seed fixes.
 """
 
 import argparse
+import os
 import re
 import sys
 
@@ -42,6 +47,50 @@ PG_TIMESTAMP = re.compile(
 )
 
 _UNESCAPE = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\"}
+
+# Appended to every generated seed so a freshly loaded database is correct with no
+# manual post-seed step: a demand-driven booking shape, then the date bump read
+# from bump-seed-dates.sql (the same file the weekly scheduled job runs).
+BOOKING_SHAPE_SQL = """\
+-- Seed shape: demand-driven booking rate + status mix. The raw backup books ~50%
+-- of all slots and assigns a random mentee, which over-subscribes the small
+-- mentee pool; keep a random 3-8 bookings per mentee, free the rest of the slots,
+-- and set a ~20% confirmed / ~80% pending mix.
+DROP TABLE IF EXISTS _keep_count;
+CREATE TABLE _keep_count AS
+  SELECT mentee_id, 3 + abs(random() % 6) AS k FROM bookings GROUP BY mentee_id;
+DELETE FROM bookings WHERE id IN (
+  SELECT id FROM (
+    SELECT b.id AS id,
+           ROW_NUMBER() OVER (PARTITION BY b.mentee_id ORDER BY b.id) AS rn,
+           kc.k AS k
+    FROM bookings b
+    JOIN _keep_count kc ON kc.mentee_id = b.mentee_id
+  )
+  WHERE rn > k
+);
+UPDATE time_slots
+  SET is_booked = 0, booking_id = NULL
+  WHERE booking_id IS NOT NULL
+    AND booking_id NOT IN (SELECT id FROM bookings);
+UPDATE bookings SET status = CASE WHEN abs(random() % 100) < 20 THEN 'confirmed' ELSE 'pending' END;
+DROP TABLE _keep_count;
+"""
+
+
+def seed_corrections() -> str:
+    """Self-correcting footer for the generated seed: the demand-driven booking
+    shape, then the date bump read from bump-seed-dates.sql (the same file the
+    weekly scheduled job runs). A freshly loaded seed needs no manual fixes."""
+    bump_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bump-seed-dates.sql")
+    with open(bump_path, "r", encoding="utf-8") as fh:
+        bump_sql = fh.read()
+    return (
+        "\n-- === Self-correcting seed footer (applied on every load) ===\n"
+        + BOOKING_SHAPE_SQL
+        + "\n"
+        + bump_sql
+    )
 
 
 def unescape_copy(value: str) -> str:
@@ -156,6 +205,7 @@ def main() -> int:
                 emit_table(out, table, columns, rows, email_map, replacements)
             else:
                 print(f"warning: no data block for {table}", file=sys.stderr)
+        out.write(seed_corrections())
 
     total = sum(len(rows) for _, rows in collected.values())
     print(f"Wrote {args.out}: {len(collected)} tables, {total} rows")

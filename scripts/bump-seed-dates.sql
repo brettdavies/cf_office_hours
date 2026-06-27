@@ -1,21 +1,21 @@
--- Re-anchor all seed timestamps onto the current date.
+-- Bump all seed timestamps onto the current date.
 --
--- The seed data is generated relative to a fixed "now" (story 0.20: availability
--- and bookings are NOW + 1..21 days). Loaded as-is, that window is stuck in the
--- past. This script slides every timestamp by a single day-offset so the seed's
--- original "now" maps to today, preserving the whole distribution and every
--- relative ordering (created_at < meeting_start_time, the 3-week availability
--- spread, tier-override expiries, etc.).
+-- The seed is generated relative to a fixed "now" (story 0.20: availability and
+-- bookings are NOW + 1..21 days), so its window drifts into the past after the
+-- seed is loaded. This slides every timestamp by a single day-offset (computed
+-- once from MAX(bookings.created_at), the seed's anchor, and frozen in a one-row
+-- table) so the original "now" maps to today, preserving the whole distribution
+-- and every relative ordering. It then back-dates each booking's created_at
+-- within its 7-day liveness window and sets confirmed_at for confirmed requests.
+-- Nullable columns stay NULL (julianday(NULL) is NULL). Idempotent: after it
+-- runs MAX(created_at) is today, so a re-run shifts by ~0.
 --
--- The offset is computed once from MAX(bookings.created_at) (the seed's
--- generation moment) and frozen in a one-row table, so updating the timestamp
--- columns does not move the anchor mid-run. Nullable columns stay NULL
--- (julianday(NULL) is NULL). The script is idempotent: after it runs,
--- MAX(created_at) is today, so a re-run computes a ~0 offset and is a no-op.
---
--- Usage (run against a seeded D1):
---   cd apps/api && wrangler d1 execute <db-name> --env <env> --remote \
---     --file=../../scripts/reanchor-seed-dates.sql
+-- Used two ways, both first-party (no manual post-seed step):
+--   1. scripts/convert_backup_to_d1.py appends this file to the generated seed,
+--      so a freshly loaded database is already dated to load time.
+--   2. .github/workflows/bump-seed-dates.yml runs it weekly against staging and
+--      production to keep an already-loaded demo current:
+--        wrangler d1 execute <db> --env <env> --remote --file=scripts/bump-seed-dates.sql
 
 DROP TABLE IF EXISTS _reanchor_shift;
 CREATE TABLE _reanchor_shift AS

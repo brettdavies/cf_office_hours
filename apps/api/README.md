@@ -15,18 +15,12 @@ Hono-based REST API for the Office Hours platform, running on Cloudflare Workers
 # Install dependencies (from project root)
 npm install
 
-# Apply migrations and seed a local D1 database
+# Apply migrations and seed a local D1 database. The seed is self-correcting: its
+# footer thins bookings to a realistic per-mentee shape, sets the status mix, and
+# anchors every date to load time, so no extra steps are needed.
 cd apps/api
 npx wrangler d1 migrations apply cf-office-hours --local
 npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
-
-# Correct the seed shape: thin bookings to a realistic per-mentee count and set
-# the status mix (the raw seed over-subscribes the small mentee pool).
-npx wrangler d1 execute cf-office-hours --local --file=../../scripts/fix-seed-booking-rate.sql
-
-# Re-anchor the seed's dates onto today (the seed is generated relative to a
-# fixed past "now"; this slides the whole distribution onto the current date).
-npx wrangler d1 execute cf-office-hours --local --file=../../scripts/reanchor-seed-dates.sql
 
 # Start the local development server
 npm run dev
