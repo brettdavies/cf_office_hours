@@ -109,6 +109,20 @@ const getAlgorithmsRoute = createRoute({
         },
       },
     },
+    500: {
+      description: 'Internal server error',
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.object({
+              code: z.string(),
+              message: z.string(),
+              timestamp: z.string(),
+            }),
+          }),
+        },
+      },
+    },
   },
 });
 
@@ -240,6 +254,20 @@ const getUsersWithScoresRoute = createRoute({
     },
     403: {
       description: 'Forbidden - Non-coordinator role',
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.object({
+              code: z.string(),
+              message: z.string(),
+              timestamp: z.string(),
+            }),
+          }),
+        },
+      },
+    },
+    500: {
+      description: 'Internal server error',
       content: {
         'application/json': {
           schema: z.object({

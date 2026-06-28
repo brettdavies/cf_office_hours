@@ -15,6 +15,21 @@ import { DatabaseSync } from 'node:sqlite';
 import { app } from '../../../index';
 import { createTestDb, insertRow } from '../../helpers/d1';
 
+// Types
+import type { MatchExplanation } from '@cf-office-hours/shared';
+
+// Response body shapes as the HTTP layer serializes them. `Response.json()` is
+// typed `unknown`, so each read asserts the documented DTO it returns.
+interface ExplainBody {
+  explanation: MatchExplanation;
+}
+interface UsersBody {
+  users: Array<{ id: string }>;
+}
+interface ErrorBody {
+  error: { code: string; message: string; timestamp: string };
+}
+
 // Holder lets the hoisted getDb mock return the per-test database.
 const dbHolder = vi.hoisted(() => ({ current: null as unknown }));
 
@@ -116,7 +131,7 @@ describe('Matching API Routes (real DB)', () => {
       });
 
       expect(res.status).toBe(200);
-      const { explanation } = await res.json();
+      const { explanation } = (await res.json()) as ExplainBody;
       expect(explanation.aiInsights).toEqual({
         reasoning: AI_EXPLANATION.reasoning,
         confidence: AI_EXPLANATION.match_confidence,
@@ -150,7 +165,7 @@ describe('Matching API Routes (real DB)', () => {
       });
 
       expect(res.status).toBe(200);
-      const { explanation } = await res.json();
+      const { explanation } = (await res.json()) as ExplainBody;
       expect(explanation.tagOverlap).toHaveLength(1);
       expect(explanation.tagOverlap[0]).toEqual({ category: 'industry', tag: 'healthcare' });
       expect(explanation.summary).toContain('healthcare');
@@ -177,7 +192,7 @@ describe('Matching API Routes (real DB)', () => {
       });
 
       expect(res.status).toBe(404);
-      const data = await res.json();
+      const data = (await res.json()) as ErrorBody;
       expect(data.error.code).toBe('MATCH_NOT_FOUND');
     });
   });
@@ -190,8 +205,8 @@ describe('Matching API Routes (real DB)', () => {
         headers: AUTH,
       });
       expect(res.status).toBe(200);
-      const data = await res.json();
-      return (data.users as Array<{ id: string }>).map(u => u.id);
+      const data = (await res.json()) as UsersBody;
+      return data.users.map(u => u.id);
     };
 
     const seedBaseDataset = (): void => {
@@ -307,7 +322,7 @@ describe('Matching API Routes (real DB)', () => {
       });
 
       expect(res.status).toBe(200);
-      expect((await res.json()).users).toEqual([]);
+      expect(((await res.json()) as UsersBody).users).toEqual([]);
       const after = (raw.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
       expect(after).toBe(before);
     });
@@ -317,7 +332,7 @@ describe('Matching API Routes (real DB)', () => {
         headers: AUTH,
       });
       expect(res.status).toBe(400);
-      const data = await res.json();
+      const data = (await res.json()) as ErrorBody;
       expect(data.error).toBeDefined();
     });
 
@@ -334,7 +349,7 @@ describe('Matching API Routes (real DB)', () => {
         headers: AUTH,
       });
       expect(res.status).toBe(200);
-      expect((await res.json()).users).toEqual([]);
+      expect(((await res.json()) as UsersBody).users).toEqual([]);
     });
   });
 });

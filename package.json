@@ -24,7 +24,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "type-check": "tsc --noEmit",
+    "type-check": "npm run type-check --workspaces --if-present",
     "generate:api-types": "node scripts/generate-api-types.js",
     "populate-match-cache": "tsx apps/api/src/scripts/populate-match-cache.ts",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/api/.wrangler"

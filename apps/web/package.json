@@ -12,6 +12,7 @@
     "deploy:staging": "npm run build:staging && wrangler deploy --env staging",
     "deploy:production": "npm run build:production && wrangler deploy --env production",
     "preview": "vite preview",
+    "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
