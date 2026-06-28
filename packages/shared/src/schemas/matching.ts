@@ -14,6 +14,20 @@ import { z } from "zod";
 import { UserResponseSchema } from "./user";
 
 /**
+ * Schema for AI-generated match narrative.
+ *
+ * Populated for algorithms that produce free-text reasoning (e.g. ai-based-v1)
+ * rather than structured tag overlap. All fields optional because a stored
+ * narrative may carry any subset.
+ */
+export const AiInsightsSchema = z.object({
+  reasoning: z.string().optional(),
+  confidence: z.string().optional(),
+  mentorSummary: z.string().optional(),
+  companyDescription: z.string().optional(),
+});
+
+/**
  * Schema for match explanation JSONB field.
  *
  * Stores detailed breakdown of why two users were matched:
@@ -21,6 +35,7 @@ import { UserResponseSchema } from "./user";
  * - stageMatch: Whether users are at compatible startup stages
  * - reputationCompatible: Whether reputation tiers are compatible
  * - summary: Human-readable explanation string
+ * - aiInsights: AI-generated narrative, present for AI-based algorithms
  */
 export const MatchExplanationSchema = z.object({
   tagOverlap: z.array(
@@ -32,6 +47,7 @@ export const MatchExplanationSchema = z.object({
   stageMatch: z.boolean(),
   reputationCompatible: z.boolean(),
   summary: z.string(),
+  aiInsights: AiInsightsSchema.optional(),
 });
 
 /**
@@ -157,6 +173,7 @@ export const ExplainMatchResponseSchema = z.object({
  * These provide compile-time type safety while the schemas
  * provide runtime validation.
  */
+export type AiInsights = z.infer<typeof AiInsightsSchema>;
 export type MatchExplanation = z.infer<typeof MatchExplanationSchema>;
 export type MatchResult = z.infer<typeof MatchResultSchema>;
 export type FindMatchesOptions = z.infer<typeof FindMatchesOptionsSchema>;
