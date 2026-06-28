@@ -1576,6 +1576,12 @@ export interface paths {
                                     stageMatch: boolean;
                                     reputationCompatible: boolean;
                                     summary: string;
+                                    aiInsights?: {
+                                        reasoning?: string;
+                                        confidence?: string;
+                                        mentorSummary?: string;
+                                        companyDescription?: string;
+                                    };
                                 };
                             }[];
                         };
@@ -1712,6 +1718,12 @@ export interface paths {
                                 stageMatch: boolean;
                                 reputationCompatible: boolean;
                                 summary: string;
+                                aiInsights?: {
+                                    reasoning?: string;
+                                    confidence?: string;
+                                    mentorSummary?: string;
+                                    companyDescription?: string;
+                                };
                             } | null;
                         };
                     };

@@ -5,7 +5,8 @@
  */
 
 import { screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { UserSelector } from './UserSelector';
 import { renderWithProviders } from '@/test/test-utils';
 
@@ -243,6 +244,83 @@ describe('UserSelector', () => {
 
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+  });
+
+  describe('same-name disambiguation', () => {
+    // Radix Select relies on pointer-capture / scrollIntoView, which jsdom omits.
+    beforeAll(() => {
+      Element.prototype.hasPointerCapture = vi.fn(() => false);
+      Element.prototype.setPointerCapture = vi.fn();
+      Element.prototype.releasePointerCapture = vi.fn();
+      Element.prototype.scrollIntoView = vi.fn();
+    });
+
+    const sameNameUsers = [
+      {
+        id: 'amanda-1',
+        email: 'mentor65@example.com',
+        role: 'mentor' as const,
+        profile: { name: 'Amanda Jones' },
+      },
+      {
+        id: 'amanda-2',
+        email: 'amanda.jones@mentor.example.com',
+        role: 'mentor' as const,
+        profile: { name: 'Amanda Jones' },
+      },
+    ];
+
+    it('renders both same-named users with their distinct emails', async () => {
+      const user = userEvent.setup();
+      mockUseGetUsersWithScores.mockReturnValue({
+        data: { users: sameNameUsers },
+        isLoading: false,
+        error: null,
+      });
+
+      renderWithProviders(<UserSelector value={null} onChange={mockOnChange} />);
+      await user.click(screen.getByLabelText(/Select User/i));
+
+      expect(await screen.findByText('mentor65@example.com')).toBeInTheDocument();
+      expect(screen.getByText('amanda.jones@mentor.example.com')).toBeInTheDocument();
+      // Both rows carry the shared display name.
+      expect(screen.getAllByText(/Amanda Jones/).length).toBe(2);
+    });
+
+    it('selects the correct distinct user id for an identical display name', async () => {
+      const user = userEvent.setup();
+      mockUseGetUsersWithScores.mockReturnValue({
+        data: { users: sameNameUsers },
+        isLoading: false,
+        error: null,
+      });
+
+      renderWithProviders(<UserSelector value={null} onChange={mockOnChange} />);
+      await user.click(screen.getByLabelText(/Select User/i));
+
+      const secondEmail = await screen.findByText('amanda.jones@mentor.example.com');
+      await user.click(secondEmail);
+
+      expect(mockOnChange).toHaveBeenCalledWith('amanda-2', 'mentee');
+    });
+
+    it('keeps the name-or-email search filter working', async () => {
+      const user = userEvent.setup();
+      mockUseGetUsersWithScores.mockReturnValue({
+        data: { users: sameNameUsers },
+        isLoading: false,
+        error: null,
+      });
+
+      renderWithProviders(<UserSelector value={null} onChange={mockOnChange} />);
+      await user.click(screen.getByLabelText(/Select User/i));
+
+      const search = await screen.findByPlaceholderText(/Search by name or email/i);
+      await user.type(search, 'mentor65');
+
+      expect(screen.getByText('mentor65@example.com')).toBeInTheDocument();
+      expect(screen.queryByText('amanda.jones@mentor.example.com')).not.toBeInTheDocument();
+    });
   });
 
   it('should retry fetch on error with explicit action', async () => {
