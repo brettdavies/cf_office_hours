@@ -4,10 +4,10 @@
 
 ## Overview
 
-A production-grade intelligent mentor-mentee matching and scheduling platform built for a startup accelerator program
-using TypeScript, React, and Cloudflare Workers. Replaces a legacy scheduling tool with AI-powered matching algorithms,
-event-driven cached calculations achieving sub-100ms response times, pluggable provider interfaces for calendar
-integration (Google Calendar, Microsoft Outlook), and reputation-based access control enforced in the application layer.
+A production-grade mentor-mentee matching and scheduling platform for a startup accelerator program, built with
+TypeScript, React, and Cloudflare Workers. It pairs AI-assisted matching algorithms with event-driven, cached score
+calculations for sub-100ms retrieval, a pluggable matching-algorithm interface, and reputation-based access control
+enforced in the application layer.
 
 ## Quick Reference
 
@@ -15,57 +15,56 @@ integration (Google Calendar, Microsoft Outlook), and reputation-based access co
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **Status**       | Active (in development)                                                                                                                 |
 | **Deployed URL** | [officehours.youcanjustdothings.io](https://officehours.youcanjustdothings.io) (production), API: api.officehours.youcanjustdothings.io |
-| **Build Time**   | 19 days (Oct 2 - Oct 21, 2025)                                                                                                          |
 
 ## Technical Stack
 
-| Category           | Technologies                                                                                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Languages**      | TypeScript 5.7.x                                                                                                                                                   |
-| **Frontend**       | React 18.3.x, Vite 5.x, Shadcn/ui, Tailwind CSS 3.4.x                                                                                                              |
-| **Backend**        | Cloudflare Workers (Hono 4.x), OpenAPI 3.1 with Zod validation                                                                                                     |
-| **Infrastructure** | Cloudflare Workers (API + static web assets), Cloudflare D1 (SQLite)                                                                                               |
-| **AI/ML**          | OpenAI GPT (AI-powered mentor-mentee matching), pluggable matching algorithms                                                                                      |
-| **Key Patterns**   | Plugin architecture (IMatchingEngine), Event-driven cache system, Interface-based providers (calendar, notifications), Repository pattern, app-layer authorization |
+| Category           | Technologies                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| **Languages**      | TypeScript 5.7.x                                                                                         |
+| **Frontend**       | React 18.3.x, Vite 5.x, Shadcn/ui, Tailwind CSS 3.4.x                                                    |
+| **Backend**        | Cloudflare Workers (Hono 4.x), OpenAPI 3.1 with Zod validation                                           |
+| **Infrastructure** | Cloudflare Workers (API + static web assets), Cloudflare D1 (SQLite)                                     |
+| **AI/ML**          | OpenAI (AI-based matching engine), pluggable matching algorithms                                         |
+| **Auth**           | Worker-issued session JWT (`jose`), role-based demo login                                                |
+| **Key Patterns**   | Plugin architecture (`IMatchingEngine`), event-driven cache, repository pattern, app-layer authorization |
 
 ## Key Achievements
 
-- **38,386 lines of production TypeScript** across monorepo (React frontend, Cloudflare Workers API, shared packages)
-  with 70+ test files achieving comprehensive coverage
-- **Sub-100ms match retrieval** through event-driven architecture with cached AI-powered matching calculations stored in
-  Cloudflare D1 with JSON explanations
-- **Pluggable algorithm system** via IMatchingEngine interface enabling A/B testing and gradual rollout of multiple
-  matching algorithms simultaneously
-- **Zero-downtime edge deployment** on Cloudflare's 300+ global locations with serverless Workers eliminating cold
-  starts
-- **Concurrency-safe booking** via an atomic transaction with a UNIQUE slot guard, preventing double-booking in
-  concurrent scenarios
-- **Relational schema** with JSON-backed columns, schema validation, and automated reputation tier calculations
-- **Documentation-first approach** with 70+ markdown files covering architecture, PRD, user stories, deployment
-  runbooks, and comprehensive testing strategy
-- **Multi-provider calendar integration** through ICalendarProvider interface supporting Google Calendar and Microsoft
-  Outlook OAuth flows
+- **Production TypeScript monorepo** (React frontend, Cloudflare Workers API, shared packages) with a Vitest +
+  Playwright test suite.
+- **Sub-100ms match retrieval** through an event-driven architecture with cached matching calculations stored in
+  Cloudflare D1 with JSON explanations.
+- **Pluggable algorithm system** via the `IMatchingEngine` interface, enabling A/B testing and gradual rollout of
+  multiple matching algorithms (`tag-based-v1`, `ai-based-v1`) simultaneously.
+- **Edge deployment** on Cloudflare Workers (API and static web assets).
+- **Concurrency-safe booking** via an atomic transaction with a UNIQUE slot guard, preventing double-booking.
+- **Relational D1 schema** with JSON-backed columns, audit and soft-delete columns, and reputation-tier access control.
+- **Documentation-first approach** with architecture, deployment runbooks, and a frozen historical planning archive.
 
 ## Technical Highlights
 
-- **Interface-Driven Architecture:** Implemented polymorphic provider pattern with IMatchingEngine, ICalendarProvider,
-  INotificationProvider, and IReputationCalculator interfaces enabling dependency injection, algorithm swapping without
-  business logic changes, and testability through mocked implementations
-- **Event-Driven Cached Matching:** Designed background match calculation system triggered by data change events (user
-  profile updates, tag changes, reputation tier changes) writing results to a D1 cache table, eliminating 2-5 second UI
-  wait times through pre-computation
-- **OpenAPI Contract-First Development:** Leveraged @hono/zod-openapi to generate OpenAPI 3.1 specification from Zod
-  schemas ensuring single source of truth, automated type generation for frontend via openapi-typescript, and API
-  documentation through Swagger UI
+- **Interface-Driven Matching:** the `IMatchingEngine` interface enables dependency injection and algorithm swapping
+  without changing business logic, plus testability through mocked engines.
+- **Event-Driven Cached Matching:** background match calculation triggered by data-change events (profile, tag, and
+  reputation updates) writes results to a D1 cache table, eliminating live-scoring latency through pre-computation.
+- **OpenAPI Contract-First Development:** `@hono/zod-openapi` generates the OpenAPI 3.1 spec from Zod schemas, which in
+  turn generates the frontend's API types via `openapi-typescript` — one source of truth for the contract.
 
 ## Code Metrics
 
-| Metric               | Value                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------- |
-| **Lines of Code**    | 38,386 (TypeScript/JavaScript)                                                                          |
-| **Primary Language** | TypeScript 100% (strict mode with 5.7.x)                                                                |
-| **Test Coverage**    | 70+ test files (unit, integration, E2E with Vitest 3.x + Playwright 1.50.x)                             |
-| **Key Dependencies** | Hono 4.x, React 18.3.x, jose 6.x, @tanstack/react-query 5.x, Zod 3.23.x, OpenAI 6.2.x, googleapis 131.x |
+| Metric               | Value                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| **Primary Language** | TypeScript (strict mode, 5.7.x)                                                     |
+| **Testing**          | Vitest 3.x (unit/integration) + Playwright 1.50.x (E2E)                             |
+| **Key Dependencies** | Hono 4.x, React 18.3.x, jose 6.x, @tanstack/react-query 5.x, Zod 3.23.x, OpenAI 6.x |
+
+## Roadmap (not yet implemented)
+
+The following are not in the codebase today:
+
+- OAuth and magic-link authentication (sign-in is demo login only).
+- Calendar integration (Google Calendar, Microsoft Outlook) and Google Meet link generation.
+- Additional notification channels beyond email.
 
 ---
 

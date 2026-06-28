@@ -1,449 +1,113 @@
-# Matching System Cache Architecture Plan
+# Matching Cache Architecture
 
-## Document Purpose
+The deep-dive design for the event-driven cached matching system. The implementation lives in
+`apps/api/src/providers/matching/`, `apps/api/src/services/matching.service.ts`, and
+`apps/api/src/events/matching-triggers.ts`; this document explains the shape and the reasoning. For the broader backend
+context see [8.6 Matching Providers and Events](./8-backend-architecture.md#86-matching-providers-and-events).
 
-This document serves as the **planning and decision record** for the event-driven cached matching system implemented
-across Stories 0.22-0.25.
+## The problem
 
-**Status:** ✅ Architecture Complete - Content migrated to SoT documents **Last Updated:** 2025-10-07 **Implementation
-Stories:** 0.22, 0.23, 0.24, 0.25
+Computing recommendations on demand is expensive: scoring every candidate for a user at request time adds seconds of
+latency and scales poorly. The matching UI needs results in well under 100ms.
 
-**⚠️ Note:** Most content from this planning document has been migrated to the authoritative sources:
+## The solution
 
-- **Requirements:** [2-requirements.md](../prd/2-requirements.md) (FR13, FR13a, FR13b, FR14, FR17)
-- **Interface Specs:** [4-technical-constraints-and-integration.md](../prd/4-technical-constraints-and-integration.md)
-  (IMatchingEngine Interface)
-- **Data Models:** [4-data-models.md](4-data-models.md) (Section 4.8: Matching & Recommendation Models)
-- **Backend Architecture:** [8-backend-architecture.md](8-backend-architecture.md) (Section 8.6: Matching Providers and
-  Events)
-- **API Specification:** [5-api-specification.md](5-api-specification.md) (Section 8: Matching & Recommendations)
-- **Testing Strategy:** [13-testing-strategy.md](13-testing-strategy.md) (Epic 6: Matching & Discovery)
-- **Story Details:** [5-epic-and-story-structure.md](../prd/5-epic-and-story-structure.md) (Stories 0.22-0.25)
+Precompute scores in the background and read them from a cache table:
 
----
+1. Matching engines calculate scores when a user's inputs change (profile, tags, reputation).
+2. Results are written to the `user_match_cache` table, tagged with the `algorithm_version` that produced them.
+3. The UI reads recommendations with a single indexed `SELECT` — always fast.
+4. Multiple algorithms coexist in the cache (keyed by `algorithm_version`), enabling comparison and gradual rollout.
 
-## Executive Summary
+## Two different operations
 
-### The Problem
+The core decision is that **calculation is polymorphic but retrieval is not**.
 
-Original design had coordinators waiting 2-5 seconds for match calculations every time they loaded the UI. This creates
-poor UX and doesn't scale.
+- **Calculate** (`IMatchingEngine`) — expensive, and the logic varies by algorithm. This is the one interface.
+- **Retrieve** (`MatchingService`) — always the same cache query regardless of which engine produced the rows. No
+  interface; a plain service class.
 
-### The Solution
-
-**Event-driven pre-calculation with cached retrieval:**
-
-1. Matching algorithms calculate scores in the background when data changes
-2. Results stored in `user_match_cache` table
-3. UI retrieval is instant (simple database SELECT)
-4. Multiple algorithms can run simultaneously (A/B testing, gradual rollout)
-
-### Architecture Decision
-
-**ONE interface (`IMatchingEngine`) for calculation, NO interface for retrieval**
-
-**Rationale:**
-
-- Calculation is polymorphic (TagBased vs ML vs Realtime algorithms)
-- Retrieval is NOT polymorphic (always same SQL query regardless of algorithm)
-- Algorithm version is data (column filter), not behavior
-
----
-
-## Core Principles from First Principles Analysis
-
-### 1. Two Fundamentally Different Operations
-
-**Operation A: CALCULATE match scores** (polymorphic)
-
-- Input: User A, User B, algorithm logic
-- Output: Score (0-100), explanation
-- Expensive, logic varies by algorithm
-- **Needs interface** ✅
-
-**Operation B: RETRIEVE pre-calculated scores** (NOT polymorphic)
-
-- Input: User ID, optional filters
-- Output: Cached MatchResults
-- Always cheap (database SELECT)
-- Logic identical regardless of which algorithm calculated the data
-- **No interface needed** ❌
-
-### 2. When Operations Happen
-
-**Calculation (Background, Asynchronous):**
-
-- User profile updated → Recalculate matches for that user
-- User tags changed → Recalculate matches for that user
-- Portfolio company tags changed → Recalculate matches for linked mentees
-- User reputation tier changed → Recalculate matches for that user
-- Initial population (run once for existing users)
-- Admin-triggered recalculation
-
-**Retrieval (On-Demand, Synchronous):**
-
-- Coordinator loads matching UI → API call → Query cache table
-- Always fast (< 100ms)
-
-### 3. Algorithm Version is Data, Not Behavior
+The algorithm is **data, not behavior**: which engine calculated a row is a column to filter by, not a method to
+dispatch on.
 
 ```sql
--- Algorithm version is a COLUMN to filter by
+-- Retrieval is the same query for every algorithm.
 SELECT * FROM user_match_cache
-WHERE user_id = $1
-  AND algorithm_version = 'tag-based-v1'
+WHERE user_id = ?1
+  AND algorithm_version = ?2
 ORDER BY match_score DESC;
-
--- NOT a polymorphic interface method
 ```
 
-This is the same query whether the algorithm is TagBased, ML, or Realtime. The algorithm that calculated the data is
-stored as metadata.
+## When recalculation happens
 
----
+Recalculation is event-driven and fire-and-forget (see [8.6.2 Events](./8-backend-architecture.md#862-events)). The
+handlers in `events/matching-triggers.ts` refresh a user's cached matches when:
 
-## Why This Architecture Works
+- a profile is updated (wired to `PUT /v1/users/me`),
+- a user's tags change,
+- a portfolio company's tags change (refreshes every linked mentee), or
+- a user's reputation tier changes.
 
-### From First Principles
+Each handler is wrapped in `withErrorHandling()` and invoked without blocking the request, so a recalculation failure is
+logged but never surfaced to the caller.
 
-1. **Calculation is polymorphic** → `IMatchingEngine` interface ✅
-2. **Retrieval is NOT polymorphic** → Plain `MatchingService` class ✅
-3. **Algorithm version is data (column filter), not behavior** → Stored as string ✅
-4. **Event-driven recalculation** → Triggers on data changes ✅
-5. **On-demand retrieval** → Fast cache queries ✅
+## Engines
 
-### SOLID Principles
+| Engine                     | `algorithm_version` | Scoring                                                                        |
+| -------------------------- | ------------------- | ------------------------------------------------------------------------------ |
+| `TagBasedMatchingEngineV1` | `tag-based-v1`      | Weighted tag overlap with rarity (shared industries/technologies/stages), 0–60 |
+| `AiBasedMatchingEngineV1`  | `ai-based-v1`       | OpenAI scores the mentor's bio against the mentee's company profile, 0–100     |
 
-**Single Responsibility:**
+Both extend `BaseMatchingEngine`, which provides the shared machinery: candidate fetching by opposite role, a 90-day
+dormancy cutoff, chunked batch processing, and an atomic per-user cache write. To add an engine, extend
+`BaseMatchingEngine` and implement the scoring and fetch hooks — see
+[`apps/api/src/providers/matching/README.md`](../../apps/api/src/providers/matching/README.md).
 
-- `IMatchingEngine` → Calculation logic
-- `MatchingService` → Retrieval logic
-- Event handlers → Trigger recalculation
+## Bulk processing on Workers
 
-**Open/Closed:**
+The engines run entirely inside the API Worker and follow a bulk pattern that suits the edge runtime:
 
-- Open for extension: Add new `IMatchingEngine` implementations
-- Closed for modification: MatchingService doesn't change when algorithms change
+```text
+Worker (matching engine)
+  ├─ Bulk fetch    : a few prepared D1 queries instead of N+1
+  ├─ Parallel score: in-memory Promise.all over a batch of candidates
+  └─ Atomic write  : delete-then-insert per user via env.DB.batch()
+```
 
-**Liskov Substitution:**
+- **Bulk fetch.** `fetchMultipleUsersWithTags()` collapses hundreds of per-user lookups into a handful of `IN (...)`
+  prepared statements.
+- **Parallel calculate.** Scoring is in-memory and cheap; batches run under `Promise.all`.
+- **Atomic write.** `writeToCacheAtomic()` replaces a user's rows for an algorithm version in a single `env.DB.batch()`
+  transaction, so a reader never sees a half-updated set.
 
-- Can swap `TagBasedV1` for `MLV2` without breaking system
-
-**Interface Segregation:**
-
-- No unnecessary abstraction (retrieval doesn't need interface)
-
-**Dependency Inversion:**
-
-- High-level modules depend on `IMatchingEngine` abstraction
-
----
-
-## Migration Path: Future Algorithms
-
-### Adding MLMatchingEngineV2 (Long-Running ML Algorithms)
-
-**⚠️ Important:** Future ML algorithms that call external APIs (>30s response time) should use **Cloudflare Workflows**
-instead of standard Workers.
-
-**Why Workflows for ML:**
-
-- ✅ **Wall clock time unlimited** (external API waits don't count as CPU time)
-- ✅ **Step-based execution** (each step can run up to 5 minutes CPU)
-- ✅ **Automatic retries** (built-in error handling)
-- ✅ **Persistent state** (survives Worker restarts)
-- ✅ **Cost-effective** (only pay for CPU time, not waiting time)
-
-**Example ML Engine using Workflows:**
-
-```typescript
-// apps/api/src/workflows/ml-matching.workflow.ts
-import { WorkflowEntrypoint, WorkflowStep } from 'cloudflare:workers'
-
-export class MLMatchingWorkflow extends WorkflowEntrypoint {
-  async run(event, step: WorkflowStep) {
-    const { userId } = event.params
-
-    // Step 1: Fetch user features (fast, ~200ms CPU)
-    const features = await step.do('fetch-features', async () => {
-      const db = createSupabaseClient(this.env)
-      return await db.from('users').select('*').eq('id', userId).single()
-    })
-
-    // Step 2: Call external ML API (slow, 45s+ wall clock time, ~10ms CPU)
-    const mlScores = await step.do('ml-inference', async () => {
-      const response = await fetch(this.env.ML_API_URL, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${this.env.ML_API_KEY}` },
-        body: JSON.stringify({ user_id: userId, features })
-      })
-
-      if (!response.ok) {
-        throw new Error('ML API failed')  // Automatic retry!
-      }
-
-      return await response.json()
-    })
-
-    // Step 3: Write to cache (fast, ~20ms CPU)
-    await step.do('write-cache', async () => {
-      const db = createSupabaseClient(this.env)
-      await db.from('user_match_cache').insert(
-        mlScores.matches.map(match => ({
-          user_id: userId,
-          recommended_user_id: match.candidate_id,
-          match_score: match.score,
-          match_explanation: match.explanation,
-          algorithm_version: 'ml-v2',
-          calculated_at: new Date()
-        }))
+```ts
+// Atomic per-user cache replacement (delete then insert) in one transaction.
+await env.DB.batch([
+  env.DB.prepare('DELETE FROM user_match_cache WHERE user_id = ?1 AND algorithm_version = ?2').bind(userId, version),
+  ...rows.map(r =>
+    env.DB
+      .prepare(
+        `INSERT INTO user_match_cache
+           (id, user_id, recommended_user_id, match_score, match_explanation, algorithm_version)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
       )
-    })
-
-    return { success: true, user_id: userId, match_count: mlScores.matches.length }
-  }
-}
-
-// Trigger from Queue Consumer
-// apps/api/src/queues/match-consumer.ts
-export default {
-  async queue(batch, env) {
-    for (const message of batch.messages) {
-      const { user_id, algorithm } = message.body
-
-      if (algorithm === 'tag-based-v1') {
-        // Fast: Execute in Worker directly
-        const engine = new TagBasedMatchingEngineV1(env.db)
-        await engine.recalculateMatches(user_id)
-      }
-      else if (algorithm === 'ml-v2') {
-        // Slow: Trigger Workflow
-        await env.ML_WORKFLOW.create({
-          id: `ml-${user_id}-${Date.now()}`,
-          params: { user_id }
-        })
-      }
-
-      message.ack()
-    }
-  }
-}
-```
-
-**Traditional Worker Engine (for fast algorithms):**
-
-```typescript
-// apps/api/src/providers/matching/ml.engine.ts
-// ⚠️ Only use for ML algorithms that complete in <30 seconds
-
-export class MLMatchingEngineV2 implements IMatchingEngine {
-  async recalculateMatches(userId: string): Promise<void> {
-    // 1. Fetch user features
-    // 2. Run ML model inference (must complete in <30s!)
-    // 3. Write to user_match_cache with algorithm_version='ml-v2'
-  }
-
-  async recalculateAllMatches(options?: BulkRecalculationOptions): Promise<void> {
-    // Heavy computation - use Cloudflare Queues
-  }
-
-  getAlgorithmVersion(): string {
-    return 'ml-v2';
-  }
-}
-```
-
-### A/B Testing Multiple Algorithms
-
-```typescript
-// Run both algorithms
-const tagEngine = new TagBasedMatchingEngineV1(db);
-const mlEngine = new MLMatchingEngineV2(db);
-
-await Promise.all([
-  tagEngine.recalculateMatches(userId),
-  mlEngine.recalculateMatches(userId),
+      .bind(newId(), userId, r.recommendedUserId, r.score, JSON.stringify(r.explanation), version)
+  ),
 ]);
-
-// Cache now contains rows for BOTH algorithms:
-// - algorithm_version='tag-based-v1'
-// - algorithm_version='ml-v2'
-
-// UI can filter by algorithm:
-const tagMatches = await matchingService.getRecommendedMentors(userId, {
-  algorithmVersion: 'tag-based-v1'
-});
-
-const mlMatches = await matchingService.getRecommendedMentors(userId, {
-  algorithmVersion: 'ml-v2'
-});
 ```
 
-**No code changes required in MatchingService or API endpoints!**
+## Performance targets
 
----
+- Cache read (matching UI): < 100ms.
+- Cache write (single user): < 500ms.
+- Cache write (100 users): < 1 minute.
 
-## Performance & Testing
+These are exercised by the engine unit tests under `apps/api/src/test/`; see
+[13. Testing Strategy](./13-testing-strategy.md).
 
-**Performance targets, optimizations, and scalability roadmap** have been moved to the authoritative testing strategy
-document:
+## Why this holds up
 
-👉 **See:** [13-testing-strategy.md](13-testing-strategy.md) - Epic 6: Performance Targets (Stories 0.23-0.24)
-
-Key targets:
-
-- Cache Write (single user): < 500ms
-- Cache Write (100 users): < 1 minute
-- Cache Read (coordinator UI): < 100ms
-
----
-
-## Cloudflare Workers Bulk Processing Architecture (Story 0.23 v1.1)
-
-### Architecture Pattern: Single-Tier Edge Computation
-
-**✅ CORRECT Understanding:**
-
-The matching engine runs entirely on **Cloudflare Workers** and implements a **bulk worker pattern** optimized for edge
-computing:
-
-```text
-Cloudflare Worker (tag-based.engine.ts)
-  ├─ Bulk Fetch (3-4 HTTP requests via Supabase-js)
-  ├─ Parallel Calculate (in-memory, Promise.all)
-  └─ Bulk Write (single INSERT via Supabase-js)
-```
-
-**Key Points:**
-
-1. **All code executes on the Worker** - No separate calculation service needed
-2. **Supabase-js uses HTTP (PostgREST)** - No database connection limits
-3. **In-memory calculations are optimal** - Workers are designed for edge computation
-4. **Promise.all is fully supported** - Parallel processing within Worker invocation
-5. **This IS a bulk pattern** - Batch processing, bulk fetching, bulk writing
-
-### Why This is Optimal for Cloudflare Workers
-
-**✅ Bulk Fetching:**
-
-- `fetchMultipleUsersWithTags()` reduces 501 queries → 3-4 HTTP requests
-- Supabase-js over HTTP has no connection pooling concerns
-- Unlimited concurrent queries (HTTP-based, not persistent connections)
-
-**✅ Parallel Processing:**
-
-- `Promise.all()` for batch calculations (50 users at a time)
-- CPU time only counts active processing, not I/O wait
-- In-memory scoring is fast (<1ms per calculation)
-
-**✅ Bulk Writing:**
-
-- `writeToCacheAtomic()` writes all scores in single INSERT
-- Minimizes database round-trips
-- HTTP-based, no transaction overhead
-
-### What NOT to Do
-
-**❌ INCORRECT Pattern (Multi-Tier):**
-
-```text
-API Worker → Queue → Calculation Worker → Database
-```
-
-This adds unnecessary complexity:
-
-- Extra network hops (latency)
-- Queue infrastructure (cost)
-- Serialization overhead
-- No performance benefit on Workers
-
-**❌ External Service for Calculations:**
-
-Sending simple math operations to another service is anti-pattern on Workers:
-
-- Tag overlap calculation: Simple set intersection
-- Stage matching: Lookup in ordered array
-- Reputation matching: Numeric comparison
-- All calculations: <1ms in-memory
-
-### Cloudflare Workers Limits (2025)
-
-**Connection Limits:**
-
-- 6 concurrent TCP connections per invocation
-- **Does NOT apply to Supabase-js** (uses HTTP fetch, not TCP)
-- No practical limit for database queries
-
-**CPU Time:**
-
-- 50ms per request (Free/Pro)
-- Database I/O doesn't count toward CPU time
-- Parallel Promise.all for sync code is unlimited
-
-**Memory:**
-
-- 128MB per invocation
-- Chunked processing prevents exhaustion
-- Default chunk size: 100 matches
-
-### Performance Improvements (v1.1)
-
-**Database Queries:**
-
-- Before: 501 queries (N+1 problem)
-- After: 3-4 queries (99% reduction)
-
-**Processing Speed:**
-
-- Before: Sequential processing
-- After: Parallel chunks (10-50x faster)
-
-**Memory Usage:**
-
-- Before: Load all matches at once
-- After: Chunked (100 matches per chunk)
-
-**Reliability:**
-
-- Before: All-or-nothing (one failure blocks all)
-- After: Individual error isolation (partial success)
-
-### Reference Implementation
-
-See `apps/api/src/providers/matching/tag-based.engine.ts`:
-
-- `fetchMultipleUsersWithTags()` - Bulk fetch with 3-4 queries
-- `recalculateMatches()` - Chunked parallel processing
-- `recalculateAllMatches()` - Batch processing with error isolation
-- `writeToCacheAtomic()` - Bulk INSERT operation
-
-**Tests:** 39 unit tests covering bulk operations in `__tests__/tag-based.engine.test.ts`
-
----
-
-## References to SoT Documents
-
-**PRD Documents:**
-
-- [2-requirements.md](../prd/2-requirements.md) - FR13, FR13a, FR13b (event-driven cache requirements)
-- [4-technical-constraints-and-integration.md](../prd/4-technical-constraints-and-integration.md) - IMatchingEngine
-  interface definition
-- [5-epic-and-story-structure.md](../prd/5-epic-and-story-structure.md) - Stories 0.22-0.25 acceptance criteria
-
-**Architecture Documents:**
-
-- [4-data-models.md](4-data-models.md) - Section 4.8: user_match_cache table schema
-- [5-api-specification.md](5-api-specification.md) - Section 8: POST /matching/find-matches, POST /matching/explain
-- [8-backend-architecture.md](8-backend-architecture.md) - Section 8.6: Matching Providers and Events (IMatchingEngine
-  interface & TagBasedMatchingEngineV1)
-- [13-testing-strategy.md](13-testing-strategy.md) - Epic 6: Matching test strategy with examples
-
----
-
-## Change Log
-
-| Date       | Version | Description                                                                     | Author              |
-| ---------- | ------- | ------------------------------------------------------------------------------- | ------------------- |
-| 2025-10-07 | 1.0     | Initial architecture plan created after first principles analysis               | Scrum Master (Bob)  |
-| 2025-10-07 | 2.0     | Migrated content to SoT documents, streamlined to core decisions only           | Winston (Architect) |
-| 2025-10-07 | 2.1     | Added Cloudflare Workers bulk processing architecture section (Story 0.23 v1.1) | James (Developer)   |
+Adding a future algorithm (for example, an ML engine that calls an external API) does not change the read path: it
+writes rows under a new `algorithm_version`, and `MatchingService` reads them with the same query. If an engine needs
+long external calls beyond a Worker's CPU budget, the natural home is a separate scheduled or queued path that still
+writes to `user_match_cache` — the cache contract stays the same.
