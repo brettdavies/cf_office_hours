@@ -11,9 +11,9 @@ import { AppError } from '../lib/errors';
 
 // Mock repository
 vi.mock('../repositories/tier-override.repository', () => ({
-  TierOverrideRepository: vi.fn().mockImplementation(() => ({
-    getPendingWithUsers: vi.fn(),
-  })),
+  TierOverrideRepository: vi.fn().mockImplementation(function () {
+    return { getPendingWithUsers: vi.fn() };
+  }),
 }));
 
 describe('TierOverrideService', () => {
