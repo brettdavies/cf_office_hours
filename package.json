@@ -28,6 +28,9 @@
     "populate-match-cache": "tsx apps/api/src/scripts/populate-match-cache.ts",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/api/.wrangler"
   },
+  "dependencies": {
+    "vite": "^7.3.6"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
@@ -36,6 +39,7 @@
     "openapi-typescript": "^7.4.0",
     "prettier": "^3.2.4",
     "typescript": "^5.7.2",
+    "vite": "^7.3.6",
     "wrangler": "4.102.0"
   },
   "engines": {
