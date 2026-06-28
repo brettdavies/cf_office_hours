@@ -106,11 +106,8 @@ Optional dependencies never propagate failures into the request that triggered t
 - **Email (Resend).** `services/notification.service.ts` wraps sending in try/catch and currently logs the formatted
   message to the console (Resend delivery is deferred). A send failure is logged and swallowed; it never blocks the
   booking that triggered it.
-- **Calendar.** No calendar integration exists yet, so there is no calendar error path.
-
-There is no Airtable or Supabase integration. The only residue of the prior data source is the unused
-`users.airtable_record_id` column (see [8.8 Data Model](./8-backend-architecture.md#88-data-model)); no code calls
-Airtable or Supabase.
+There are no other external service integrations. `users.airtable_record_id` is an opaque external record id carried in
+the schema (see [8.8 Data Model](./8-backend-architecture.md#88-data-model)); no code calls an Airtable API.
 
 ## 15.5 Asynchronous & Fire-and-Forget Errors
 

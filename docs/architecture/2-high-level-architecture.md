@@ -2,151 +2,67 @@
 
 ## 2.1 Technical Summary
 
-The CF Office Hours Platform employs a **serverless Jamstack architecture** with edge-deployed APIs and centralized data management. The frontend is a React SPA hosted on Cloudflare Pages, communicating with RESTful APIs running on Cloudflare Workers at the edge. Supabase provides the operational database (Postgres), authentication layer, file storage, and real-time subscription infrastructure. The system maintains a **one-way data sync** from Airtable (source of truth for user management) via webhook-triggered Workers, while all booking, scheduling, and reputation logic lives exclusively in Supabase.
+CF Office Hours runs entirely on Cloudflare as two Workers in one npm-workspaces monorepo:
 
-Calendar integrations (Google Calendar, Microsoft Outlook) use OAuth 2.0 flows to access user availability and create meeting events, with Google Meet links auto-generated for virtual sessions. The architecture emphasizes **interface-based modularity** for calendar providers, matching algorithms, reputation calculators, and notification delivery—enabling future extensibility without touching core business logic.
+- An **API Worker** (`cf-office-hours-api`) built with Hono and `@hono/zod-openapi`, serving an OpenAPI 3.1 REST API
+  backed by a Cloudflare D1 (SQLite) database accessed through raw prepared statements.
+- A **Web Worker** (`cf-office-hours-web`) serving the built React + Vite single-page app as static assets.
 
-This design achieves the PRD's goals through: (1) **intelligent matching** via pluggable tag-based algorithms, (2) **reputation-driven access control** enforced at the database layer, (3) **real-time booking updates** via Supabase subscriptions, and (4) **seamless scheduling** through bi-directional calendar sync.
+Authentication is a Worker-issued session JWT (HS256, signed and verified locally with `jose`); sign-in today is a
+role-based demo login. Recommendations come from pluggable matching engines that precompute scores into a cache table
+for sub-100ms reads. Booking-confirmation email runs through Resend (logging to console when unconfigured), and a weekly
+Cron Trigger re-anchors the demo seed's dates. Shared Zod schemas and types live in `packages/shared`.
 
 ## 2.2 Platform and Infrastructure Choice
 
-Based on the PRD's requirements for budget constraints (free tier only), scale (~500 users), and technical stack preferences, I've evaluated the following options:
+| Concern        | Choice                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| Compute        | Cloudflare Workers — one Worker for the API, one Worker for the static web app                       |
+| Database       | Cloudflare D1 (SQLite), bound to the API Worker as `DB`                                              |
+| Web delivery   | Workers static assets (`not_found_handling: single-page-application`), not a separate host           |
+| Runtime config | `compatibility_date` `2026-06-01`, `compatibility_flags` `["nodejs_compat"]` (both `wrangler.jsonc`) |
+| Environments   | `staging` (`*.workers.dev`) and `production` (custom domains on `youcanjustdothings.io`)             |
 
-**Option 1: Cloudflare Pages + Workers + Supabase** ⭐ **RECOMMENDED**
-- **Pros:**
-  - Workers have zero cold starts (V8 isolates vs containers)
-  - Generous free tiers align perfectly (100k requests/day Workers, unlimited Pages bandwidth)
-  - Edge deployment reduces latency globally
-  - Supabase provides Postgres + Auth + Storage + Realtime in one platform
-- **Cons:**
-  - Workers have 10ms CPU limit (requires async patterns for heavy work)
-  - Less mature ecosystem than AWS/Vercel
-- **Cost:** $0/month for MVP scale
-
-**Option 2: Vercel + Supabase**
-- **Pros:**
-  - Excellent DX for React apps
-  - Simpler deployment pipeline
-- **Cons:**
-  - Serverless Functions have cold starts (300-600ms)
-  - Free tier bandwidth limited to 100GB/month (vs unlimited on Cloudflare Pages)
-  - Edge Functions cost more at scale
-- **Cost:** $0/month initially, may exceed free tier with heavy pitch deck downloads
-
-**Option 3: AWS (Amplify + Lambda + Cognito + RDS)**
-- **Pros:**
-  - Enterprise-grade reliability
-  - Maximum flexibility
-- **Cons:**
-  - Complexity overkill for MVP
-  - Free tier expires after 12 months
-  - Requires significant DevOps expertise
-- **Cost:** ~$50-100/month after free tier expires
-
-**RECOMMENDATION:** **Option 1 (Cloudflare + Supabase)**
-This combination maximizes free tier generosity, eliminates cold starts, and consolidates backend services into Supabase's unified platform—reducing integration complexity while staying within budget.
-
----
-
-**Platform:** Cloudflare (Pages + Workers)
-**Key Services:**
-- **Cloudflare Pages:** Frontend hosting (React SPA)
-- **Cloudflare Workers:** Serverless API endpoints (Hono framework)
-- **Supabase Postgres:** Operational database with Row Level Security
-- **Supabase Auth:** Magic link + OAuth (Google/Microsoft)
-- **Supabase Storage:** Pitch decks, avatars, documents
-- **Supabase Realtime:** WebSocket subscriptions for live slot updates
-- **Airtable:** External source of truth (user data, taxonomy)
-- **Google Calendar API / Microsoft Graph API:** Calendar integration
-
-**Deployment Host and Regions:**
-- **Frontend:** Global edge network via Cloudflare Pages (automatic)
-- **API:** Cloudflare Workers edge network (300+ locations globally)
-- **Database:** Supabase US East region (configurable)
+The web Worker sets `run_worker_first: ["/assets/*"]` so a request for a missing hashed build asset returns a real `404`
+instead of the SPA's `index.html` with the wrong MIME type; every other path takes the static-asset fast path.
 
 ## 2.3 Repository Structure
 
-For a fullstack project of this size (~500 users, 3-5 AI agent developers), a **monorepo with npm workspaces** provides the optimal balance of simplicity and shared code benefits without heavy tooling overhead.
+A single npm-workspaces monorepo:
 
-**Rationale:**
-- **Shared TypeScript types** between frontend/backend (OpenAPI-generated from Zod schemas)
-- **Single deployment pipeline** via GitHub Actions
-- **Simplified dependency management** (one root `package.json`)
-- **No monorepo tool complexity** (Turborepo/Nx overkill for 2-3 packages)
-
-**Repository Details:**
-- Single frontend app (no separate admin dashboard)
-- No mobile app (responsive web design for mobile-friendly experience)
-
----
-
-**Structure:** Monorepo
-**Monorepo Tool:** npm workspaces (built-in, zero config)
-**Package Organization:**
-- `apps/web` - React frontend (Vite + Shadcn/ui)
-- `apps/api` - Cloudflare Workers (Hono + Zod)
-- `packages/shared` - Shared TypeScript types, constants, utilities
-- `packages/config` - Shared ESLint, TypeScript, Prettier configs
+```text
+cf-office-hours/
+├── apps/
+│   ├── api/        # Cloudflare Workers API (Hono + D1)
+│   └── web/        # React + Vite SPA (served as Workers static assets)
+├── packages/
+│   ├── shared/     # Shared Zod schemas and TypeScript types
+│   └── config/     # Shared ESLint / TypeScript / build configuration
+├── docs/           # This documentation
+└── scripts/        # Build and data utilities (seed conversion, date bump)
+```
 
 ## 2.4 High Level Architecture Diagram
 
 ```mermaid
 graph TB
-    subgraph External["External Systems"]
-        AT[Airtable<br/>User Data & Taxonomy]
-        GCAL[Google Calendar API]
-        MSGRAPH[Microsoft Graph API]
-        GMEET[Google Meet API]
-    end
-
-    subgraph Edge["Cloudflare Edge Network"]
-        PAGES[Cloudflare Pages<br/>React SPA]
-        WORKERS[Cloudflare Workers<br/>Hono API]
-    end
-
-    subgraph Backend["Supabase Backend"]
-        AUTH[Supabase Auth<br/>Magic Link + OAuth]
-        DB[(Supabase Postgres<br/>Users, Bookings, Ratings)]
-        STORAGE[Supabase Storage<br/>Pitch Decks, Avatars]
-        RT[Supabase Realtime<br/>WebSocket Subscriptions]
-    end
-
-    USER[Users<br/>Mentors & Mentees] -->|HTTPS| PAGES
-    PAGES -->|REST API| WORKERS
-    PAGES -->|Auth & Realtime| AUTH
-    PAGES -.->|WebSocket| RT
-
-    WORKERS -->|SQL Queries| DB
-    WORKERS -->|File Uploads| STORAGE
-    WORKERS -->|OAuth & Availability| GCAL
-    WORKERS -->|OAuth & Availability| MSGRAPH
-    WORKERS -->|Generate Meet Links| GMEET
-
-    AT -->|Webhook on CRUD| WORKERS
-    WORKERS -->|Sync User Data| DB
-
-    AUTH -->|JWT Tokens| WORKERS
-    DB -.->|Change Events| RT
+    User[Browser] --> Web[Web Worker<br/>React SPA as static assets]
+    Web -->|fetch /v1/*| API[API Worker<br/>Hono + OpenAPI 3.1]
+    API --> DB[(Cloudflare D1<br/>SQLite)]
+    API -.optional.-> OpenAI[OpenAI<br/>AI matching engine]
+    API -.optional.-> Resend[Resend<br/>booking email]
+    Cron[Weekly Cron Trigger] --> API
 ```
 
 ## 2.5 Architectural Patterns
 
-- **Jamstack Architecture:** Static frontend with serverless APIs - _Rationale: Optimal performance, global CDN distribution, and simplified scaling without server management_
-
-- **Edge Computing:** API logic runs at Cloudflare edge locations - _Rationale: Reduces latency for geographically distributed users (mentors/mentees across time zones)_
-
-- **Interface-Based Abstractions:** Calendar, Matching, Reputation, Notifications use dependency injection - _Rationale: PRD requirement (Section 1.8) enables swapping providers without touching business logic_
-
-- **Event-Driven Sync:** Airtable webhooks trigger real-time data synchronization - _Rationale: Minimizes API calls, keeps data fresh only when changes occur_
-
-- **Optimistic UI with Realtime Sync:** Frontend updates immediately, reconciles via Supabase Realtime - _Rationale: Prevents double-booking race conditions (NFR7) while maintaining snappy UX_
-
-- **Repository Pattern:** Data access layer abstracts database queries - _Rationale: Enables testing with mocks, centralizes query logic_
-
-- **Row Level Security (RLS):** Postgres policies enforce role-based access - _Rationale: Security at database layer prevents accidental data leaks even if API logic fails_
-
-- **Backend for Frontend (BFF) Pattern:** Cloudflare Workers aggregate data for specific UI needs - _Rationale: Reduces frontend complexity, combines multiple data sources (Supabase + external APIs) efficiently_
-
-- **Contract-First API Design:** OpenAPI spec generated from Zod schemas drives frontend type generation - _Rationale: Single source of truth prevents frontend/backend drift (NFR34)_
-
----
+- **Edge-serverless.** Both halves run as Workers; there is no long-lived application server and no connection pool.
+- **Layered backend.** Routes → services → repositories → D1, with strict separation (routes never touch D1; services
+  never touch HTTP). See [8. Backend Architecture](./8-backend-architecture.md).
+- **Repository pattern.** All D1 access is isolated behind repositories extending a shared `BaseRepository`.
+- **Pluggable matching engines.** Match *calculation* is polymorphic behind `IMatchingEngine`; match *retrieval* is a
+  plain cache query. See [matching-cache-architecture.md](./matching-cache-architecture.md).
+- **Event-driven cache.** Profile/tag/reputation changes fire background recalculation; the UI reads precomputed rows.
+- **Contract-first API.** Zod schemas generate the OpenAPI spec, which in turn generates the web app's API types.
+- **Client polling for freshness.** The SPA uses React Query polling to keep bookings current; there is no realtime
+  socket layer.

@@ -1,85 +1,43 @@
 # 3. Tech Stack
 
-This is the **DEFINITIVE technology selection** for the entire project. All versions reflect production-ready releases as of **July 2024** with recommended updates through **January 2025** based on stability and compatibility. This table is the single source of truth—all development must use these exact versions.
-
 ## 3.1 Technology Stack Table
 
-| Category | Technology | Version | Purpose | Rationale |
-|----------|-----------|---------|---------|-----------|
-| **Frontend Language** | TypeScript | **5.7.x** | Type-safe JavaScript for frontend | Latest stable with improved performance and type inference |
-| **Frontend Framework** | React | **18.3.x** (latest 18.x) | UI component library | Latest React 18 - stable ecosystem, React 19 still maturing |
-| **Frontend Build Tool** | Vite | **5.x** (latest 5.x) | Dev server and bundler | Fast HMR, native ESM support, optimized for React |
-| **UI Component Library** | Shadcn/ui | **Latest** (copy-paste) | Accessible, customizable components | Not versioned traditionally (copy components into codebase), full Tailwind control, WCAG 2.1 AA compliant |
-| **CSS Framework** | Tailwind CSS | **3.4.x** | Utility-first styling | Stable - Tailwind 4.x has breaking config changes, stay on 3.4 |
-| **State Management** | Zustand | **5.x** (latest) | Lightweight global state | Smaller bundle than Redux, React 18+ required, <1KB |
-| **Form Management** | React Hook Form | **7.52.x** | Form validation and state | Minimal re-renders, integrates with Zod schemas, small bundle |
-| **Backend Language** | TypeScript | **5.7.x** | Type-safe JavaScript for backend | Shared with frontend for monorepo consistency |
-| **Backend Framework** | Hono | **4.x** (latest 4.x) | Web framework for Workers | Built for edge runtimes, fastest router benchmarks, Zod middleware support |
-| **API Style** | REST (OpenAPI 3.1) | OpenAPI 3.1.0 | RESTful HTTP APIs | Mature tooling, simpler than GraphQL for CRUD operations |
-| **API Validation** | Zod | **3.23.x** | Runtime schema validation | Single source of truth (schema → OpenAPI → TypeScript types), runtime type safety |
-| **OpenAPI Integration** | @hono/zod-openapi | **Latest** (1.x) | Generate OpenAPI from Zod | Automates API docs, enables contract testing, generates frontend types |
-| **Database** | PostgreSQL (Supabase) | **Latest** (Supabase managed) | Relational database | ACID compliance, Row Level Security built-in, Supabase manages version |
-| **Database Client** | @supabase/supabase-js | **Latest** (Supabase managed) | Supabase SDK for JS/TS | Official client, handles auth + realtime + storage, auto-generated types |
-| **ORM/Query Builder** | Drizzle ORM | **0.33.x** | Type-safe SQL query builder | Lightweight, edge-compatible, excellent TypeScript inference |
-| **Cache** | Cloudflare KV | N/A (Platform) | Edge key-value storage | Low-latency global cache, free tier 100k reads/day |
-| **File Storage** | Supabase Storage | N/A (Platform) | Object storage for files | S3-compatible, built-in CDN, RLS policies for access control |
-| **Authentication** | Supabase Auth | N/A (Platform) | User authentication | Magic links + OAuth (Google/Microsoft), JWT tokens, RLS integration |
-| **Real-time** | Supabase Realtime | N/A (Platform) | WebSocket subscriptions | Postgres logical replication, sub-second latency, scoped subscriptions |
-| **Frontend Testing** | Vitest | **3.x** (latest) | Unit/integration testing | Vite-native, supports both Vite 5 & 6, rewritten reporting system |
-| **React Testing** | Testing Library | **Latest** | Component testing | Encourages accessibility, user-centric queries |
-| **Backend Testing** | Vitest | **3.x** (latest) | Unit/integration testing | Shared with frontend for consistency |
-| **E2E Testing** | Playwright | **1.50.x+** (latest) | Browser automation | IndexedDB support, better trace viewer, cookie partitioning |
-| **Type Generation** | openapi-typescript | **Latest** (7.x) | Generate TS types from OpenAPI | Ensures frontend/backend type alignment |
-| **Bundler** | esbuild (via Vite/Wrangler) | **Latest** (via tooling) | JavaScript/TypeScript bundler | Embedded in Vite and Wrangler, managed automatically |
-| **Monorepo Tool** | npm workspaces | Built-in (npm 10.x) | Monorepo management | Zero-config, sufficient for small monorepo |
-| **Cloudflare Workers** | Cloudflare Workers | **compatibility_date: 2025-03-11** | Serverless edge runtime | nodejs_compat with process.env support, V8 14.0, native Buffer/AsyncLocalStorage |
-| **Cloudflare Pages** | Cloudflare Pages | N/A (Platform) | Static site hosting | Platform service, automatic updates |
-| **IaC Tool** | Wrangler | **Latest** (3.x) | Cloudflare Workers deployment | Official CLI for Workers/Pages deployment |
-| **CI/CD** | GitHub Actions | N/A (Platform) | Automated testing and deployment | Platform service, YAML-based workflows |
-| **Linting** | ESLint | **8.57.x** | Code quality enforcement | Stay on 8.x - ESLint 9 has breaking flat config changes |
-| **Formatting** | Prettier | **3.x** (latest) | Code formatting | Opinionated formatter, zero config needed |
-| **Monitoring** | Cloudflare Analytics | N/A (Platform) | Basic request metrics | Built-in, free, tracks Workers/Pages performance |
-| **Logging** | Cloudflare Logs | N/A (Platform) | Application logging | Console logs captured by Cloudflare |
-| **Email Notifications** | Supabase Auth (built-in) | N/A (Platform) | Transactional emails | Native email service for magic links + notifications |
+Versions track the workspace `package.json` files; treat those and the lockfile as authoritative.
+
+| Category           | Technology                                              | Notes                                                                  |
+| ------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Language           | TypeScript 5.7.x                                        | Strict mode across all workspaces                                      |
+| Frontend framework | React 18.3.x                                            | SPA                                                                    |
+| Build tool         | Vite 5.x                                                | Dev server and production bundle                                       |
+| Routing (web)      | React Router 6.x                                        | Client-side routing                                                    |
+| Client state       | Zustand 5.x                                             | Auth/session and UI stores                                             |
+| Server state       | `@tanstack/react-query` 5.x                             | Data fetching and polling                                              |
+| UI                 | Shadcn/ui + Tailwind CSS 3.4.x                          | Component library and styling                                          |
+| API framework      | Hono 4.x + `@hono/zod-openapi`                          | OpenAPI 3.1 routing and validation                                     |
+| Validation         | Zod 3.23.x                                              | Request/response schemas, shared with the web app                      |
+| Runtime            | Cloudflare Workers (`nodejs_compat`)                    | API Worker and web static-assets Worker                                |
+| Database           | Cloudflare D1 (SQLite)                                  | Raw prepared statements; no ORM                                        |
+| Auth               | `jose` 6.x                                              | HS256 session JWTs signed/verified in the Worker                       |
+| AI                 | OpenAI 6.x (optional)                                   | Powers the AI-based matching engine                                    |
+| Email              | Resend (optional)                                       | Booking-confirmation email; see [3.3](#33-email-notification-strategy) |
+| Dates              | `date-fns`                                              | Formatting in services and UI                                          |
+| Testing            | Vitest 3.x, Playwright 1.50.x                           | Unit/integration (API + web) and E2E                                   |
+| Tooling            | npm workspaces, Wrangler 4.x, esbuild, ESLint, Prettier | Monorepo orchestration, deploys, build, lint, format                   |
+
+There is no ORM, no Postgres, and no hosted backend-as-a-service: the API talks to D1 directly and issues its own JWTs.
 
 ## 3.2 Cloudflare Compatibility Date
 
-**Setting:** `compatibility_date = "2025-03-11"`
-
-This compatibility date in `wrangler.toml` enables:
-- ✅ Native Node.js APIs (Buffer, AsyncLocalStorage, crypto, etc.)
-- ✅ `process.env` automatically populated from bindings
-- ✅ V8 14.0 performance improvements
-- ✅ Uint8Array base64/hex native operations
-- ✅ Enhanced security (V8 Sandbox)
-
-**Example `wrangler.toml`:**
-```toml
-name = "cf-office-hours-api"
-main = "src/index.ts"
-compatibility_date = "2025-03-11"
-compatibility_flags = ["nodejs_compat"]
-
-[vars]
-ENVIRONMENT = "production"
-
-[[kv_namespaces]]
-binding = "CACHE"
-id = "your-kv-namespace-id"
-```
+Both Workers pin `compatibility_date` to `2026-06-01` with `compatibility_flags: ["nodejs_compat"]`
+(`apps/api/wrangler.jsonc`, `apps/web/wrangler.jsonc`). `nodejs_compat` enables the Node-compatible APIs the API depends
+on. Change the date deliberately and verify against the
+[Workers compatibility docs](https://developers.cloudflare.com/workers/configuration/compatibility-dates/); it is not a
+value to bump casually.
 
 ## 3.3 Email Notification Strategy
 
-**Using Supabase Auth Native Email:**
-
-Supabase Auth includes built-in transactional email for:
-- Magic link authentication
-- Password resets
-- Email confirmations
-
-**For custom notifications** (booking confirmations, reminders, cancellations):
-
-**Recommendation for MVP:**
-Start with **Supabase Auth's native email** for magic links and basic notifications. If custom HTML templates or higher volume needed, add SendGrid SMTP integration (free tier: 100 emails/day) called directly from Cloudflare Workers.
-
----
+Booking-confirmation email is handled by `apps/api/src/services/notification.service.ts`. The service formats one
+message per participant and currently writes the formatted email to the console; the Resend provider is wired through
+the optional `RESEND_API_KEY` and `EMAIL_FROM` Worker secrets declared in `apps/api/src/types/bindings.ts`. When those
+secrets are unset, email content logs to the console, and a send failure never blocks the booking that triggered it (see
+[15.4 External Service Error Handling](./15-error-handling-strategy.md#154-external-service-error-handling)).
