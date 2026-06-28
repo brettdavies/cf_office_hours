@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 // Internal modules
-import { MatchingService } from '../../../services/matching.service';
+import { MatchingService, toExplanation } from '../../../services/matching.service';
 import { createTestDb, insertRow } from '../../helpers/d1';
 
 type Raw = ReturnType<typeof createTestDb>['raw'];
@@ -173,5 +173,112 @@ describe('MatchingService', () => {
     it('respects a custom algorithm version', async () => {
       expect(await service.explainMatch('mentee-1', 'mentor-1', 'ml-v2')).toBeNull();
     });
+  });
+});
+
+describe('toExplanation', () => {
+  it('preserves real tag overlap and summary for the tag-based shape', () => {
+    const raw = JSON.stringify({
+      tagOverlap: [{ category: 'industry', tag: 'healthcare' }],
+      summary: 'Weak match: 1 shared tags (healthcare)',
+    });
+
+    const result = toExplanation(raw, 'tag-based-v1');
+
+    expect(result.tagOverlap).toEqual([{ category: 'industry', tag: 'healthcare' }]);
+    expect(result.summary).toBe('Weak match: 1 shared tags (healthcare)');
+    expect(result.aiInsights).toBeUndefined();
+  });
+
+  it('maps the ai-based seed shape into aiInsights without false negatives', () => {
+    const raw = JSON.stringify({
+      reasoning: 'AI-generated match based on mentor expertise and company focus areas',
+      generated_by: 'pure-database-seed',
+      match_confidence: 'High potential for productive mentoring relationship',
+      algorithm_version: 'ai-based-v1',
+      mentor_bio_summary: 'Experienced professional with relevant industry background',
+      company_description: 'Apex Dynamics focuses on innovation in their sector',
+    });
+
+    const result = toExplanation(raw, 'ai-based-v1');
+
+    expect(result.aiInsights).toEqual({
+      reasoning: 'AI-generated match based on mentor expertise and company focus areas',
+      confidence: 'High potential for productive mentoring relationship',
+      mentorSummary: 'Experienced professional with relevant industry background',
+      companyDescription: 'Apex Dynamics focuses on innovation in their sector',
+    });
+    // No false negatives: tag overlap empty (not evaluated), summary derived from confidence.
+    expect(result.tagOverlap).toEqual([]);
+    expect(result.summary).toBe('High potential for productive mentoring relationship');
+  });
+
+  it('preserves the summary for the ai-based live-engine shape and leaves aiInsights unset', () => {
+    const raw = JSON.stringify({ tagOverlap: [], summary: 'Good AI match for these two' });
+
+    const result = toExplanation(raw, 'ai-based-v1');
+
+    expect(result.summary).toBe('Good AI match for these two');
+    expect(result.aiInsights).toBeUndefined();
+    expect(result.tagOverlap).toEqual([]);
+  });
+
+  it('keeps an explicit non-empty summary over the derived ai fallback', () => {
+    const raw = JSON.stringify({
+      summary: 'Curated summary wins',
+      reasoning: 'reasoning fallback',
+      match_confidence: 'confidence fallback',
+    });
+
+    const result = toExplanation(raw, 'ai-based-v1');
+
+    expect(result.summary).toBe('Curated summary wins');
+    expect(result.aiInsights?.reasoning).toBe('reasoning fallback');
+  });
+
+  it('falls back to reasoning when confidence is absent', () => {
+    const raw = JSON.stringify({ reasoning: 'Only reasoning present' });
+
+    const result = toExplanation(raw, 'ai-based-v1');
+
+    expect(result.summary).toBe('Only reasoning present');
+    expect(result.aiInsights).toEqual({ reasoning: 'Only reasoning present' });
+  });
+
+  it('degrades to safe defaults for malformed JSON', () => {
+    const result = toExplanation('{not valid json', 'tag-based-v1');
+
+    expect(result).toEqual({
+      tagOverlap: [],
+      stageMatch: false,
+      reputationCompatible: false,
+      summary: '',
+    });
+  });
+
+  it('degrades to safe defaults for an empty string', () => {
+    expect(toExplanation('', 'tag-based-v1')).toEqual({
+      tagOverlap: [],
+      stageMatch: false,
+      reputationCompatible: false,
+      summary: '',
+    });
+  });
+
+  it('degrades to safe defaults for null/undefined raw', () => {
+    expect(toExplanation(null as unknown as string, 'tag-based-v1').aiInsights).toBeUndefined();
+    expect(toExplanation(undefined as unknown as string, 'tag-based-v1').summary).toBe('');
+  });
+
+  it('still surfaces present content for an unknown algorithm', () => {
+    const raw = JSON.stringify({
+      reasoning: 'surfaced for unknown algo',
+      summary: 'kept summary',
+    });
+
+    const result = toExplanation(raw, 'ml-v9');
+
+    expect(result.summary).toBe('kept summary');
+    expect(result.aiInsights).toEqual({ reasoning: 'surfaced for unknown algo' });
   });
 });

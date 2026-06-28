@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# SPDX-FileCopyrightText: 2026 Brett Davies
 """Convert a plain-text Postgres cluster dump into a Cloudflare D1 (SQLite) seed.
 
 Reads the `COPY public.<table> (...) FROM stdin;` blocks for the application

@@ -31,7 +31,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
           code: 'VALIDATION_ERROR',
           message: 'Invalid request data',
           details: {
-            issues: err.errors,
+            issues: err.issues,
           },
           timestamp: new Date().toISOString(),
         },

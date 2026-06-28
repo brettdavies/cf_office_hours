@@ -16,17 +16,63 @@
 import { parseJson } from '../lib/d1-utils';
 
 // Types
-import type { MatchExplanation, UserResponse } from '@cf-office-hours/shared';
+import type { AiInsights, MatchExplanation, UserResponse } from '@cf-office-hours/shared';
 
-/** Parse a stored match_explanation, filling fields the engines may omit. */
-const toExplanation = (raw: string): MatchExplanation => {
-  const parsed = parseJson<Partial<MatchExplanation>>(raw);
-  return {
+/**
+ * Stored match_explanation shapes across algorithms.
+ *
+ * tag-based-v1 writes `{ tagOverlap, summary }`; ai-based-v1 seeds write a
+ * snake_case narrative (`reasoning` / `match_confidence` / `mentor_bio_summary` /
+ * `company_description`). `toExplanation` normalizes both into MatchExplanation.
+ */
+interface StoredExplanation {
+  tagOverlap?: Array<{ category: string; tag: string }>;
+  stageMatch?: boolean;
+  reputationCompatible?: boolean;
+  summary?: string;
+  reasoning?: string;
+  match_confidence?: string;
+  mentor_bio_summary?: string;
+  company_description?: string;
+}
+
+/** Build AI narrative from the snake_case stored keys, or undefined if none present. */
+const buildAiInsights = (parsed: StoredExplanation | null): AiInsights | undefined => {
+  if (!parsed) return undefined;
+  const insights: AiInsights = {};
+  if (parsed.reasoning != null) insights.reasoning = parsed.reasoning;
+  if (parsed.match_confidence != null) insights.confidence = parsed.match_confidence;
+  if (parsed.mentor_bio_summary != null) insights.mentorSummary = parsed.mentor_bio_summary;
+  if (parsed.company_description != null) insights.companyDescription = parsed.company_description;
+  return Object.keys(insights).length > 0 ? insights : undefined;
+};
+
+/**
+ * Normalize a stored match_explanation into the shared MatchExplanation shape.
+ *
+ * Surfaces AI narrative for ai-based rows and preserves tag overlap for
+ * tag-based rows. Malformed, empty, or null JSON degrades to safe defaults
+ * without throwing.
+ *
+ * @param raw - Stored match_explanation JSON string
+ * @param _algorithmVersion - Source algorithm; threaded for algorithm-specific normalization
+ */
+export const toExplanation = (raw: string, _algorithmVersion: string): MatchExplanation => {
+  const parsed = parseJson<StoredExplanation>(raw);
+  const aiInsights = buildAiInsights(parsed);
+  const storedSummary = parsed?.summary?.trim() ? parsed.summary : undefined;
+  const summary = storedSummary ?? parsed?.match_confidence ?? parsed?.reasoning ?? '';
+
+  const explanation: MatchExplanation = {
     tagOverlap: parsed?.tagOverlap ?? [],
     stageMatch: parsed?.stageMatch ?? false,
     reputationCompatible: parsed?.reputationCompatible ?? false,
-    summary: parsed?.summary ?? '',
+    summary,
   };
+  if (aiInsights) {
+    explanation.aiInsights = aiInsights;
+  }
+  return explanation;
 };
 
 /**
@@ -78,7 +124,7 @@ const MATCH_USER_COLUMNS = `
   p.company AS p_company, p.bio AS p_bio,
   p.created_at AS p_created_at, p.updated_at AS p_updated_at`;
 
-const mapMatch = (row: MatchRow): MatchResult => ({
+const mapMatch = (row: MatchRow, algorithmVersion: string): MatchResult => ({
   user: {
     id: row.id,
     airtable_record_id: row.airtable_record_id,
@@ -98,7 +144,7 @@ const mapMatch = (row: MatchRow): MatchResult => ({
     },
   } as UserResponse,
   score: row.match_score,
-  explanation: toExplanation(row.match_explanation),
+  explanation: toExplanation(row.match_explanation, algorithmVersion),
 });
 
 /**
@@ -165,7 +211,7 @@ export class MatchingService {
       );
     }
 
-    const results = rows.map(mapMatch);
+    const results = rows.map(row => mapMatch(row, algorithmVersion));
 
     if (process.env.NODE_ENV === 'development') {
       const avgScore = results.reduce((sum, r) => sum + r.score, 0) / (results.length || 1);
@@ -270,6 +316,6 @@ export class MatchingService {
       });
     }
 
-    return toExplanation(match.match_explanation);
+    return toExplanation(match.match_explanation, algorithmVersion);
   }
 }

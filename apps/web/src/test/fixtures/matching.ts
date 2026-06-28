@@ -59,6 +59,8 @@ export const createMockUserWithProfile = (
   } as MatchUser;
 };
 
+type AiInsights = NonNullable<MatchExplanation['aiInsights']>;
+
 /**
  * Creates a mock match explanation with sensible defaults.
  */
@@ -72,6 +74,31 @@ export const createMockMatchExplanation = (
   stageMatch: true,
   reputationCompatible: true,
   summary: '2 shared tags, compatible stage and reputation',
+  ...overrides,
+});
+
+/**
+ * Creates a mock AI narrative for the ai-based explanation shape.
+ */
+export const createMockAiInsights = (overrides?: Partial<AiInsights>): AiInsights => ({
+  reasoning: 'AI-generated match based on mentor expertise and company focus areas',
+  confidence: 'High potential for productive mentoring relationship',
+  mentorSummary: 'Experienced professional with relevant industry background',
+  companyDescription: 'Apex Dynamics focuses on innovation in their sector',
+  ...overrides,
+});
+
+/**
+ * Creates a mock ai-based explanation: no tag overlap, populated AI insights.
+ */
+export const createMockAiMatchExplanation = (
+  overrides?: Partial<MatchExplanation>
+): MatchExplanation => ({
+  tagOverlap: [],
+  stageMatch: false,
+  reputationCompatible: false,
+  summary: 'High potential for productive mentoring relationship',
+  aiInsights: createMockAiInsights(),
   ...overrides,
 });
 

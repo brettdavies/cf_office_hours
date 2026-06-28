@@ -120,7 +120,7 @@ export function UserSelector({ value, onChange, algorithmVersion = 'tag-based-v1
         ) : error ? (
           <div className="text-sm text-red-500">{error.message || 'Failed to load users'}</div>
         ) : (
-          <Select value={value || undefined} onValueChange={handleSelect}>
+          <Select value={value ?? ''} onValueChange={handleSelect}>
             <SelectTrigger id="user-select" className="w-full">
               <SelectValue placeholder="Select a user..." />
             </SelectTrigger>
@@ -146,8 +146,13 @@ export function UserSelector({ value, onChange, algorithmVersion = 'tag-based-v1
                   </div>
                 ) : (
                   filteredUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.profile?.name || user.email} ({user.role})
+                    <SelectItem key={user.id} value={user.id} textValue={user.profile?.name || user.email}>
+                      <span className="flex flex-col">
+                        <span>
+                          {user.profile?.name || user.email} ({user.role})
+                        </span>
+                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                      </span>
                     </SelectItem>
                   ))
                 )}

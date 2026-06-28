@@ -535,7 +535,9 @@ export interface paths {
                             mentor_id: string;
                             /** @enum {string} */
                             recurrence_pattern: "one_time" | "weekly" | "monthly";
+                            /** Format: date */
                             start_date: string | null;
+                            /** Format: date */
                             end_date: string | null;
                             /** Format: date-time */
                             start_time: string;
@@ -659,7 +661,9 @@ export interface paths {
                             mentor_id: string;
                             /** @enum {string} */
                             recurrence_pattern: "one_time" | "weekly" | "monthly";
+                            /** Format: date */
                             start_date: string | null;
+                            /** Format: date */
                             end_date: string | null;
                             /** Format: date-time */
                             start_time: string;
@@ -1512,9 +1516,9 @@ export interface paths {
                         targetRole: "mentor" | "mentee";
                         options?: {
                             /** @default tag-based-v1 */
-                            algorithmVersion: string;
+                            algorithmVersion?: string;
                             /** @default 5 */
-                            limit: number;
+                            limit?: number;
                             minScore?: number;
                         };
                     };
@@ -1576,6 +1580,12 @@ export interface paths {
                                     stageMatch: boolean;
                                     reputationCompatible: boolean;
                                     summary: string;
+                                    aiInsights?: {
+                                        reasoning?: string;
+                                        confidence?: string;
+                                        mentorSummary?: string;
+                                        companyDescription?: string;
+                                    };
                                 };
                             }[];
                         };
@@ -1692,7 +1702,7 @@ export interface paths {
                         /** Format: uuid */
                         userId2: string;
                         /** @default tag-based-v1 */
-                        algorithmVersion: string;
+                        algorithmVersion?: string;
                     };
                 };
             };
@@ -1712,6 +1722,12 @@ export interface paths {
                                 stageMatch: boolean;
                                 reputationCompatible: boolean;
                                 summary: string;
+                                aiInsights?: {
+                                    reasoning?: string;
+                                    confidence?: string;
+                                    mentorSummary?: string;
+                                    companyDescription?: string;
+                                };
                             } | null;
                         };
                     };

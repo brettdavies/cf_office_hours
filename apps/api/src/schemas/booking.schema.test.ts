@@ -21,8 +21,8 @@ describe('Booking Schema Validation', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].path).toEqual(['meeting_goal']);
-        expect(result.error.errors[0].message).toContain('at least 10 characters');
+        expect(result.error.issues[0].path).toEqual(['meeting_goal']);
+        expect(result.error.issues[0].message).toContain('at least 10 characters');
       }
     });
 
@@ -34,8 +34,8 @@ describe('Booking Schema Validation', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].path).toEqual(['time_slot_id']);
-        expect(result.error.errors[0].message).toContain('uuid');
+        expect(result.error.issues[0].path).toEqual(['time_slot_id']);
+        expect(result.error.issues[0].message).toContain('UUID');
       }
     });
 
@@ -68,7 +68,7 @@ describe('Booking Schema Validation', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].path).toEqual(['time_slot_id']);
+        expect(result.error.issues[0].path).toEqual(['time_slot_id']);
       }
     });
 
@@ -79,7 +79,7 @@ describe('Booking Schema Validation', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].path).toEqual(['meeting_goal']);
+        expect(result.error.issues[0].path).toEqual(['meeting_goal']);
       }
     });
   });

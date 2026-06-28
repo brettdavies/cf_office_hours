@@ -14,7 +14,7 @@ import { AppError } from '../../../lib/errors';
 
 // Types
 import type { UserResponse } from '@cf-office-hours/shared';
-import type { Env } from '../../../../types/bindings';
+import type { Env } from '../../../types/bindings';
 
 // Mock UserRepository
 vi.mock('../../../repositories/user.repository');

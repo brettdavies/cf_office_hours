@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { AppLayout } from '@/components/layouts/AppLayout';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
+import { RouteErrorBoundary } from '@/components/common/RouteErrorBoundary';
 
 // Lazy load pages for code splitting
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
@@ -24,68 +25,75 @@ const CoordinatorMetricsPage = lazy(() => import('@/pages/coordinator/Coordinato
 const CoordinatorOverridesPage = lazy(() => import('@/pages/coordinator/CoordinatorOverridesPage'));
 
 export const router = createBrowserRouter([
-  // Root redirects to dashboard
+  // Pathless root route: its errorElement catches lazy-load (stale-chunk) errors
+  // from every descendant route, replacing React Router's default error screen.
   {
-    path: '/',
-    element: <Navigate to="/dashboard" replace />,
-  },
-  // Auth routes (public)
-  {
-    path: '/auth',
-    element: <AuthLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [
+      // Root redirects to dashboard
       {
-        path: 'login',
-        element: <LoginPage />,
+        path: '/',
+        element: <Navigate to="/dashboard" replace />,
       },
+      // Auth routes (public)
       {
-        path: 'callback',
-        element: <CallbackPage />,
-      },
-    ],
-  },
-  // Protected routes with AppLayout
-  {
-    element: <ProtectedRoute />,
-    children: [
-      {
-        element: <AppLayout />,
+        path: '/auth',
+        element: <AuthLayout />,
         children: [
           {
-            path: 'dashboard',
-            element: <DashboardPage />,
+            path: 'login',
+            element: <LoginPage />,
           },
           {
-            path: 'profile',
-            element: <ProfilePage />,
+            path: 'callback',
+            element: <CallbackPage />,
           },
+        ],
+      },
+      // Protected routes with AppLayout
+      {
+        element: <ProtectedRoute />,
+        children: [
           {
-            path: 'profile/:userId',
-            element: <ProfilePage />,
-          },
-          {
-            path: 'availability',
-            element: <AvailabilityPage />,
-          },
-          {
-            path: 'mentors',
-            element: <BrowseMentorsPage />,
-          },
-          {
-            path: 'mentors/:mentorId',
-            element: <MentorProfilePage />,
-          },
-          {
-            path: 'coordinator/matching',
-            element: <CoordinatorMatchingPage />,
-          },
-          {
-            path: 'coordinator/metrics',
-            element: <CoordinatorMetricsPage />,
-          },
-          {
-            path: 'coordinator/overrides',
-            element: <CoordinatorOverridesPage />,
+            element: <AppLayout />,
+            children: [
+              {
+                path: 'dashboard',
+                element: <DashboardPage />,
+              },
+              {
+                path: 'profile',
+                element: <ProfilePage />,
+              },
+              {
+                path: 'profile/:userId',
+                element: <ProfilePage />,
+              },
+              {
+                path: 'availability',
+                element: <AvailabilityPage />,
+              },
+              {
+                path: 'mentors',
+                element: <BrowseMentorsPage />,
+              },
+              {
+                path: 'mentors/:mentorId',
+                element: <MentorProfilePage />,
+              },
+              {
+                path: 'coordinator/matching',
+                element: <CoordinatorMatchingPage />,
+              },
+              {
+                path: 'coordinator/metrics',
+                element: <CoordinatorMetricsPage />,
+              },
+              {
+                path: 'coordinator/overrides',
+                element: <CoordinatorOverridesPage />,
+              },
+            ],
           },
         ],
       },

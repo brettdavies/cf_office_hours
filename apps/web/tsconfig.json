@@ -14,6 +14,6 @@
     },
     "types": ["vite/client"]
   },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*"]
+  "include": ["src", "worker"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*", "worker/**/*.test.ts"]
 }

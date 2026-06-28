@@ -26,8 +26,8 @@ import { z } from 'zod';
  */
 export const CreateAvailabilityBlockSchema = z
   .object({
-    start_time: z.string().datetime({ message: 'start_time must be a valid ISO 8601 datetime' }),
-    end_time: z.string().datetime({ message: 'end_time must be a valid ISO 8601 datetime' }),
+    start_time: z.iso.datetime({ message: 'start_time must be a valid ISO 8601 datetime' }),
+    end_time: z.iso.datetime({ message: 'end_time must be a valid ISO 8601 datetime' }),
     slot_duration_minutes: z
       .enum(['15', '30', '60'])
       .or(
@@ -47,9 +47,7 @@ export const CreateAvailabilityBlockSchema = z
       .default(0)
       .optional(),
     meeting_type: z.literal('online', {
-      errorMap: () => ({
-        message: 'meeting_type must be "online" (in-person meetings not yet supported)',
-      }),
+      error: 'meeting_type must be "online" (in-person meetings not yet supported)',
     }),
     description: z.string().max(1000, 'description cannot exceed 1000 characters').optional(),
   })
@@ -67,32 +65,32 @@ export const CreateAvailabilityBlockSchema = z
  * - GET /v1/availability (list)
  */
 export const AvailabilityBlockResponseSchema = z.object({
-  id: z.string().uuid(),
-  mentor_id: z.string().uuid(),
+  id: z.uuid(),
+  mentor_id: z.uuid(),
   recurrence_pattern: z.enum(['one_time', 'weekly', 'monthly']),
-  start_date: z.string().date().nullable(),
-  end_date: z.string().date().nullable(),
-  start_time: z.string().datetime(),
-  end_time: z.string().datetime(),
+  start_date: z.iso.date().nullable(),
+  end_date: z.iso.date().nullable(),
+  start_time: z.iso.datetime(),
+  end_time: z.iso.datetime(),
   slot_duration_minutes: z.number().int(),
   buffer_minutes: z.number().int(),
   meeting_type: z.enum(['online', 'in_person_preset', 'in_person_custom']),
-  location_preset_id: z.string().uuid().nullable(),
+  location_preset_id: z.uuid().nullable(),
   location_custom: z.string().nullable(),
   description: z.string().nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  created_by: z.string().uuid(),
-  updated_by: z.string().uuid(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+  created_by: z.uuid(),
+  updated_by: z.uuid(),
 });
 
 /**
  * Schema for mentor information nested in time slot response.
  */
 export const TimeSlotMentorSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
-  avatar_url: z.string().url().nullable(),
+  avatar_url: z.url().nullable(),
 });
 
 /**
@@ -102,24 +100,24 @@ export const TimeSlotMentorSchema = z.object({
  * individual bookable time intervals.
  */
 export const TimeSlotResponseSchema = z.object({
-  id: z.string().uuid(),
-  availability_id: z.string().uuid(),
-  mentor_id: z.string().uuid(),
-  start_time: z.string().datetime(),
-  end_time: z.string().datetime(),
+  id: z.uuid(),
+  availability_id: z.uuid(),
+  mentor_id: z.uuid(),
+  start_time: z.iso.datetime(),
+  end_time: z.iso.datetime(),
   slot_duration_minutes: z.number().int(),
   is_booked: z.boolean(),
   mentor: TimeSlotMentorSchema,
-  created_at: z.string().datetime(),
+  created_at: z.iso.datetime(),
 });
 
 /**
  * Schema for GET /v1/availability/slots query parameters.
  */
 export const GetAvailableSlotsQuerySchema = z.object({
-  mentor_id: z.string().uuid().optional(),
-  start_date: z.string().date().optional(),
-  end_date: z.string().date().optional(),
+  mentor_id: z.uuid().optional(),
+  start_date: z.iso.date().optional(),
+  end_date: z.iso.date().optional(),
   meeting_type: z.enum(['online', 'in_person']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50).optional(),
 });

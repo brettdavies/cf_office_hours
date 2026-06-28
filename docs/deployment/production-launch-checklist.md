@@ -1,231 +1,101 @@
 # Production Launch Checklist
 
-This checklist must be completed before declaring the CF Office Hours platform production-ready.
+Complete this checklist before declaring the CF Office Hours platform production-ready. It complements the step-by-step
+[Deployment Instructions](DEPLOYMENT_INSTRUCTIONS.md) — run those for the commands; use this to verify the result.
 
 ## Pre-Launch Verification
 
 ### Infrastructure
-- [ ] Supabase production database operational (Story 0.17)
-- [ ] API deployed and healthy at https://api.officehours.youcanjustdothings.io (Story 0.18)
-- [ ] Frontend deployed and accessible at https://officehours.youcanjustdothings.io (Story 0.19)
-- [ ] All environment variables set correctly in Cloudflare Pages
-- [ ] CORS configured for frontend origin (no errors in browser console)
-- [ ] SSL certificates active (automatic via Cloudflare)
+
+- [ ] Production D1 database created and its `database_id` set in `apps/api/wrangler.jsonc`.
+- [ ] API Worker deployed and healthy at `https://api.officehours.youcanjustdothings.io`.
+- [ ] Web Worker deployed and reachable at `https://officehours.youcanjustdothings.io`.
+- [ ] Custom domains resolve and TLS certificates are active (provisioned by Wrangler).
+- [ ] CORS allows the production web origin (no CORS errors in the browser console).
 
 ### Database
-- [ ] All migrations applied successfully
-- [ ] Row Level Security (RLS) policies active
-- [ ] Seed data loaded (test users, whitelist entries)
-- [ ] Database backups configured (automatic via Supabase)
 
-### API
-- [ ] Health endpoint responds: `https://api.officehours.youcanjustdothings.io/health`
-- [ ] OpenAPI documentation accessible: `https://api.officehours.youcanjustdothings.io/api/docs`
-- [ ] All API endpoints protected by authentication
-- [ ] Environment variables secured (no secrets exposed)
+- [ ] All migrations applied to the production database (`wrangler d1 migrations apply … --env production --remote`).
+- [ ] Seed data loaded if the demo data is wanted (the seed file is generated and gitignored).
+- [ ] Weekly Cron Trigger (`0 9 * * 1`) registered for the production environment.
 
----
+### Secrets
+
+- [ ] `JWT_SECRET` set for production (`wrangler secret put`).
+- [ ] Optional secrets set if used: `OPENAI_API_KEY` (AI matching), `RESEND_API_KEY` / `EMAIL_FROM` (email).
+- [ ] No secrets committed to the repository.
 
 ## Smoke Tests
 
-Execute these manual tests in production environment:
+Run the [Verification steps in the deploy runbook](DEPLOYMENT_INSTRUCTIONS.md#verification) first, then confirm the full
+flows:
 
-### Authentication Flow
-- [ ] Homepage loads without errors at https://officehours.youcanjustdothings.io
-- [ ] Magic link authentication works:
-  - [ ] Enter whitelisted email
-  - [ ] Receive magic link email (check Supabase Inbucket or actual inbox)
-  - [ ] Click magic link
-  - [ ] Redirects to `/dashboard` successfully
-  - [ ] User session persists on page refresh
+### Authentication
 
-### Mentor Flow
-- [ ] Login as mentor user
-- [ ] Navigate to `/availability`
-- [ ] Create availability block:
-  - [ ] API request succeeds: `POST /v1/availability` - 201 Created
-  - [ ] Availability appears in list
-  - [ ] Data persisted to production database
-- [ ] View availability calendar
-- [ ] Delete availability block (if needed for testing)
+- [ ] The web app loads and the login page shows the three "Login as …" role buttons.
+- [ ] Clicking a role calls `POST /v1/auth/demo-login`, returns a JWT, and lands on `/dashboard`.
+- [ ] The session persists across a page refresh.
 
-### Mentee Flow
-- [ ] Login as mentee user
-- [ ] Navigate to `/mentors`
-- [ ] Browse mentor list:
-  - [ ] Mentor cards display correctly
-  - [ ] Profile data loads from API
-- [ ] Select mentor, view available slots
-- [ ] Book meeting:
-  - [ ] API request succeeds: `POST /v1/bookings` - 201 Created
-  - [ ] Booking confirmation displays
-  - [ ] Booking appears in dashboard
-  - [ ] Data persisted to production database
+### Mentor flow
+
+- [ ] Log in as a mentor and create an availability block (`POST /v1/availability` → `201`).
+- [ ] The new availability appears in the list.
+
+### Mentee flow
+
+- [ ] Log in as a mentee, browse mentors, and open available slots.
+- [ ] Book a meeting (`POST /v1/bookings` → `201`); the booking shows on the dashboard.
 
 ### Dashboard
-- [ ] Dashboard displays user data correctly
-- [ ] Bookings list loads (both as mentor and mentee)
-- [ ] User profile displays correctly
-- [ ] Navigation works between all pages
 
-### Console Logging (Story 0.16.1)
-- [ ] Open DevTools > Console
-- [ ] Verify expected logs present:
-  - [ ] `[AUTH] Initializing auth hook`
-  - [ ] `[AUTH] Magic link sent { email, redirectUrl }`
-  - [ ] `[API] Fetching user profile`
-  - [ ] Other critical path logs as implemented
-- [ ] Verify NO unexpected errors or warnings
-
----
+- [ ] `GET /v1/bookings/my-bookings` loads bookings as both mentor and mentee.
+- [ ] Navigation works across all pages, including a hard refresh on an in-app route.
 
 ## Technical Verification
 
 ### Frontend
-- [ ] Static assets load from Cloudflare CDN (check Network tab)
-- [ ] No console errors (only expected logs)
-- [ ] No CORS errors
-- [ ] All pages render correctly (Login, Dashboard, Mentors, Availability, Profile)
-- [ ] React Router navigation works (including page refresh on any route)
+
+- [ ] Static assets load from the Cloudflare edge (Network tab).
+- [ ] No unexpected console errors; no CORS errors.
+- [ ] React Router navigation works, including refresh on any route (SPA fallback).
 
 ### API
-- [ ] All API endpoints return correct status codes
-- [ ] Error responses include proper error codes and messages
-- [ ] CORS headers present in all responses:
-  - [ ] `Access-Control-Allow-Origin: https://officehours.youcanjustdothings.io`
-- [ ] Rate limiting configured (if implemented)
+
+- [ ] Endpoints return correct status codes and the structured error envelope on failure.
+- [ ] CORS headers present for the production origin.
 
 ### Performance
-- [ ] Time to First Byte (TTFB) < 200ms (Cloudflare edge)
-- [ ] First Contentful Paint (FCP) < 1s (check Lighthouse)
-- [ ] Largest Contentful Paint (LCP) < 2.5s (check Lighthouse)
-- [ ] No JavaScript errors blocking rendering
 
----
+- [ ] Time to First Byte (TTFB) is low at the edge.
+- [ ] First/Largest Contentful Paint are within target (check Lighthouse).
 
 ## Post-Launch Monitoring
 
-### Immediate (First 2 Hours)
-- [ ] Cloudflare Workers metrics (API):
-  - [ ] Navigate to: Cloudflare Dashboard > Workers & Pages > cf-office-hours-api > Metrics
-  - [ ] Verify requests being served
-  - [ ] Check error rate (should be near 0%)
-  - [ ] Monitor CPU time (should be under 50ms per request)
-- [ ] Cloudflare Pages analytics (Frontend):
-  - [ ] Navigate to: Cloudflare Dashboard > Workers & Pages > cf-office-hours > Analytics
-  - [ ] Verify page views incrementing
-  - [ ] Check bandwidth usage
-  - [ ] Monitor requests per second
-- [ ] Supabase dashboard (Database):
-  - [ ] Navigate to: Supabase Dashboard > Project > Database
-  - [ ] Verify connections active
-  - [ ] Check query performance
-  - [ ] Monitor database size
+- [ ] API Worker metrics: Cloudflare Dashboard → Workers → `cf-office-hours-api` → Metrics (requests, error rate, CPU).
+- [ ] Web Worker metrics: Cloudflare Dashboard → Workers → `cf-office-hours-web`.
+- [ ] D1 usage: Cloudflare Dashboard → D1 → `cf-office-hours` (reads, writes, storage).
+- [ ] Live logs available via `npm run tail --workspace=apps/api` (`wrangler tail`).
+- [ ] Optional external uptime monitor on `https://api.officehours.youcanjustdothings.io/health`.
 
-### Short-term (First 24 Hours)
-- [ ] Check Cloudflare metrics every 2 hours
-- [ ] Monitor error logs in Workers dashboard
-- [ ] Watch for CORS errors or API failures
-- [ ] Respond to user feedback/bug reports
-- [ ] Verify email delivery (magic links arriving)
+## Rollback
 
-### Ongoing
-- [ ] Set up external uptime monitor (optional):
-  - [ ] Service: UptimeRobot / Pingdom / StatusCake
-  - [ ] URL: `https://officehours.youcanjustdothings.io`
-  - [ ] Check interval: 5 minutes
-  - [ ] Alert on: 3 consecutive failures
-- [ ] Weekly review of Cloudflare analytics
-- [ ] Monthly security audit: `npm audit`
-- [ ] Quarterly dependency updates
+- [ ] API and web each roll back with `wrangler rollback --env production` (see
+  [Rollback](DEPLOYMENT_INSTRUCTIONS.md#rollback)).
+- [ ] D1 schema changes roll forward with a new migration (no automatic schema rollback).
 
----
+## Known Limitations
 
-## Rollback Plan
-
-### Frontend Rollback
-- [ ] Documented in `frontend-deployment-log.md`
-- [ ] Via Cloudflare Dashboard: Pages > Deployments > Rollback
-- [ ] Via Git: `git revert HEAD && git push origin main`
-
-### API Rollback
-- [ ] Documented in Story 0.18
-- [ ] Via Wrangler: `wrangler rollback --env production`
-- [ ] Verify previous version deployed successfully
-
-### Database Rollback
-- [ ] Create reverse migration with `supabase migration new rollback_[name]`
-- [ ] Test migration locally first
-- [ ] Apply to production: `supabase db push`
-- [ ] See Story 0.17 for detailed procedures
-
----
-
-## Known Limitations (Epic 0)
-
-Document any known limitations to communicate to early users:
-
-- [ ] No email notifications (magic link only)
-- [ ] No calendar integration (manual booking only)
-- [ ] No real-time updates (refresh to see changes)
-- [ ] No file uploads (profile avatars not supported)
-- [ ] No advanced search/filtering
-- [ ] No mobile optimization (desktop-first)
-
----
-
-## Launch Communication
-
-### Internal Team
-- [ ] Announce in Slack/email with production URL
-- [ ] Share login instructions and test accounts
-- [ ] Document known limitations
-- [ ] Provide feedback channels
-
-### Early Users
-- [ ] Send invitation email with:
-  - [ ] Production URL: https://officehours.youcanjustdothings.io
-  - [ ] Login instructions (magic link)
-  - [ ] Brief user guide
-  - [ ] Feedback contact
-- [ ] Monitor initial user activity
-- [ ] Respond promptly to questions/issues
-
-### Public (If Applicable)
-- [ ] Update marketing website with launch announcement
-- [ ] Social media announcement
-- [ ] Press release (if applicable)
-
----
-
-## Post-Launch Actions
-
-### Immediate
-- [ ] Tag release in Git: `git tag v1.0.0 && git push origin v1.0.0`
-- [ ] Update documentation with production URLs
-- [ ] Close Epic 0 stories in project management tool
-- [ ] Celebrate successful launch! 🎉
-
-### Short-term
-- [ ] Gather user feedback
-- [ ] Triage bug reports
-- [ ] Plan Epic 1 features based on feedback
-- [ ] Schedule retrospective meeting
-
----
+- [ ] Booking-confirmation email is formatted and logged to console; live delivery via Resend is not yet enabled.
+- [ ] Bookings are arranged in-app; there is no external calendar sync.
+- [ ] Updates surface via React Query polling, not a real-time push channel.
+- [ ] Sign-in is demo login only (no signup).
 
 ## Sign-off
 
-Before marking production ready, confirm all sections above are complete:
+- [ ] Pre-Launch Verification complete.
+- [ ] Smoke Tests passing.
+- [ ] Technical Verification complete.
+- [ ] Post-Launch Monitoring active.
+- [ ] Rollback procedure confirmed.
 
-- [ ] Pre-Launch Verification: Complete
-- [ ] Smoke Tests: All Passing
-- [ ] Technical Verification: Complete
-- [ ] Post-Launch Monitoring: Active
-- [ ] Rollback Plan: Documented and Tested
-- [ ] Known Limitations: Documented
-- [ ] Launch Communication: Prepared
-
-**Deployment Approved By:** [Name]
-**Date:** [YYYY-MM-DD]
-**Epic 0 Status:** ✅ Complete - Walking Skeleton Live in Production
+**Approved by:** ______________ **Date:** ______________

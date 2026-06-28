@@ -15,6 +15,18 @@ import { MatchingService } from '../../../services/matching.service';
 import type { MatchResult } from '../../../services/matching.service';
 import type { UserResponse } from '@cf-office-hours/shared';
 
+// Response body shapes as the HTTP layer serializes them. `Response.json()` is
+// typed `unknown`, so each read asserts the documented DTO it returns.
+interface FindMatchesBody {
+  matches: MatchResult[];
+}
+interface ExplainBody {
+  explanation: MatchResult['explanation'];
+}
+interface ErrorBody {
+  error: { code: string; message: string; timestamp: string };
+}
+
 // Mock MatchingService
 vi.mock('../../../services/matching.service');
 
@@ -130,7 +142,7 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000123',
+          userId: '00000000-0000-4000-8000-000000000123',
           targetRole: 'mentor',
           options: {
             algorithmVersion: 'tag-based-v1',
@@ -141,7 +153,7 @@ describe('Matching API Routes', () => {
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as FindMatchesBody;
       expect(data.matches).toHaveLength(2);
       expect(data.matches[0].score).toBe(50); // Match mock data
       expect(data.matches[0].user.id).toBe('mentor-456');
@@ -171,13 +183,13 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000456',
+          userId: '00000000-0000-4000-8000-000000000456',
           targetRole: 'mentee',
         }),
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as FindMatchesBody;
       expect(data.matches).toHaveLength(1);
       expect(data.matches[0].user.id).toBe('mentee-123');
     });
@@ -196,7 +208,7 @@ describe('Matching API Routes', () => {
       });
 
       expect(res.status).toBe(400);
-      const data = await res.json();
+      const data = (await res.json()) as ErrorBody;
       expect(data.error).toBeDefined();
     });
 
@@ -210,13 +222,13 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000000',
+          userId: '00000000-0000-4000-8000-000000000000',
           targetRole: 'mentor',
         }),
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as FindMatchesBody;
       expect(data.matches).toEqual([]);
     });
 
@@ -232,13 +244,13 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000000',
+          userId: '00000000-0000-4000-8000-000000000000',
           targetRole: 'mentor',
         }),
       });
 
       expect(res.status).toBe(500);
-      const data = await res.json();
+      const data = (await res.json()) as ErrorBody;
       expect(data.error.code).toBe('INTERNAL_ERROR');
       expect(data.error.message).toContain('Database connection failed');
     });
@@ -265,14 +277,14 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
           algorithmVersion: 'tag-based-v1',
         }),
       });
 
       expect(res.status).toBe(200);
-      const data = await res.json();
+      const data = (await res.json()) as ExplainBody;
       expect(data.explanation).toBeDefined();
       expect(data.explanation.tagOverlap).toHaveLength(2);
       expect(data.explanation.summary).toContain('Strong match');
@@ -288,13 +300,13 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
         }),
       });
 
       expect(res.status).toBe(404);
-      const data = await res.json();
+      const data = (await res.json()) as ErrorBody;
       expect(data.error.code).toBe('MATCH_NOT_FOUND');
       expect(data.error.message).toContain('No cached match found');
     });
@@ -313,7 +325,7 @@ describe('Matching API Routes', () => {
       });
 
       expect(res.status).toBe(400);
-      const data = await res.json();
+      const data = (await res.json()) as ErrorBody;
       expect(data.error).toBeDefined();
     });
 
@@ -329,13 +341,13 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
         }),
       });
 
       expect(res.status).toBe(500);
-      const data = await res.json();
+      const data = (await res.json()) as ErrorBody;
       expect(data.error.code).toBe('INTERNAL_ERROR');
       expect(data.error.message).toContain('Database timeout');
     });
@@ -352,14 +364,14 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
         }),
       });
 
       expect(explainMatchSpy).toHaveBeenCalledWith(
-        '00000000-0000-0000-0000-000000000001',
-        '00000000-0000-0000-0000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000002',
         'tag-based-v1'
       );
     });
