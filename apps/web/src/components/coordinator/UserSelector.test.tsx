@@ -211,6 +211,40 @@ describe('UserSelector', () => {
     expect(screen.getByText(/Loading users with scores/i)).toBeInTheDocument();
   });
 
+  it('should not emit an uncontrolled-to-controlled warning when value goes from null to set', async () => {
+    mockUseGetUsersWithScores.mockReturnValue({
+      data: { users: mockUsers },
+      isLoading: false,
+      error: null,
+    });
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { rerender } = renderWithProviders(<UserSelector value={null} onChange={mockOnChange} />);
+
+    await waitFor(() => {
+      expect(mockUseGetUsersWithScores).toHaveBeenCalled();
+    });
+
+    rerender(<UserSelector value="user-1" onChange={mockOnChange} />);
+
+    const controlledWarning = [
+      ...consoleWarnSpy.mock.calls,
+      ...consoleErrorSpy.mock.calls,
+    ].filter(call =>
+      call.some(
+        arg =>
+          typeof arg === 'string' &&
+          /uncontrolled to controlled|changing an uncontrolled/i.test(arg)
+      )
+    );
+
+    expect(controlledWarning).toHaveLength(0);
+
+    consoleWarnSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
+
   it('should retry fetch on error with explicit action', async () => {
     mockUseGetUsersWithScores.mockReturnValueOnce({
       data: undefined,

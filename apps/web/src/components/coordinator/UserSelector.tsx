@@ -120,7 +120,7 @@ export function UserSelector({ value, onChange, algorithmVersion = 'tag-based-v1
         ) : error ? (
           <div className="text-sm text-red-500">{error.message || 'Failed to load users'}</div>
         ) : (
-          <Select value={value || undefined} onValueChange={handleSelect}>
+          <Select value={value ?? ''} onValueChange={handleSelect}>
             <SelectTrigger id="user-select" className="w-full">
               <SelectValue placeholder="Select a user..." />
             </SelectTrigger>
