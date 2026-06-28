@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# SPDX-FileCopyrightText: 2026 Brett Davies
 """
 Script to convert CSV files to SQL INSERT statements for seed data.
 This handles large CSV files with complex quoting and escaping automatically.

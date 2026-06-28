@@ -8,7 +8,7 @@
 
 ## 1.2 Current Project State
 
-This is a **new platform** to replace the existing Union.vc solution. The goal is to create an intelligent mentor-mentee matching and scheduling platform for Capital Factory's startup accelerator program.
+This is a **new platform** to replace the existing Union.vc solution. The goal is to create an intelligent mentor-mentee matching and scheduling platform for the startup accelerator program.
 
 ## 1.3 Goals
 
@@ -28,7 +28,7 @@ This is a **new platform** to replace the existing Union.vc solution. The goal i
 
 ## 1.4 Background Context
 
-Capital Factory currently uses Union.vc for connecting startup founders with mentors for office hours sessions. The platform has limitations in match quality, user experience, and scheduling friction. This new platform will provide intelligent matching based on tags/categories, implement a reputation system to ensure quality engagement, and streamline scheduling through deep calendar integration. The system must integrate with CF's existing Airtable data infrastructure, which serves as the source of truth for user management via one-way sync.
+The accelerator currently uses Union.vc for connecting startup founders with mentors for office hours sessions. The platform has limitations in match quality, user experience, and scheduling friction. This new platform will provide intelligent matching based on tags/categories, implement a reputation system to ensure quality engagement, and streamline scheduling through deep calendar integration. The system must integrate with CF's existing Airtable data infrastructure, which serves as the source of truth for user management via one-way sync.
 
 ## 1.5 Success Metrics
 
