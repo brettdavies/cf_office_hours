@@ -184,7 +184,7 @@ export const coordinatorDashboardConfig: DashboardConfig = {
             unit: 'companies',
             goal: 17.3,
             current: 16.26,
-            progress: 49.3,
+            progress: 93.99,
           },
         },
         {
@@ -223,7 +223,7 @@ export const coordinatorDashboardConfig: DashboardConfig = {
             unit: '%',
             goal: 51.6,
             current: 45.5,
-            progress: 0,
+            progress: 88.18,
           },
         },
       ],
