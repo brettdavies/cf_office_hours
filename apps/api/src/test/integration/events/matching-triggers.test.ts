@@ -21,6 +21,7 @@ describe('Matching Event Triggers', () => {
   let engineSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     const created = createTestDb();
     db = created.DB as unknown as D1Database;
     raw = created.raw;

@@ -26,7 +26,9 @@ const mockRepository = {
 };
 
 vi.mock('../../../repositories/availability.repository', () => ({
-  AvailabilityRepository: vi.fn().mockImplementation(() => mockRepository),
+  AvailabilityRepository: vi.fn().mockImplementation(function () {
+    return mockRepository;
+  }),
 }));
 
 describe('AvailabilityService', () => {
