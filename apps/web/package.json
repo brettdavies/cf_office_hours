@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@cf-office-hours/shared": "*",
-    "@hookform/resolvers": "^3.3.4",
+    "@hookform/resolvers": "^5.0.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -44,7 +44,7 @@
     "recharts": "^3.9.0",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.23.8",
+    "zod": "^4.0.0",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

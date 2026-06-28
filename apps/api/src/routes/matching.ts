@@ -210,8 +210,8 @@ const getUsersWithScoresRoute = createRoute({
           schema: z.object({
             users: z.array(
               z.object({
-                id: z.string().uuid(),
-                email: z.string().email(),
+                id: z.uuid(),
+                email: z.email(),
                 role: z.enum(['mentor', 'mentee', 'coordinator']),
                 profile: z
                   .object({

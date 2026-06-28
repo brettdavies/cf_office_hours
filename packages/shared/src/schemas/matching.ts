@@ -87,7 +87,7 @@ export const FindMatchesOptionsSchema = z.object({
  * - options: Optional filtering/pagination parameters
  */
 export const FindMatchesRequestSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   targetRole: z.enum(["mentor", "mentee"]),
   options: FindMatchesOptionsSchema.optional(),
 });
@@ -110,8 +110,8 @@ export const FindMatchesResponseSchema = z.object({
  * - algorithmVersion: Optional algorithm filter (default: 'tag-based-v1')
  */
 export const ExplainMatchRequestSchema = z.object({
-  userId1: z.string().uuid(),
-  userId2: z.string().uuid(),
+  userId1: z.uuid(),
+  userId2: z.uuid(),
   algorithmVersion: z.string().default("tag-based-v1"),
 });
 
@@ -141,8 +141,8 @@ export const GetAlgorithmsResponseSchema = z.object({
  * Schema for user information returned by users-with-scores endpoint.
  */
 export const UserWithProfileSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
   role: z.enum(["mentor", "mentee", "coordinator"]),
   profile: z.object({
     name: z.string().nullable(),
