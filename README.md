@@ -185,4 +185,4 @@ These are not in the codebase today:
 
 ## License
 
-Dual-licensed under either of Apache License 2.0 or the MIT License, at your option.
+Dual-licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT), at your option.
