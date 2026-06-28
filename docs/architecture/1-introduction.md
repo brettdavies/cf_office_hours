@@ -1,34 +1,23 @@
 # 1. Introduction
 
-This document outlines the complete fullstack architecture for **CF Office Hours Platform**, including backend systems, frontend implementation, and their integration. It serves as the single source of truth for AI-driven development, ensuring consistency across the entire technology stack.
+This is the fullstack architecture documentation for the **CF Office Hours Platform** — an intelligent mentor-mentee
+matching and scheduling application for a startup accelerator program. It describes the system as built: a Cloudflare
+Workers backend on Cloudflare D1, a React single-page app served as Workers static assets, and the shared types and
+matching logic that connect them.
 
-This unified approach combines what would traditionally be separate backend and frontend architecture documents, streamlining the development process for a modern fullstack application where these concerns are increasingly intertwined.
+The document is sharded into numbered sections (this file plus `2-*.md` through `16-*.md`). Read them in order for a
+top-to-bottom tour, or jump via [`index.md`](./index.md).
 
-The platform replaces Union.vc to provide intelligent mentor-mentee matching, seamless calendar integration, reputation-based access control, and automated meeting scheduling for Capital Factory's startup accelerator program.
+## 1.1 How to read this document
 
-## 1.1 Starter Template or Existing Project
-
-**Decision:** N/A - Greenfield project with predefined stack
-
-No starter template is required since the architecture is already well-defined. The project will use:
-- Vite for React frontend scaffolding
-- Hono framework for API development
-- Cloudflare Workers for serverless deployment
-
-This is a **greenfield project** with a clearly defined tech stack:
-
-- **Frontend:** React + Vite hosted on Cloudflare Pages
-- **Backend:** Cloudflare Workers with Hono framework
-- **Database:** Supabase (Postgres + Auth + Storage + Realtime)
-- **UI:** Shadcn/ui + Tailwind CSS
-
-## 1.2 Change Log
-
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-10-02 | 1.0 | Initial architecture document | Winston (Architect Agent) |
-| 2025-10-03 | 1.1 | Updated Section 4 Data Models for PRD v2.1 alignment | Winston (Architect Agent) |
-| 2025-10-03 | 2.3 | Updated for PRD v2.3 alignment, added Section 4.10 (External Integrations) and Section 8.7 (Background Jobs), added PRD requirement cross-references | Winston (Architect Agent) |
-| 2025-10-03 | 2.4 | Clarified Google Meet link generation priority (mentee > mentor), added explicit coordinator role check in responsiveness calculation, extended AvatarCropSettings with crop coordinates | Sarah (PO Agent) |
-
----
+- **Architecture (this tree).** Sections 2–16 cover the high-level design, tech stack, data model, API surface, frontend
+  and backend internals, project structure, deployment, security, testing, coding standards, error handling, and
+  observability.
+- **Setup and operations (live runbooks).** Day-to-day setup, run, and deploy steps live with the code and are the
+  authoritative source for commands: [`apps/api/README.md`](../../apps/api/README.md),
+  [`apps/web/README.md`](../../apps/web/README.md), and
+  [`docs/deployment/DEPLOYMENT_INSTRUCTIONS.md`](../deployment/DEPLOYMENT_INSTRUCTIONS.md).
+- **Troubleshooting.** Common local issues and fixes live in [`docs/TROUBLESHOOTING.md`](../TROUBLESHOOTING.md).
+- **Historical planning record.** The original product requirements, implementation stories, and QA gates are preserved
+  unedited under [`docs/archive/`](../archive/) as a frozen snapshot of the early process. They describe earlier design
+  intent and do not reflect the current implementation.

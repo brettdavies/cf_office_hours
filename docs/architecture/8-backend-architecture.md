@@ -188,8 +188,9 @@ application layer; authorization is likewise application-only (no row-level secu
 - UUIDs and timestamps are `TEXT` (ISO-8601 UTC); booleans are `INTEGER` (0/1); JSON is `TEXT`.
 - Most tables carry a soft-delete (`deleted_at` / `deleted_by`) and an audit trail (`created_at` / `created_by` /
   `updated_at` / `updated_by`). `time_slots` is the exception: it has `created_at` but **no `updated_at`**.
-- `users.airtable_record_id` is a vestigial column from the pre-D1 source data. It is selected through some DTOs but is
-  not used by application logic and is a candidate for removal in a future migration.
+- `users.airtable_record_id` is an opaque external record id carried in the schema — it labels each row's origin in the
+  seed data set. It is `UNIQUE NOT NULL`, indexed, and read by the user repository and matching service, but there is no
+  live Airtable integration (no API client, webhook, or sync job).
 
 **Views:** `algorithm_versions` (distinct algorithm versions present in the cache) and `distinct_users_with_scores` (the
 flattened set of users appearing in `user_match_cache`).
@@ -204,7 +205,7 @@ footer** so a freshly loaded database is immediately realistic with no manual fi
 2. `scripts/bump-seed-dates.sql`, which anchors every timestamp to load time.
 
 The same date-bump script is run weekly by the Worker Cron Trigger (next section). See `apps/api/seeds/README.md` and
-the [0.20 story](../stories/0.20.story.md) for the intended shape.
+the [0.20 story](../archive/stories/0.20.story.md) for the intended shape.
 
 ## 8.10 Background Jobs & Scheduled Tasks
 
@@ -293,8 +294,8 @@ Common settings: `main` is `src/index.ts`, `compatibility_date` `2026-06-01`, `c
 | `RESEND_API_KEY` | No       | Email delivery; absent → emails log to console        |
 | `EMAIL_FROM`     | No       | Sender address for notification email                 |
 
-`CACHE` and `RATE_LIMIT` KV namespaces are declared optional on `Env` for future use. There are no Supabase, Google,
-Microsoft, or Airtable secrets.
+`CACHE` and `RATE_LIMIT` KV namespaces are declared optional on `Env` for future use. There are no external
+identity-provider, Google, Microsoft, or Airtable secrets.
 
 **Scripts** (`package.json`): `dev` (`wrangler dev`), `build` (`esbuild … --loader:.sql=text`), `deploy:staging` /
 `deploy:production` (`wrangler deploy --env …`), `test` (`vitest run`), `lint` (`eslint`), `tail` (`wrangler tail`).

@@ -6,7 +6,9 @@ This directory contains the matching engine infrastructure for calculating and c
 
 - **`interface.ts`** - TypeScript interfaces and types for matching engines
 - **`base.engine.ts`** - Abstract base class providing common infrastructure
-- **`tag-based.engine.ts`** - Tag-based matching algorithm (V1)
+- **`tag-based.engine.ts`** - Tag-based matching algorithm (`tag-based-v1`; weighted tag overlap, 0-60 scores)
+- **`ai-based.engine.ts`** - AI-based matching algorithm (`ai-based-v1`; OpenAI-scored, 0-100 scores)
+- **`index.ts`** - Barrel exports for the engines
 
 ## Creating a New Matching Engine
 

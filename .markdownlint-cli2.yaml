@@ -81,6 +81,7 @@ ignores:
   - ".git/**"
   - "*.min.md"
   - "docs/solutions/**"  # Symlink to the shared solutions-docs repo; lint upstream, not here
+  - "docs/archive/**"    # Frozen historical record kept verbatim; not maintained or linted
 
 # Fix automatically when --fix is used
 fix: true

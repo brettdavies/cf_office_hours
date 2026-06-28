@@ -1,41 +1,13 @@
 # Document Complete
 
-**Architecture Document Status:** All 16 sections complete. The CF Office Hours Platform architecture is fully documented and ready for implementation.
+This is the end of the sharded architecture document. The sixteen sections (plus the matching-cache deep-dive) describe
+the CF Office Hours platform as built: Cloudflare Workers, Cloudflare D1, a Hono API, and a React + Vite SPA served as
+static assets.
 
-**Sections Overview:**
-1. ✅ Executive Summary
-2. ✅ System Overview
-3. ✅ Data Architecture
-4. ✅ API Architecture
-5. ✅ Integration Patterns
-6. ✅ Components
-7. ✅ Frontend Architecture
-8. ✅ Backend Architecture
-9. ✅ Unified Project Structure
-10. ✅ Development Workflow
-11. ✅ Deployment Architecture
-12. ✅ Security and Performance
-13. ✅ Testing Strategy
-14. ✅ Coding Standards
-15. ✅ Error Handling Strategy
-16. ✅ Monitoring and Observability
+For the next layer of detail, follow the source:
 
-**Next Steps:**
-1. Review architecture document with stakeholders
-2. Begin Epic 0 (Walking Skeleton) implementation
-3. Set up development environment per Section 10
-4. Follow deployment procedures in Section 11
-5. Implement coding standards from Section 14
-
-**Estimated Implementation Timeline:** 20 weeks (10 sprints)
-**Key Milestone:** End-to-end working product by Week 4 (Epic 0 complete)
-
----
-
-**Document Metadata:**
-- **Version:** 1.0
-- **Last Updated:** 2025-10-02
-- **Total Sections:** 16
-- **Total Pages:** ~450 (estimated)
-- **Status:** Complete - Ready for Implementation
-
+- **Setup and run:** [`apps/api/README.md`](../../apps/api/README.md) and
+  [`apps/web/README.md`](../../apps/web/README.md).
+- **Deploy:** [`docs/deployment/DEPLOYMENT_INSTRUCTIONS.md`](../deployment/DEPLOYMENT_INSTRUCTIONS.md).
+- **Code:** `apps/api/src`, `apps/web/src`, and the shared schemas in `packages/shared`.
+- **Historical planning record:** [`docs/archive/`](../archive/).

@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: MIT OR Apache-2.0
+-- SPDX-FileCopyrightText: 2026 Brett Davies
 -- Bump all seed timestamps onto the current date.
 --
 -- The seed is generated relative to a fixed "now" (story 0.20: availability and
