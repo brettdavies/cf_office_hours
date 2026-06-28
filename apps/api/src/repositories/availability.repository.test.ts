@@ -31,9 +31,15 @@ describe('AvailabilityRepository', () => {
       const result = await repository.create(MENTOR_ID, request);
 
       expect(result.mentor_id).toBe(MENTOR_ID);
-      expect(result.location).toBe('online');
       expect(result.slot_duration_minutes).toBe(30);
       expect(result.start_time).toBe(request.start_time);
+
+      // The persisted block stores its meeting kind in the `location` column,
+      // which the API response schema does not surface; assert it on the row.
+      const { location } = raw
+        .prepare('SELECT location FROM availability WHERE id = ?')
+        .get(result.id) as { location: string };
+      expect(location).toBe('online');
 
       // A 2-hour window at 30-minute slots yields 4 slots.
       const { n } = raw

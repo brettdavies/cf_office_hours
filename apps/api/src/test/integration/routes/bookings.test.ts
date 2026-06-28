@@ -31,7 +31,7 @@ vi.mock('../../../middleware/auth', () => ({
     return await next();
   }),
   requireRole: vi.fn(() =>
-    vi.fn(async (c, next) => {
+    vi.fn(async (_c, next) => {
       return await next();
     })
   ),

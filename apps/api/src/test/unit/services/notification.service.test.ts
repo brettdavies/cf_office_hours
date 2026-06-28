@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 // External dependencies
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 // Internal modules
 import { NotificationService } from '../../../services/notification.service';
@@ -16,10 +16,19 @@ import { createMockBooking } from '../../../test/fixtures/bookings';
 // Types
 import type { EmailRecipient } from '../../../services/notification.service';
 
+// Shape of the structured payload the service logs alongside each email label.
+interface EmailLogPayload {
+  to: string;
+  subject: string;
+  body: string;
+  booking_id: string;
+  timestamp: string;
+}
+
 describe('NotificationService', () => {
   let service: NotificationService;
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let consoleLogSpy: MockInstance<(label: string, payload: EmailLogPayload) => void>;
+  let consoleErrorSpy: MockInstance<(label: string, payload: Record<string, unknown>) => void>;
 
   beforeEach(() => {
     service = new NotificationService();

@@ -16,7 +16,7 @@ import {
 } from '../../../test/fixtures/availability';
 
 // Types
-import type { Env } from '../../../../types/bindings';
+import type { Env } from '../../../types/bindings';
 
 // Mock repository
 const mockRepository = {
