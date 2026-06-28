@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       'docs/**',
+      '**/.claude/**',
       '**/*.config.{ts,js,cjs,mjs}',
     ],
   },
