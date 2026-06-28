@@ -2,7 +2,7 @@
   "name": "cf-office-hours",
   "version": "0.1.1",
   "private": true,
-  "description": "Capital Factory Office Hours Platform - Monorepo",
+  "description": "Office Hours Platform - Monorepo",
   "workspaces": [
     "apps/*",
     "packages/*"
