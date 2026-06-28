@@ -1,6 +1,7 @@
 {
   "name": "cf-office-hours",
   "version": "0.1.1",
+  "license": "MIT OR Apache-2.0",
   "private": true,
   "description": "Office Hours Platform - Monorepo",
   "workspaces": [
