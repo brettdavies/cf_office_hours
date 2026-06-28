@@ -14,6 +14,20 @@ import { z } from "zod";
 import { UserResponseSchema } from "./user";
 
 /**
+ * Schema for AI-generated match narrative.
+ *
+ * Populated for algorithms that produce free-text reasoning (e.g. ai-based-v1)
+ * rather than structured tag overlap. All fields optional because a stored
+ * narrative may carry any subset.
+ */
+export const AiInsightsSchema = z.object({
+  reasoning: z.string().optional(),
+  confidence: z.string().optional(),
+  mentorSummary: z.string().optional(),
+  companyDescription: z.string().optional(),
+});
+
+/**
  * Schema for match explanation JSONB field.
  *
  * Stores detailed breakdown of why two users were matched:
@@ -21,6 +35,7 @@ import { UserResponseSchema } from "./user";
  * - stageMatch: Whether users are at compatible startup stages
  * - reputationCompatible: Whether reputation tiers are compatible
  * - summary: Human-readable explanation string
+ * - aiInsights: AI-generated narrative, present for AI-based algorithms
  */
 export const MatchExplanationSchema = z.object({
   tagOverlap: z.array(
@@ -32,6 +47,7 @@ export const MatchExplanationSchema = z.object({
   stageMatch: z.boolean(),
   reputationCompatible: z.boolean(),
   summary: z.string(),
+  aiInsights: AiInsightsSchema.optional(),
 });
 
 /**
@@ -71,7 +87,7 @@ export const FindMatchesOptionsSchema = z.object({
  * - options: Optional filtering/pagination parameters
  */
 export const FindMatchesRequestSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   targetRole: z.enum(["mentor", "mentee"]),
   options: FindMatchesOptionsSchema.optional(),
 });
@@ -94,8 +110,8 @@ export const FindMatchesResponseSchema = z.object({
  * - algorithmVersion: Optional algorithm filter (default: 'tag-based-v1')
  */
 export const ExplainMatchRequestSchema = z.object({
-  userId1: z.string().uuid(),
-  userId2: z.string().uuid(),
+  userId1: z.uuid(),
+  userId2: z.uuid(),
   algorithmVersion: z.string().default("tag-based-v1"),
 });
 
@@ -125,8 +141,8 @@ export const GetAlgorithmsResponseSchema = z.object({
  * Schema for user information returned by users-with-scores endpoint.
  */
 export const UserWithProfileSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
   role: z.enum(["mentor", "mentee", "coordinator"]),
   profile: z.object({
     name: z.string().nullable(),
@@ -157,6 +173,7 @@ export const ExplainMatchResponseSchema = z.object({
  * These provide compile-time type safety while the schemas
  * provide runtime validation.
  */
+export type AiInsights = z.infer<typeof AiInsightsSchema>;
 export type MatchExplanation = z.infer<typeof MatchExplanationSchema>;
 export type MatchResult = z.infer<typeof MatchResultSchema>;
 export type FindMatchesOptions = z.infer<typeof FindMatchesOptionsSchema>;

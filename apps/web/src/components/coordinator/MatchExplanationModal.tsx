@@ -2,7 +2,8 @@
  * Match Explanation Modal Component
  *
  * Displays detailed breakdown of how a match score was calculated.
- * Shows tag overlap, stage compatibility, reputation compatibility, and summary.
+ * Shows tag overlap, AI insights, and a summary. Factors no algorithm
+ * computes (stage, reputation) render as a neutral "not evaluated" state.
  */
 
 // External dependencies
@@ -30,13 +31,14 @@ interface MatchExplanationModalProps {
 }
 
 /**
- * Icon component for boolean indicators
+ * Neutral state for a factor this algorithm does not compute.
  */
-function BooleanIndicator({ value }: { value: boolean }) {
+function NotEvaluated() {
   return (
-    <span className={value ? 'text-green-600' : 'text-red-600'}>
-      {value ? '✓' : '✗'}
-    </span>
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground">—</span>
+      <span className="text-sm text-muted-foreground">Not evaluated by this algorithm</span>
+    </div>
   );
 }
 
@@ -64,6 +66,10 @@ export function MatchExplanationModal({
   }, [isOpen, reset]);
 
   const explanation = data?.explanation;
+  // Only the tag-based family evaluates tag overlap; an empty list means
+  // "no shared tags" there but "not evaluated" for other algorithms.
+  const tagsEvaluated = algorithmVersion.startsWith('tag-based');
+  const aiInsights = explanation?.aiInsights;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -91,6 +97,47 @@ export function MatchExplanationModal({
         {/* Explanation Content */}
         {!isPending && explanation && (
           <div className="space-y-6">
+            {/* AI Insights Section */}
+            {aiInsights && (
+              <div>
+                <h3 className="text-lg font-semibold mb-3">AI Insights</h3>
+                <div className="space-y-3">
+                  {aiInsights.reasoning && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Reasoning
+                      </p>
+                      <p className="text-sm">{aiInsights.reasoning}</p>
+                    </div>
+                  )}
+                  {aiInsights.confidence && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Confidence
+                      </p>
+                      <p className="text-sm">{aiInsights.confidence}</p>
+                    </div>
+                  )}
+                  {aiInsights.mentorSummary && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Mentor
+                      </p>
+                      <p className="text-sm">{aiInsights.mentorSummary}</p>
+                    </div>
+                  )}
+                  {aiInsights.companyDescription && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Company
+                      </p>
+                      <p className="text-sm">{aiInsights.companyDescription}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Tag Overlap Section */}
             <div>
               <h3 className="text-lg font-semibold mb-3">Tag Overlap</h3>
@@ -108,41 +155,23 @@ export function MatchExplanationModal({
                     {explanation.tagOverlap.length} shared tag{explanation.tagOverlap.length !== 1 ? 's' : ''}
                   </p>
                 </div>
-              ) : (
+              ) : tagsEvaluated ? (
                 <p className="text-sm text-muted-foreground">No shared tags</p>
+              ) : (
+                <NotEvaluated />
               )}
             </div>
 
             {/* Stage Compatibility Section */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">
-                Stage Compatibility
-                <Badge variant="secondary" className="ml-2 text-xs">Coming Later</Badge>
-              </h3>
-              <div className="flex items-center gap-2">
-                <BooleanIndicator value={explanation.stageMatch} />
-                <span className="text-sm">
-                  {explanation.stageMatch
-                    ? 'Users are at compatible stages'
-                    : 'Users are at different stages'}
-                </span>
-              </div>
+              <h3 className="text-lg font-semibold mb-3">Stage Compatibility</h3>
+              <NotEvaluated />
             </div>
 
             {/* Reputation Compatibility Section */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">
-                Reputation Compatibility
-                <Badge variant="secondary" className="ml-2 text-xs">Coming Later</Badge>
-              </h3>
-              <div className="flex items-center gap-2">
-                <BooleanIndicator value={explanation.reputationCompatible} />
-                <span className="text-sm">
-                  {explanation.reputationCompatible
-                    ? 'Reputation tiers are compatible'
-                    : 'Reputation tiers may not be compatible'}
-                </span>
-              </div>
+              <h3 className="text-lg font-semibold mb-3">Reputation Compatibility</h3>
+              <NotEvaluated />
             </div>
 
             {/* Summary Section */}

@@ -16,6 +16,13 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      onwarn(warning, warn) {
+        // Third-party libraries (React Query, Radix, lucide) ship "use client" RSC
+        // directives that are no-ops in a Vite SPA bundle; rollup warns on each one.
+        // Drop that specific code only and surface every other warning.
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
+        warn(warning);
+      },
       output: {
         manualChunks: {
           // Core React libraries - most frequently used

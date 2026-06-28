@@ -1,6 +1,7 @@
 {
   "name": "@cf-office-hours/api",
-  "version": "0.1.1",
+  "version": "0.2.0",
+  "license": "MIT OR Apache-2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,27 +13,25 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tail": "wrangler tail",
-    "lint": "eslint src --ext .ts --max-warnings 0",
+    "lint": "eslint src --max-warnings 0",
+    "type-check": "tsc --noEmit",
     "populate-match-cache": "tsx src/scripts/populate-match-cache.ts"
   },
   "dependencies": {
     "@cf-office-hours/shared": "*",
     "@hono/swagger-ui": "^0.6.1",
-    "@hono/zod-openapi": "^0.9.5",
+    "@hono/zod-openapi": "^1.4.0",
     "date-fns": "^4.4.0",
     "hono": "^4.12.27",
     "jose": "^6.1.0",
-    "zod": "^3.23.8"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
     "@cloudflare/workers-types": "^4.20260627.1",
-    "@typescript-eslint/eslint-plugin": "^6.19.0",
-    "@typescript-eslint/parser": "^6.19.0",
     "esbuild": "^0.28.1",
-    "eslint": "^8.57.0",
     "tsx": "^4.19.2",
-    "vitest": "^3.0.0",
+    "vitest": "^4.0.0",
     "wrangler": "4.102.0"
   }
 }

@@ -1,277 +1,135 @@
 # Troubleshooting Guide
 
-Quick reference for common development issues and their solutions.
+Quick reference for common local development issues and their fixes. The platform runs as two Cloudflare Workers (API +
+web) on a Cloudflare D1 database; for setup details see [`apps/api/README.md`](../apps/api/README.md) and
+[`apps/web/README.md`](../apps/web/README.md).
 
 ## Setup Issues
 
-### API Not Accessible / CORS Errors
+### API not reachable / CORS errors
 
-**Symptoms:**
+**Symptoms:** browser console shows CORS errors, API requests fail, or a page is stuck loading.
 
-- Browser console shows CORS errors
-- Requests to API fail
-- Profile page stuck loading
-
-**Solutions:**
-
-1. **Check API is running on correct port (8787)**
+1. **Confirm the API is running on port 8787.**
 
    ```bash
-   lsof -ti:8787
-   # Should show a process ID
+   lsof -ti:8787   # should print a process id
    ```
 
-2. **Verify wrangler.toml has fixed port**
+2. **Check the dev port** in `apps/api/wrangler.jsonc` (`dev.port` is `8787`).
 
-   ```bash
-   cat apps/api/wrangler.toml | grep -A2 "\[dev\]"
-   # Should show:
-   # [dev]
-   # port = 8787
-   ```
-
-3. **Restart API server**
+3. **Restart the API.**
 
    ```bash
    pkill -f "wrangler dev"
    npm run dev:api
    ```
 
-### Double `/v1` in API URLs
+4. **Check the CORS allowlist.** The API allows configured app origins plus any `*.workers.dev` origin
+   (`apps/api/src/index.ts`). Confirm the web origin is allowed.
 
-**Symptoms:**
+### Double `/v1` in request URLs (e.g. `/v1/v1/users/me`)
 
-- Browser DevTools shows requests to `http://localhost:8787/v1/v1/users/me`
-- API returns 404 Not Found
+**Cause:** `VITE_API_BASE_URL` includes a `/v1` suffix, but the client already adds `/v1` to every path.
 
-**Solution:**
+**Fix:** set the base URL without the suffix and restart the web dev server.
 
 ```bash
-# Check apps/web/.env
-cat apps/web/.env | grep VITE_API_BASE_URL
-
-# Should be: VITE_API_BASE_URL=http://127.0.0.1:8787
-# NOT: VITE_API_BASE_URL=http://127.0.0.1:8787/v1
-
-# Fix if wrong
-sed -i '' 's|8787/v1|8787|g' apps/web/.env
-
-# Restart web app (Vite should hot reload)
+# apps/web/.env
+VITE_API_BASE_URL=http://127.0.0.1:8787   # no /v1 suffix
 ```
 
 ## Authentication Issues
 
-### User Not Found After Login
+### "Login as …" does nothing / network error
 
-**Symptoms:**
+**Cause:** the API is not running, or `VITE_API_BASE_URL` points at the wrong host.
 
-- Magic link login succeeds
-- User redirected to dashboard
-- Profile page shows "Profile not found" error
+**Fix:** start the API (`npm run dev:api`) and confirm `VITE_API_BASE_URL` matches it (`http://127.0.0.1:8787`).
 
-**Root Cause:** UUID mismatch between `auth.users` and `public.users` tables.
+### Demo login returns 404 (`No <role> accounts are available`)
 
-**Diagnosis:**
+**Cause:** the local D1 database has no users of that role — the seed was not loaded.
 
-```bash
-# Check if triggers exist
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c \
-  "SELECT proname FROM pg_proc WHERE proname IN ('handle_new_user', 'hydrate_user_profile_from_raw');"
+**Fix:** apply migrations and load the seed (see [Database Issues](#database-issues)).
 
-# Should show both functions
+### 401 on every authenticated request
 
-# Check UUID sync for logged-in user
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" <<EOF
-SELECT
-  au.email,
-  au.id as auth_uuid,
-  pu.id as public_uuid,
-  CASE WHEN au.id = pu.id THEN '✅ MATCH' ELSE '❌ MISMATCH' END as status
-FROM auth.users au
-LEFT JOIN public.users pu ON pu.email = au.email;
-EOF
-```
+**Cause:** `JWT_SECRET` is unset, or differs between the token issuer and verifier.
 
-**Solution:**
+**Fix:** set `JWT_SECRET` for local dev in `apps/api/.dev.vars`; for deployed environments run `npx wrangler secret put
+JWT_SECRET --env <staging|production>` and redeploy.
 
-```bash
-# If triggers missing or UUIDs mismatched, reset database
-supabase db reset
+### 403 / sudden logout
 
-# This will:
-# 1. Drop all tables
-# 2. Re-run all migrations (including trigger creation)
-# 3. Seed sample data
-```
+**Cause:** the session token's user is no longer present (or the role is insufficient for the route). The web client
+treats a `403` as an expired session and redirects to `/auth/login`.
 
-### Cannot Request Magic Link
-
-**Symptoms:**
-
-- Error: "Database error finding user"
-- Login form fails to send magic link
-
-**Diagnosis:**
-
-```bash
-# Check Supabase auth logs
-docker logs supabase_auth_cf_oh 2>&1 | tail -20
-```
-
-**Common causes:**
-
-1. Manually created test users with NULL required fields
-2. Missing confirmation_token, recovery_token columns
-
-**Solution:**
-
-```bash
-# Delete manually created test users
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" <<EOF
-DELETE FROM public.user_urls WHERE user_id IN (SELECT id FROM public.users WHERE airtable_record_id LIKE 'auth_%');
-DELETE FROM public.user_profiles WHERE user_id IN (SELECT id FROM public.users WHERE airtable_record_id LIKE 'auth_%');
-DELETE FROM public.users WHERE airtable_record_id LIKE 'auth_%';
-DELETE FROM auth.users;
-EOF
-
-# Use the application UI to register users properly
-```
+**Fix:** sign in again from the login page.
 
 ## Database Issues
 
-### Migrations Fail
-
-**Symptoms:**
-
-- `supabase db reset` fails
-- Error: "constraint violation" or "column does not exist"
-
-**Solution:**
+### Apply migrations and seed a local database
 
 ```bash
-# Check migration order
-ls -la supabase/migrations/
-
-# Ensure migrations are ordered by timestamp
-# Format: YYYYMMDDHHMMSS_description.sql
-
-# If corrupted, you may need to:
-# 1. Backup any critical data
-# 2. Delete problematic migration
-# 3. Re-run reset
-supabase db reset
+cd apps/api
+npx wrangler d1 migrations apply cf-office-hours --local
+npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
 ```
 
-### Seed Data Fails
+The seed file is generated and gitignored (it contains demo PII). Regenerate it with `scripts/convert_backup_to_d1.py` —
+see [`apps/api/seeds/README.md`](../apps/api/seeds/README.md).
 
-**Symptoms:**
+### Seed loads but dates look stale
 
-- Database reset succeeds but seed data fails
-- Error: "violates check constraint"
+The seed is self-correcting (its footer anchors dates to load time), and the weekly Cron Trigger re-anchors deployed
+data. For a long-running local database, re-run the `wrangler d1 execute … --file=seeds/d1_seed.sql` step to refresh.
 
-**Common Issues:**
+### `D1_ERROR` / "no such table" on first request
 
-1. **Taxonomy source constraint**: ETL uses `'airtable_via_raw'` but constraint only allows `'airtable'`, `'user'`, etc.
-2. **Missing parent references**: Seed data references entities that don't exist yet
+**Cause:** migrations were not applied to that database.
 
-**Solution:** Check the specific constraint in the error message and update either:
-
-- The migration that creates the constraint, OR
-- The seed data to use valid values
+**Fix:** re-run `npx wrangler d1 migrations apply cf-office-hours` (`--local`, or `--env <env> --remote` for a deployed
+database).
 
 ## Development Workflow Issues
 
-### Port Already in Use
+### Port already in use
 
 ```bash
-# Find process using port
-lsof -ti:8787  # API
-lsof -ti:3000  # Web app
-lsof -ti:5173  # Vite dev server
-
-# Kill process
+lsof -ti:8787   # API
+lsof -ti:3000   # web
 lsof -ti:8787 | xargs kill -9
-
-# Or kill all node processes (nuclear option)
-pkill -f node
 ```
 
-### Type Errors After Schema Changes
+### Type errors after a schema or API change
 
 ```bash
-# Regenerate API types
-npm run generate:api-types
-
-# Clear TypeScript cache
-rm -rf apps/*/tsconfig.tsbuildinfo
-
-# Run type check
+npm run generate:api-types     # regenerate web types from the OpenAPI spec
 npm run type-check
 ```
 
-### Module Not Found Errors
+### Module not found / stale build
 
 ```bash
-# Clear all caches and reinstall
 npm run clean
 npm install
-
-# Clear build artifacts
-rm -rf apps/web/node_modules/.vite
-rm -rf apps/api/.wrangler
-rm -rf node_modules/.cache
 ```
 
 ## Performance Issues
 
-### Slow Page Loads
-
-1. **Check database query performance**
-
-   ```bash
-   # Enable query logging in Supabase Studio
-   # Dashboard → Settings → Database → Query Performance
-   ```
-
-2. **Check API response times**
-
-   ```bash
-   # Use wrangler tail to see request durations
-   npm run tail --workspace=apps/api
-   ```
-
-3. **Profile frontend bundle**
-
-   ```bash
-   npm run build:web
-   # Check dist folder size
-   du -sh apps/web/dist
-   ```
+- **API timing:** stream structured request logs with `npm run tail --workspace=apps/api` (`wrangler tail`); each
+  completion log includes `duration`.
+- **Bundle size:** `npm run build:web`, then inspect `apps/web/dist`.
 
 ## Getting Help
 
-If these solutions don't resolve your issue:
-
-1. **Check recent changes**
-
-   ```bash
-   git log --oneline -10
-   git diff HEAD~5
-   ```
-
-2. **Search for similar issues**
-
-- GitHub Issues
-- Project documentation
-
-1. **Provide context when asking for help**
-
-- Error messages (full stack trace)
-- Steps to reproduce
-- Environment (OS, Node version, etc.)
-- Recent changes made
+1. Check recent changes: `git log --oneline -10`.
+2. Gather the full error (and stack), reproduction steps, and your Node version.
+3. Search the project issues and the [architecture docs](architecture/index.md).
 
 ## Related Documentation
 
-- [Development Workflow](architecture/10-development-workflow.md) - Complete setup guide
-- [Database Migrations](architecture/10-development-workflow.md#1016-database-migrations) - Migration best practices
+- [Development Workflow](architecture/10-development-workflow.md) — local setup and the testing loop.
+- [Data Models](architecture/4-data-models.md) — the D1 schema.
+- [Deployment Instructions](deployment/DEPLOYMENT_INSTRUCTIONS.md) — deploying the Workers.
