@@ -146,8 +146,13 @@ export function UserSelector({ value, onChange, algorithmVersion = 'tag-based-v1
                   </div>
                 ) : (
                   filteredUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.profile?.name || user.email} ({user.role})
+                    <SelectItem key={user.id} value={user.id} textValue={user.profile?.name || user.email}>
+                      <span className="flex flex-col">
+                        <span>
+                          {user.profile?.name || user.email} ({user.role})
+                        </span>
+                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                      </span>
                     </SelectItem>
                   ))
                 )}
