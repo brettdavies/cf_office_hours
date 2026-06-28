@@ -37,22 +37,22 @@ export const UpdateProfileSchema = z.object({
  * Schema for user profile data.
  */
 export const UserProfileSchema = z.object({
-  id: z.string().uuid(),
-  user_id: z.string().uuid(),
+  id: z.uuid(),
+  user_id: z.uuid(),
   name: z.string(),
-  avatar_url: z.string().url().nullable().optional(),
+  avatar_url: z.url().nullable().optional(),
   title: z.string().nullable(),
   company: z.string().nullable(),
   bio: z.string().nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 });
 
 /**
  * Schema for user tag (from user_tags join table).
  */
 export const UserTagSchema = z.object({
-  taxonomy_id: z.string().uuid(),
+  taxonomy_id: z.uuid(),
   category: z.string(),
   value: z.string(),
   display_name: z.string(),
@@ -74,13 +74,13 @@ export const ReputationTierSchema = z.enum(['bronze', 'silver', 'gold', 'platinu
  * - POST /v1/matching/find-matches (in match results)
  */
 export const UserResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   airtable_record_id: z.string().nullable(),
-  email: z.string().email(),
+  email: z.email(),
   role: UserRoleSchema,
   reputation_tier: ReputationTierSchema.optional(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
   profile: UserProfileSchema,
   tags: z.array(UserTagSchema).optional(),
 });

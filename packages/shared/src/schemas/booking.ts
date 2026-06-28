@@ -5,7 +5,7 @@ import { z } from 'zod';
  * Epic 0: Simple booking - no materials URLs, no calendar integration.
  */
 export const CreateBookingSchema = z.object({
-  time_slot_id: z.string().uuid(),
+  time_slot_id: z.uuid(),
   meeting_goal: z.string().min(10, 'Meeting goal must be at least 10 characters'),
 });
 
@@ -14,17 +14,17 @@ export const CreateBookingSchema = z.object({
  * Returns complete booking details including metadata.
  */
 export const BookingResponseSchema = z.object({
-  id: z.string().uuid(),
-  time_slot_id: z.string().uuid(),
-  mentor_id: z.string().uuid(),
-  mentee_id: z.string().uuid(),
+  id: z.uuid(),
+  time_slot_id: z.uuid(),
+  mentor_id: z.uuid(),
+  mentee_id: z.uuid(),
   meeting_goal: z.string(),
   location: z.string(),
   status: z.enum(['pending', 'confirmed', 'completed', 'canceled', 'expired']),
-  meeting_start_time: z.string().datetime(),
-  meeting_end_time: z.string().datetime(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  meeting_start_time: z.iso.datetime(),
+  meeting_end_time: z.iso.datetime(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
 });
 
 /**

@@ -130,7 +130,7 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000123',
+          userId: '00000000-0000-4000-8000-000000000123',
           targetRole: 'mentor',
           options: {
             algorithmVersion: 'tag-based-v1',
@@ -171,7 +171,7 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000456',
+          userId: '00000000-0000-4000-8000-000000000456',
           targetRole: 'mentee',
         }),
       });
@@ -210,7 +210,7 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000000',
+          userId: '00000000-0000-4000-8000-000000000000',
           targetRole: 'mentor',
         }),
       });
@@ -232,7 +232,7 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: '00000000-0000-0000-0000-000000000000',
+          userId: '00000000-0000-4000-8000-000000000000',
           targetRole: 'mentor',
         }),
       });
@@ -265,8 +265,8 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
           algorithmVersion: 'tag-based-v1',
         }),
       });
@@ -288,8 +288,8 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
         }),
       });
 
@@ -329,8 +329,8 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
         }),
       });
 
@@ -352,14 +352,14 @@ describe('Matching API Routes', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId1: '00000000-0000-0000-0000-000000000001',
-          userId2: '00000000-0000-0000-0000-000000000002',
+          userId1: '00000000-0000-4000-8000-000000000001',
+          userId2: '00000000-0000-4000-8000-000000000002',
         }),
       });
 
       expect(explainMatchSpy).toHaveBeenCalledWith(
-        '00000000-0000-0000-0000-000000000001',
-        '00000000-0000-0000-0000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000002',
         'tag-based-v1'
       );
     });

@@ -118,6 +118,8 @@ export function BarChartContent({
           <Tooltip />
           <Bar dataKey={yAxisKey} radius={layout === 'vertical' ? [0, 4, 4, 0] : [4, 4, 0, 0]}>
             {data.map((_entry, index) => (
+              // recharts marks Cell deprecated (removal in v4); the supported replacement is the Bar `shape` prop. https://recharts.github.io/en-US/guide/cell/
+              // eslint-disable-next-line @typescript-eslint/no-deprecated
               <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
             ))}
           </Bar>

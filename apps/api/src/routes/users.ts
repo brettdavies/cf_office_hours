@@ -200,7 +200,7 @@ const getPublicProfileRoute = createRoute({
   security: [{ Bearer: [] }],
   request: {
     params: z.object({
-      id: z.string().uuid('Invalid user ID format'),
+      id: z.uuid('Invalid user ID format'),
     }),
   },
   responses: {
