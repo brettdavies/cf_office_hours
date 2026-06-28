@@ -1,181 +1,51 @@
 # Documentation Guide
 
-This guide explains the purpose and organization of documentation files in this project.
+A map of the project's documentation: what each piece is for and where it lives. The guiding rule is single source of
+truth — each topic has one authoritative home, and other docs link to it rather than restating it.
 
-## Documentation Structure
+## Live Documentation
 
-### Root Level
+| Topic                            | Location                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Project overview and quick start | [`README.md`](../README.md)                                                                       |
+| One-page project summary         | [`PROJECT.md`](../PROJECT.md)                                                                     |
+| API setup, auth, endpoints       | [`apps/api/README.md`](../apps/api/README.md)                                                     |
+| Web setup and auth flow          | [`apps/web/README.md`](../apps/web/README.md)                                                     |
+| Architecture (sharded)           | [`docs/architecture/index.md`](architecture/index.md)                                             |
+| Matching system deep-dive        | [`docs/architecture/matching-cache-architecture.md`](architecture/matching-cache-architecture.md) |
+| Matching engine authoring        | [`apps/api/src/providers/matching/README.md`](../apps/api/src/providers/matching/README.md)       |
+| Deploy runbook                   | [`docs/deployment/DEPLOYMENT_INSTRUCTIONS.md`](deployment/DEPLOYMENT_INSTRUCTIONS.md)             |
+| Production launch checklist      | [`docs/deployment/production-launch-checklist.md`](deployment/production-launch-checklist.md)     |
+| Troubleshooting                  | [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md)                                                   |
+| Seed data generation             | [`apps/api/seeds/README.md`](../apps/api/seeds/README.md)                                         |
 
-#### [README.md](../README.md)
-**Purpose:** Project overview and quick start
-**Audience:** New developers, stakeholders
-**Content:**
-- Project description
-- Quick start commands
-- Tech stack summary
-- Links to detailed documentation
-- Basic environment setup
+## Architecture Sections
 
-**Keep it:** Short (~100 lines), high-level, navigation-focused
+The architecture document is sharded under [`docs/architecture/`](architecture/) and indexed by
+[`index.md`](architecture/index.md). Sections cover the high-level design, tech stack, data model, API surface, frontend
+and backend internals, project structure, deployment, security, testing, coding standards, error handling, and
+observability.
 
----
+## Historical Record
 
-### Developer Documentation
+The early product requirements, implementation stories, and QA gates are preserved unedited under
+[`docs/archive/`](archive/) as a frozen snapshot of the original planning process. They describe earlier design intent —
+including tooling the platform no longer uses — and are not maintained. Start from the live docs above for current
+reality.
 
-#### [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) ⭐
-**Purpose:** Single source of truth for solving common issues
-**Audience:** Developers encountering problems
-**Content:**
-- Setup issues (ports, CORS, environment config)
-- Authentication issues (UUID mismatch, magic links)
-- Database issues (migrations, seeds)
-- Development workflow issues (TypeScript, modules)
-- Diagnostic commands and step-by-step solutions
+## Principles
 
-**This is the PRIMARY troubleshooting reference** - all other docs should link here
-
-#### [docs/architecture/10-development-workflow.md](architecture/10-development-workflow.md)
-**Purpose:** Complete development workflow and best practices
-**Audience:** Developers setting up or working on the project
-**Content:**
-- Initial setup steps
-- Local development practices
-- Database migrations
-- Testing strategies
-- Code quality standards
-- Git workflow
-- PR process
-- Brief troubleshooting section with link to TROUBLESHOOTING.md
-
-**Keep it:** Comprehensive but organized, workflow-focused
-
-#### [docs/etl-workflow-readme.md](etl-workflow-readme.md)
-**Purpose:** Technical architecture for ETL system
-**Audience:** Backend developers, database architects
-**Content:**
-- ETL architecture and processing order
-- Raw tables → production tables mapping
-- Trigger functions and transformations
-- **User Authentication Workflow section** (how auth replaces ETL for users)
-- Database triggers documentation
-- Brief troubleshooting with link to TROUBLESHOOTING.md
-
-**Keep it:** Technical, architecture-focused, explains WHY not just HOW
-
----
-
-### Story Documentation
-
-#### [docs/stories/*.story.md](stories/)
-**Purpose:** Implementation details for specific features
-**Audience:** Developers implementing or reviewing features
-**Content:**
-- Feature requirements
-- Acceptance criteria
-- Implementation tasks
-- Technical decisions
-- Test coverage
-- Dev notes and completion status
-
-**Keep it:** Feature-specific, not general setup/troubleshooting
-
----
-
-## Content Organization Principles
-
-### ✅ DO
-
-1. **Single Source of Truth**
-   - Each piece of information lives in ONE primary location
-   - Other docs reference the primary source
-
-2. **Clear Hierarchy**
-   - README → points to specialized docs
-   - Specialized docs → deep dive into topics
-   - All → reference TROUBLESHOOTING.md for issues
-
-3. **Appropriate Depth**
-   - README: 1-2 sentence overviews
-   - Workflow docs: Step-by-step instructions
-   - Architecture docs: Detailed technical explanations
-   - Troubleshooting: Symptom → diagnosis → solution
-
-### ❌ DON'T
-
-1. **Duplicate Content**
-   - Don't copy troubleshooting steps across multiple files
-   - Don't repeat setup instructions
-   - Link to the authoritative source instead
-
-2. **Mix Concerns**
-   - Don't put troubleshooting in architecture docs
-   - Don't put architecture details in README
-   - Don't put general setup in story files
-
-3. **Make Docs Too Long**
-   - README should be < 100 lines
-   - Troubleshooting sections should link to main guide
-   - Break up very long docs into multiple files
-
----
-
-## When to Update Each File
-
-### Update README.md when:
-- Tech stack changes significantly
-- New major documentation added
-- Quick start process changes
-
-### Update TROUBLESHOOTING.md when:
-- New common issue identified
-- Solution found for recurring problem
-- Environment configuration changes
-
-### Update 10-development-workflow.md when:
-- Setup process changes
-- New development practices adopted
-- Testing strategy evolves
-- Git workflow modified
-
-### Update etl-workflow-readme.md when:
-- Database architecture changes
-- New ETL triggers added
-- Processing order modified
-- User authentication workflow changes
-
-### Update story files when:
-- Implementing the feature
-- Recording technical decisions
-- Updating test coverage
-- Marking completion status
-
----
-
-## Documentation Maintenance
-
-### Regular Reviews
-- **Monthly**: Check for outdated instructions
-- **After major changes**: Update affected docs immediately
-- **Before releases**: Verify all docs are current
-
-### Quality Checklist
-- [ ] No duplicate content across files
-- [ ] Each file has clear, distinct purpose
-- [ ] Cross-references use relative links
-- [ ] Code examples are tested and working
-- [ ] Troubleshooting links to main guide
-- [ ] README stays concise (< 100 lines)
-
----
+- **Single source of truth.** Each topic lives in one place; link to it instead of copying.
+- **Present state.** Live docs describe the system as it is now. Change history belongs in git and the `CHANGELOG`.
+- **Right depth.** `README` stays high-level; architecture shards go deep; troubleshooting is symptom → fix.
 
 ## Quick Reference
 
-| Need to... | Check this file |
-|-----------|----------------|
-| Get started quickly | README.md |
-| Fix a setup issue | TROUBLESHOOTING.md |
-| Understand development workflow | 10-development-workflow.md |
-| Learn about ETL architecture | etl-workflow-readme.md |
-| Understand database migrations | 10-development-workflow.md #1016 |
-| Debug auth issues | TROUBLESHOOTING.md → Authentication Issues |
-| Review completed feature | docs/stories/X.X.story.md |
+| Need to…                        | Read                                                             |
+| ------------------------------- | ---------------------------------------------------------------- |
+| Get started quickly             | [`README.md`](../README.md)                                      |
+| Run the API locally             | [`apps/api/README.md`](../apps/api/README.md)                    |
+| Run the web app locally         | [`apps/web/README.md`](../apps/web/README.md)                    |
+| Understand the data model       | [Data Models](architecture/4-data-models.md)                     |
+| Deploy to staging or production | [Deployment Instructions](deployment/DEPLOYMENT_INSTRUCTIONS.md) |
+| Fix a local issue               | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)                       |

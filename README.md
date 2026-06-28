@@ -1,46 +1,43 @@
 # CF Office Hours Platform
 
-> **Project Overview:** See [PROJECT.md](PROJECT.md) for a high-level overview, achievements, and technical highlights.
+> **Project Overview:** See [PROJECT.md](PROJECT.md) for a high-level summary, achievements, and technical highlights.
 
 **Intelligent mentor-mentee matching and scheduling platform for a startup accelerator program.**
 
-The platform connects entrepreneurs with experienced mentors using AI-powered matching algorithms based on industry
-expertise, company stage alignment, and reputation-based access tiers, replacing a legacy scheduling tool.
+The platform connects entrepreneurs with experienced mentors using matching based on industry expertise, company-stage
+alignment, and reputation-based access tiers.
 
 ## What It Does
 
 ### For Mentees (Entrepreneurs)
 
-- **Smart Matching**: AI-powered recommendations connect you with mentors who best match your industry, technology
-  stack, and business stage
-- **Seamless Booking**: Browse available time slots, book meetings, and receive Google Meet links automatically
-- **Profile Management**: Upload pitch decks, link your startup profiles, and showcase your expertise
-- **Reputation-Based Access**: Build your reputation through successful meetings to unlock higher-tier mentors
+- **Smart Matching**: recommendations connect you with mentors who fit your industry, technology, and business stage.
+- **Booking**: browse available time slots and book meetings.
+- **Profile Management**: maintain your profile and link your startup details.
+- **Reputation-Based Access**: build reputation through successful meetings to reach higher-tier mentors.
 
 ### For Mentors
 
-- **Intelligent Scheduling**: Set recurring availability with flexible time slots and buffer management
-- **Meeting Requests**: Receive booking requests from qualified mentees with context about their goals
-- **Calendar Integration**: Automatically sync with Google Calendar or Microsoft Outlook
-- **Expertise Showcase**: Define your expertise areas and ideal mentee profiles for better matching
+- **Availability**: set bookable availability blocks with flexible slot durations.
+- **Meeting Requests**: receive booking requests from mentees with context on their goals.
+- **Expertise Showcase**: describe your expertise and ideal mentee profile to improve matching.
 
 ### For Coordinators (Admins)
 
-- **User Management**: Oversee all users, manage access permissions, and handle tier overrides
-- **Quality Control**: Approve user-submitted tags and monitor platform health
-- **Analytics Dashboard**: Track platform usage, meeting success rates, and user engagement
-- **Content Moderation**: Review and approve user profiles, tags, and meeting feedback
+- **User Management**: oversee users and handle reputation-tier overrides.
+- **Quality Control**: approve user-submitted tags and review matches.
+- **Metrics**: track platform usage through coordinator dashboards.
 
 ## Architecture Overview
 
-A modern fullstack application running entirely on Cloudflare:
+A fullstack application running entirely on Cloudflare:
 
 ```mermaid
 graph TB
     A[React SPA<br/>Vite + Shadcn/ui<br/>served as Worker assets] --> B[Cloudflare Workers API<br/>Hono + OpenAPI 3.1]
     B --> C[Cloudflare D1<br/>SQLite]
-    B --> E[Calendar APIs<br/>Google + Microsoft]
-    B --> F[Email<br/>provider integration]
+    B -.optional.-> D[OpenAI<br/>AI matching]
+    B -.optional.-> E[Resend<br/>email]
 ```
 
 Authentication is a Worker-issued session JWT (verified locally with `jose`); the SPA signs in via role-based demo
@@ -50,30 +47,31 @@ login. Live booking updates come from React Query polling.
 
 ### Guides
 
-- **[Deployment Guide](docs/deployment/DEPLOYMENT_INSTRUCTIONS.md)** - Deploying the API and web Workers
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- Per-app setup: [`apps/api`](apps/api/README.md) and [`apps/web`](apps/web/README.md)
+- **[Deployment Guide](docs/deployment/DEPLOYMENT_INSTRUCTIONS.md)** — deploying the API and web Workers.
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** — common issues and fixes.
+- Per-app setup: [`apps/api`](apps/api/README.md) and [`apps/web`](apps/web/README.md).
 
 ### Engineering Documentation
 
-Detailed engineering docs live under `docs/` on the `dev` branch and are not published to `main`: architecture
-(`docs/architecture/`), product requirements (`docs/prd/`), and user stories (`docs/stories/`). Some of these pages
-describe a Supabase/Pages stack and do not reflect the current Cloudflare D1 + Workers implementation.
+Detailed engineering docs live under `docs/` on the `dev` branch and are not published to `main`: the architecture is
+documented in [`docs/architecture/`](docs/architecture/index.md). The original product requirements, implementation
+stories, and QA gates are preserved as a frozen historical record under [`docs/archive/`](docs/archive/).
 
 ## Technical Stack
 
-| Component                | Technology                          | Purpose                              |
-| ------------------------ | ----------------------------------- | ------------------------------------ |
-| **Frontend**             | React 18.3.x + Vite 5.x             | User interface and client-side logic |
-| **UI Framework**         | Shadcn/ui + Tailwind CSS 3.4.x      | Consistent design system             |
-| **Backend**              | Cloudflare Workers + Hono 4.x       | Serverless API and business logic    |
-| **Database**             | Cloudflare D1 (SQLite)              | Data storage                         |
-| **Authentication**       | Worker-issued session JWT (`jose`)  | Role-based demo login                |
-| **Web hosting**          | Cloudflare Workers static assets    | SPA delivery                         |
-| **Live updates**         | React Query polling                 | Booking freshness                    |
-| **Calendar Integration** | Google Calendar + Microsoft Outlook | Scheduling and availability          |
-| **Testing**              | Vitest 3.x + Playwright 1.50.x      | Unit and end-to-end testing          |
-| **Monorepo**             | npm workspaces                      | Package management and orchestration |
+| Component          | Technology                         | Purpose                              |
+| ------------------ | ---------------------------------- | ------------------------------------ |
+| **Frontend**       | React 18.3.x + Vite 5.x            | User interface and client-side logic |
+| **UI Framework**   | Shadcn/ui + Tailwind CSS 3.4.x     | Consistent design system             |
+| **Backend**        | Cloudflare Workers + Hono 4.x      | Serverless API and business logic    |
+| **Database**       | Cloudflare D1 (SQLite)             | Data storage                         |
+| **Authentication** | Worker-issued session JWT (`jose`) | Role-based demo login                |
+| **Web hosting**    | Cloudflare Workers static assets   | SPA delivery                         |
+| **Live updates**   | React Query polling                | Booking freshness                    |
+| **AI**             | OpenAI (optional)                  | AI-based matching engine             |
+| **Email**          | Resend (optional)                  | Booking-confirmation email           |
+| **Testing**        | Vitest 3.x + Playwright 1.50.x     | Unit and end-to-end testing          |
+| **Monorepo**       | npm workspaces                     | Package management and orchestration |
 
 ## Project Structure
 
@@ -81,55 +79,45 @@ describe a Supabase/Pages stack and do not reflect the current Cloudflare D1 + W
 cf-office-hours/
 ├── apps/
 │   ├── web/                    # React frontend (Cloudflare Workers static assets)
-│   │   ├── src/
-│   │   │   ├── components/     # Reusable UI components
-│   │   │   ├── pages/          # Route components
-│   │   │   ├── hooks/          # Custom React hooks
-│   │   │   └── lib/            # Utilities and services
-│   │   └── public/             # Static assets
+│   │   ├── worker/             # static-assets Worker entry
+│   │   └── src/                # components, pages, hooks, services, stores, lib
 │   └── api/                    # Cloudflare Workers API
-│       ├── src/
-│       │   ├── routes/         # API endpoints
-│       │   ├── middleware/     # Authentication & validation
-│       │   ├── services/       # Business logic
-│       │   └── lib/            # Shared utilities
+│       ├── src/                # routes, middleware, services, repositories, providers, events
 │       ├── migrations/         # D1 (SQLite) schema migrations
 │       └── seeds/              # D1 seed data (generated; gitignored)
 ├── packages/
-│   ├── shared/                 # Shared types, schemas, utilities
+│   ├── shared/                 # Shared Zod schemas and types
 │   └── config/                 # ESLint, TypeScript, and build configs
 ├── docs/                       # Documentation
 ├── scripts/                    # Build and utility scripts
-└── node_modules/              # Dependencies (monorepo)
+└── node_modules/               # Dependencies (monorepo)
 ```
 
 ## Development Commands
 
 ```bash
-# Environment Setup
-npm run setup                   # Initial project setup
+# Setup
 npm install                     # Install all dependencies
 
-# Development Servers
+# Development servers
 npm run dev                     # Start all services
-npm run dev:web                 # Start frontend only
-npm run dev:api                 # Start backend only (wrangler dev, local D1)
+npm run dev:web                 # Frontend only
+npm run dev:api                 # API only (wrangler dev, local D1)
 
-# Building & Deployment
+# Build
 npm run build                   # Build all packages
-npm run build:web               # Build frontend for production
-npm run build:api               # Build API for deployment
+npm run build:web               # Build frontend
+npm run build:api               # Build API
 
 # Testing
 npm run test                    # Run all tests
-npm run test:web                # Run frontend tests
-npm run test:api                # Run API tests
-npm run test:e2e                # Run end-to-end tests
+npm run test:web                # Frontend tests
+npm run test:api                # API tests
+npm run test:e2e                # End-to-end tests
 
-# Code Quality
+# Code quality
 npm run lint                    # Check code quality
-npm run lint:fix                # Auto-fix linting issues
-npm run format                  # Format all code files
+npm run format                  # Format all code
 npm run type-check              # TypeScript type checking
 
 # Data
@@ -142,7 +130,7 @@ The web reads `VITE_API_BASE_URL` at **build time** (baked into the bundle by th
 scripts). The API reads `JWT_SECRET` at runtime; deploys read a Cloudflare API token.
 
 ```bash
-# Web build-time (or apps/web/.env for local dev)
+# Web build-time (or apps/web/.env for local dev) — no /v1 suffix
 VITE_API_BASE_URL=http://127.0.0.1:8787
 
 # API local secret (apps/api/.dev.vars)
@@ -164,60 +152,37 @@ npx wrangler d1 execute cf-office-hours --local --file=seeds/d1_seed.sql
 The seed is self-correcting: a footer in the generated file shapes the bookings to a realistic per-mentee count and
 anchors every date to load time, so no follow-up steps are needed. See `apps/api/seeds/README.md` for details.
 
-## Key Features
+## Features
 
-### AI-Powered Matching
+### Shipped
 
-- **Tag-based scoring** with industry, technology, and stage alignment
-- **Reputation tiers** controlling mentor access levels
-- **Cached calculations** for sub-100ms response times
-- **Match explanations** showing why mentors are recommended
-- **Pluggable algorithms** via the `IMatchingEngine` interface, supporting multiple algorithms simultaneously for A/B
-  testing and gradual rollouts
+- **AI-powered matching** — tag-based (`tag-based-v1`) and AI-based (`ai-based-v1`) engines, with cached calculations
+  for sub-100ms retrieval and stored match explanations. Algorithms are pluggable via the `IMatchingEngine` interface,
+  so multiple versions coexist for A/B testing and gradual rollout.
+- **Role-based demo login** — Worker-signed session JWTs (HS256 via `jose`), verified locally on each request.
+- **App-layer authorization** — role checks (mentee / mentor / coordinator) enforced in API middleware.
+- **Scheduling** — mentor availability with flexible slot durations, and an atomic booking transaction (UNIQUE slot
+  guard) that prevents double-booking.
+- **React Query polling** — keeps bookings and availability current without a real-time socket layer.
+- **Weekly cron** — a Cron Trigger re-anchors the demo seed's dates so the upcoming-meetings window never drifts.
+- **Email** — booking-confirmation email via Resend (logs to console when the key is unset).
+- **Metrics** — request, error, and CPU metrics via the Cloudflare Workers dashboard.
 
-### Advanced Scheduling
+### Roadmap (not yet implemented)
 
-- **Multi-provider calendar integration** (Google Calendar, Microsoft Outlook)
-- **Recurring availability** with flexible time slot management
-- **Automatic conflict prevention** via an atomic booking transaction (UNIQUE slot guard)
-- **Google Meet integration** with automatic link generation
+These are not in the codebase today:
 
-### Security
-
-- **App-layer authorization** with role checks (mentee / mentor / coordinator) enforced in API middleware
-- **Worker-signed session JWTs** (HS256 via `jose`), verified locally on every request
-- **Audit columns** (`created_by` / `updated_by` / soft-delete) on records
+- **OAuth and magic-link authentication** (sign-in is demo login only).
+- **Calendar integration** (Google Calendar, Microsoft Outlook) and **Google Meet** link generation.
+- **Additional notification channels** beyond email.
 
 ## Architecture Patterns
 
-### Interface-Driven Design
-
-- **`IMatchingEngine` Interface**: supports multiple AI matching algorithms simultaneously through a pluggable design
-- **A/B Testing**: different algorithms run in parallel with the algorithm version stored as data
-- **Gradual Migration**: new algorithms deploy incrementally without downtime
-- **Performance Optimization**: match calculations are event-driven and cached for sub-100ms retrieval
-
-### Provider Pattern Architecture
-
-- **`ICalendarProvider` Interface**: abstracts calendar integrations (Google Calendar, Microsoft Outlook)
-- **`INotificationProvider` Interface**: enables multiple notification channels (email, SMS, push)
-- **`IReputationCalculator` Interface**: pluggable reputation scoring algorithms
-
-### Event-Driven Architecture
-
-- **Background Processing**: match recalculation and notification delivery handled asynchronously
-- **Cache Invalidation**: smart cache management ensuring data consistency across algorithm updates
-
-## Development Philosophy
-
-This project follows a **documentation-driven development** approach where decisions, requirements, and architectural
-choices are documented before implementation. The documentation serves as:
-
-- **Single source of truth** for technical decisions
-- **Onboarding guide** for new contributors
-- **Quality assurance** framework ensuring consistent implementation
-- **Living architecture** that evolves with the codebase
+- **Interface-driven matching.** The `IMatchingEngine` interface lets multiple algorithms run in parallel; the algorithm
+  version is stored as data, so new engines deploy incrementally without downtime.
+- **Event-driven cache.** Match calculations are triggered by data-change events (profile, tag, and reputation updates)
+  and written to a D1 cache table, so retrieval is a single indexed read.
 
 ## License
 
-Dual-licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT), at your option.
+Dual-licensed under either of Apache License 2.0 or the MIT License, at your option.
