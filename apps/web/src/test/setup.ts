@@ -45,6 +45,39 @@ if (typeof globalThis.localStorage === 'undefined') {
   });
 }
 
+// jsdom in this environment does not expose sessionStorage; provide a minimal
+// store so the chunk-reload guard (which stamps a reload timestamp) and tests
+// that call sessionStorage work.
+if (typeof globalThis.sessionStorage === 'undefined') {
+  const store = new Map<string, string>();
+  const sessionStorageMock = {
+    getItem: (key: string) => (store.has(key) ? (store.get(key) ?? null) : null),
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size;
+    },
+  };
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    value: sessionStorageMock,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(window, 'sessionStorage', {
+    value: sessionStorageMock,
+    configurable: true,
+    writable: true,
+  });
+}
+
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
