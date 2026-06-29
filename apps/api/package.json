@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
-    "@cloudflare/workers-types": "^4.20260627.1",
+    "@cloudflare/workers-types": "^4.20260629.1",
     "esbuild": "^0.28.1",
     "tsx": "^4.19.2",
     "vitest": "^4.0.0",
