@@ -22,7 +22,7 @@
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^1.4.0",
     "date-fns": "^4.4.0",
-    "hono": "^4.12.27",
+    "hono": "^4.12.28",
     "jose": "^6.1.0",
     "zod": "^4.0.0"
   },
@@ -30,8 +30,8 @@
     "@cf-office-hours/config": "*",
     "@cloudflare/workers-types": "^4.20260629.1",
     "esbuild": "^0.28.1",
-    "tsx": "^4.19.2",
-    "vitest": "^4.0.0",
+    "tsx": "^4.23.0",
+    "vitest": "^4.1.10",
     "wrangler": "4.102.0"
   }
 }
