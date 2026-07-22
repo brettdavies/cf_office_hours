@@ -7,6 +7,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: America/Chicago
+    cooldown:
+      default-days: 7
     target-branch: dev
     open-pull-requests-limit: 10
     # In-range updates only (minor/patch); majors are handled deliberately, not by Dependabot.
@@ -26,6 +28,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: America/Chicago
+    cooldown:
+      default-days: 7
     target-branch: dev
     labels:
       - dependencies
