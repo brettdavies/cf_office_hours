@@ -20,6 +20,16 @@ updates:
         update-types:
           - minor
           - patch
+    # The Playwright family (@playwright/*, playwright, playwright-core) is
+    # exact-pinned to the version dotfiles provisions into
+    # $PLAYWRIGHT_BROWSERS_PATH, so bumping it is a dotfiles job, not a
+    # per-repo one: a client ahead of the provisioned browsers fails e2e.
+    # No `update-types` here, so every version update is suppressed rather
+    # than majors alone.
+    ignore:
+      - dependency-name: '@playwright/*'
+      - dependency-name: 'playwright'
+      - dependency-name: 'playwright-core'
 
   - package-ecosystem: github-actions
     directory: /
