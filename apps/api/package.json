@@ -22,15 +22,15 @@
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^1.5.1",
     "date-fns": "^4.4.0",
-    "hono": "^4.12.32",
-    "jose": "^6.2.4",
+    "hono": "^4.13.1",
+    "jose": "^6.2.8",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
     "@cloudflare/workers-types": "^4.20260702.1",
     "esbuild": "^0.28.1",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.11",
     "vitest": "^4.1.10",
     "wrangler": "4.102.0"
   }
