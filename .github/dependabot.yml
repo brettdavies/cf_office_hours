@@ -1,3 +1,27 @@
+# Dependabot configuration.
+#
+# Two ecosystems: npm for the TypeScript workspaces, github-actions for
+# workflow actions. Both scan weekly on Monday mornings with a 7-day cooldown
+# so a just-published version has to survive a week before Dependabot proposes
+# it. npm minor + patch updates group into one PR per week.
+#
+# `target-branch: dev` keeps Dependabot PRs off main. Dependabot reads this
+# config from the default branch, which is main, so an edit here only takes
+# effect once it reaches main. Do not flip `target-branch` to main on a live
+# config: retargeting orphans-and-closes any open PR.
+#
+# Majors are held two ways. `versioning-strategy: lockfile-only` stops
+# Dependabot rewriting package.json ranges, and the wildcard `ignore` rule
+# states the intent for anything that would otherwise resolve in range.
+# Security updates are a separate path and still land regardless.
+#
+# The Playwright family (@playwright/*, playwright, playwright-core) is
+# exact-pinned to the version dotfiles provisions into
+# $PLAYWRIGHT_BROWSERS_PATH, so bumping it is a dotfiles job, not a per-repo
+# one: a client ahead of the provisioned browsers fails e2e. Those entries
+# carry no `update-types`, which suppresses every version update rather than
+# majors alone, since an exact pin has no "in range" update Dependabot would
+# otherwise leave alone.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -10,9 +34,10 @@ updates:
     cooldown:
       default-days: 7
     target-branch: dev
-    open-pull-requests-limit: 10
-    # In-range updates only (minor/patch); majors are handled deliberately, not by Dependabot.
+    open-pull-requests-limit: 5
     versioning-strategy: lockfile-only
+    reviewers:
+      - brettdavies
     labels:
       - dependencies
     groups:
@@ -20,13 +45,10 @@ updates:
         update-types:
           - minor
           - patch
-    # The Playwright family (@playwright/*, playwright, playwright-core) is
-    # exact-pinned to the version dotfiles provisions into
-    # $PLAYWRIGHT_BROWSERS_PATH, so bumping it is a dotfiles job, not a
-    # per-repo one: a client ahead of the provisioned browsers fails e2e.
-    # No `update-types` here, so every version update is suppressed rather
-    # than majors alone.
     ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
       - dependency-name: '@playwright/*'
       - dependency-name: 'playwright'
       - dependency-name: 'playwright-core'
@@ -41,6 +63,13 @@ updates:
     cooldown:
       default-days: 7
     target-branch: dev
+    open-pull-requests-limit: 3
+    reviewers:
+      - brettdavies
     labels:
       - dependencies
       - github-actions
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
