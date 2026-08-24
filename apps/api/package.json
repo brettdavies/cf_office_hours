@@ -20,17 +20,17 @@
   "dependencies": {
     "@cf-office-hours/shared": "*",
     "@hono/swagger-ui": "^0.6.1",
-    "@hono/zod-openapi": "^1.5.1",
+    "@hono/zod-openapi": "^1.6.0",
     "date-fns": "^4.4.0",
-    "hono": "^4.13.1",
-    "jose": "^6.2.8",
+    "hono": "^4.13.2",
+    "jose": "^6.2.9",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
     "@cloudflare/workers-types": "^4.20260702.1",
-    "esbuild": "^0.28.1",
-    "tsx": "^4.23.11",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.12",
     "vitest": "^4.1.10",
     "wrangler": "4.102.0"
   }
