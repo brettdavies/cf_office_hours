@@ -45,7 +45,7 @@ updates:
     cooldown:
       default-days: 7
     target-branch: dev
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     versioning-strategy: lockfile-only
     reviewers:
       - brettdavies
