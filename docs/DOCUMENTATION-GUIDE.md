@@ -1,7 +1,7 @@
 # Documentation Guide
 
 A map of the project's documentation: what each piece is for and where it lives. The guiding rule is single source of
-truth — each topic has one authoritative home, and other docs link to it rather than restating it.
+truth: each topic has one authoritative home, and other docs link to it rather than restating it.
 
 ## Live Documentation
 
@@ -14,7 +14,10 @@ truth — each topic has one authoritative home, and other docs link to it rathe
 | Architecture (sharded)           | [`docs/architecture/index.md`](architecture/index.md)                                             |
 | Matching system deep-dive        | [`docs/architecture/matching-cache-architecture.md`](architecture/matching-cache-architecture.md) |
 | Matching engine authoring        | [`apps/api/src/providers/matching/README.md`](../apps/api/src/providers/matching/README.md)       |
-| Release runbook                  | [`docs/deployment/RELEASE_INSTRUCTIONS.md`](deployment/RELEASE_INSTRUCTIONS.md)                   |
+| Release runbook                  | [`RELEASES.md`](../RELEASES.md)                                                                   |
+| Release preflight checklist      | [`RELEASES-PREFLIGHT.md`](../RELEASES-PREFLIGHT.md)                                               |
+| Release postflight checklist     | [`RELEASES-POSTFLIGHT.md`](../RELEASES-POSTFLIGHT.md)                                             |
+| Release rationale                | [`RELEASES-RATIONALE.md`](../RELEASES-RATIONALE.md)                                               |
 | Deploy runbook                   | [`docs/deployment/DEPLOYMENT_INSTRUCTIONS.md`](deployment/DEPLOYMENT_INSTRUCTIONS.md)             |
 | Production launch checklist      | [`docs/deployment/production-launch-checklist.md`](deployment/production-launch-checklist.md)     |
 | Troubleshooting                  | [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md)                                                   |
@@ -30,8 +33,8 @@ observability.
 ## Historical Record
 
 The early product requirements, implementation stories, and QA gates are preserved unedited under
-[`docs/archive/`](archive/) as a frozen snapshot of the original planning process. They describe earlier design intent —
-including tooling the platform no longer uses — and are not maintained. Start from the live docs above for current
+[`docs/archive/`](archive/) as a frozen snapshot of the original planning process. They describe earlier design intent,
+including tooling the platform no longer uses, and are not maintained. Start from the live docs above for current
 reality.
 
 ## Principles
@@ -49,4 +52,5 @@ reality.
 | Run the web app locally         | [`apps/web/README.md`](../apps/web/README.md)                    |
 | Understand the data model       | [Data Models](architecture/4-data-models.md)                     |
 | Deploy to staging or production | [Deployment Instructions](deployment/DEPLOYMENT_INSTRUCTIONS.md) |
+| Cut a release                   | [`RELEASES.md`](../RELEASES.md)                                  |
 | Fix a local issue               | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)                       |
