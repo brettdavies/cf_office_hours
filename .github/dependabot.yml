@@ -1,19 +1,30 @@
 # Dependabot configuration.
 #
-# Two ecosystems: npm for the TypeScript workspaces, github-actions for
-# workflow actions. Both scan weekly on Monday mornings with a 7-day cooldown
-# so a just-published version has to survive a week before Dependabot proposes
-# it. npm minor + patch updates group into one PR per week.
+# Three blocks. The two `target-branch: dev` blocks (npm, github-actions)
+# handle version updates: weekly on Monday mornings, 7-day cooldown so a
+# just-published version has to survive a week before Dependabot proposes it,
+# every minor + patch batched into one PR per ecosystem per week.
 #
-# `target-branch: dev` keeps Dependabot PRs off main. Dependabot reads this
-# config from the default branch, which is main, so an edit here only takes
-# effect once it reaches main. Do not flip `target-branch` to main on a live
-# config: retargeting orphans-and-closes any open PR.
+# The third block (npm, no target-branch) exists for security updates.
+# Dependabot raises those against the default branch, main, and ignores every
+# option on a block that carries `target-branch`, so without a main-branch
+# block each advisory becomes its own ungrouped PR. This block is the one
+# Dependabot consults for main: `open-pull-requests-limit: 0` keeps it from
+# opening version updates there, and its group batches minor + patch security
+# fixes into one PR per run. A security fix that needs a major stays its own
+# PR so it can be reviewed on its own. Cooldown, the major ignore and
+# lockfile-only are deliberately absent from it: cooldown is a version-update
+# option, and the other two would suppress a fix that resolves outside the
+# current range.
 #
-# Majors are held two ways. `versioning-strategy: lockfile-only` stops
-# Dependabot rewriting package.json ranges, and the wildcard `ignore` rule
-# states the intent for anything that would otherwise resolve in range.
-# Security updates are a separate path and still land regardless.
+# Dependabot reads this config from the default branch, which is main, so an
+# edit here only takes effect once it reaches main. Do not flip `target-branch`
+# on a live block: retargeting orphans-and-closes any open PR.
+#
+# Majors on the version-update blocks are held two ways.
+# `versioning-strategy: lockfile-only` stops Dependabot rewriting package.json
+# ranges, and the wildcard `ignore` rule states the intent for anything that
+# would otherwise resolve in range.
 #
 # The Playwright family (@playwright/*, playwright, playwright-core) is
 # exact-pinned to the version dotfiles provisions into
@@ -34,7 +45,7 @@ updates:
     cooldown:
       default-days: 7
     target-branch: dev
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     versioning-strategy: lockfile-only
     reviewers:
       - brettdavies
@@ -53,6 +64,24 @@ updates:
       - dependency-name: 'playwright'
       - dependency-name: 'playwright-core'
 
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Chicago
+    open-pull-requests-limit: 0
+    labels:
+      - dependencies
+      - security
+    groups:
+      npm-security-minor-patch:
+        applies-to: security-updates
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -69,6 +98,13 @@ updates:
     labels:
       - dependencies
       - github-actions
+    groups:
+      # `patterns` rather than `update-types`: the ignore rule below already
+      # drops majors, so `*` is exactly minor + patch and does not depend on
+      # Dependabot inferring a SemVer level from a SHA pin's trailing comment.
+      actions-minor-patch:
+        patterns:
+          - '*'
     ignore:
       - dependency-name: '*'
         update-types:
