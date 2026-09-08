@@ -249,7 +249,7 @@ gate_github_dir() {
     gate_pass ".github/ identical on $BASE_REF and $HEAD_REF"
     return
   fi
-  gate_fail ".github/ differs between $BASE_REF and $HEAD_REF" "$(printf '%s' "$diff" | wc -l | tr -d ' ') paths"
+  gate_fail ".github/ differs between $BASE_REF and $HEAD_REF" "$(printf '%s\n' "$diff" | wc -l | tr -d ' ') paths"
   printf '%s\n' "$diff" | sed 's/^/    /'
 }
 
