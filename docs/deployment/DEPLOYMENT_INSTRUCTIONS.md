@@ -72,8 +72,8 @@ Wrangler provisions the DNS records and TLS certificates on first production dep
 
 ## Deploying
 
-Deploy from `main` after a release has merged; cutting one is covered in
-[`RELEASE_INSTRUCTIONS.md`](RELEASE_INSTRUCTIONS.md). Install with `npm ci` first so the bundle matches the lockfile.
+Deploy from `main` after a release has merged; cutting one is covered in [`RELEASES.md`](../../RELEASES.md).
+Install with `npm ci` first so the bundle matches the lockfile.
 
 The web bundle bakes `VITE_API_BASE_URL` at build time, so each environment has its own build-and-deploy script.
 

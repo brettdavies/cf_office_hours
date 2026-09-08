@@ -1,0 +1,21 @@
+# Caller for the centralized guard-release-branch reusable workflow.
+# Rejects PRs to main whose head branch does not start with `release/`, which
+# keeps `dev` off the list of PR heads so deleteBranchOnMerge can never remove
+# it. Dependabot security updates (the `dependabot[bot]` actor on a
+# `dependabot/` head) are exempt inside the reusable, since they target the
+# default branch and cannot be retargeted.
+#
+# The job key must be `guard-release` so the status check context is
+# `guard-release / check-release-branch-name`.
+name: Guard release branch pattern
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  guard-release:
+    uses: brettdavies/.github/.github/workflows/guard-release-branch.yml@main

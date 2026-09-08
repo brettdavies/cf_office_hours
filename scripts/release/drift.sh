@@ -16,15 +16,20 @@
 #   --base REF          Integration branch (default: origin/dev)
 #   --head REF          Release base (default: origin/main)
 #   --since REF         Anchor for "commits on head since the last release".
-#                       Default, in order: the newest v* tag reachable from
-#                       head; the newest head commit whose subject reads
-#                       "release vX.Y.Z"; the merge base of the two refs.
+#                       Default, in order: the newest release tag reachable
+#                       from head (vX.Y.Z or a bare CalVer YYYY.MM.DD[.N]);
+#                       the newest head commit whose subject starts with
+#                       "release:" or "release v"; the merge base of the two
+#                       refs.
 #   --no-fetch          Skip `git fetch origin` (default: fetch when a ref
 #                       starts with origin/)
 #   --result-file PATH  Write "<pass> <fail> <skip>" to PATH at exit for
 #                       _lib.sh's delegate_to_subscript; suppresses the summary
 #
 # Gates:
+#   0. The anchor release itself reached base: the version carriers and
+#      CHANGELOG.md at the anchor match base's copies (a release whose
+#      backport never ran is invisible to gate 1, which only looks past it).
 #   1. Every commit on head since the anchor, and every file those commits
 #      touched that base does not already contain. A file base has moved
 #      further on its own is not drift: head's change (anchor to head) is
@@ -32,7 +37,8 @@
 #      line (every added line present, every removed line gone). Lockfiles
 #      are handled by gate 3.
 #   2. .github/ matches exactly between base and head.
-#   3. For each lockfile head carries (package-lock.json, Cargo.lock): every
+#   3. For each lockfile head carries (package-lock.json, bun.lock,
+#      Cargo.lock): every
 #      package head resolves newer than base, one line per package name so
 #      nested copies and hoisting moves never show. The count of base-newer
 #      packages (routine updates awaiting release) is reported for context.
@@ -42,9 +48,10 @@
 #   1 = drift found (see the failed gates)
 #   2 = setup error (missing dependency, unknown ref)
 #
-# Dependencies: git, diff, jq or jaq (for package-lock.json), sort -V, join.
+# Dependencies: git, diff, perl, jq or jaq (for package-lock.json and bun.lock), sort -V, join.
 set -euo pipefail
 
+# shellcheck disable=SC1091  # sibling _lib.sh, always vendored alongside
 . "$(dirname "$0")/_lib.sh"
 
 # Argument parsing -----------------------------------------------------------
@@ -100,7 +107,8 @@ elif have_bin jaq; then
 fi
 readonly JQ_BIN
 
-readonly LOCKFILE_PATTERN='(^|/)(package-lock\.json|Cargo\.lock)$'
+readonly LOCKFILE_PATTERN='(^|/)(package-lock\.json|bun\.lock|Cargo\.lock)$'
+readonly VERSION_CARRIERS='Cargo.toml package.json pyproject.toml VERSION CHANGELOG.md'
 
 # Setup ----------------------------------------------------------------------
 
@@ -130,13 +138,15 @@ resolve_anchor() {
     ANCHOR_HOW="--since $SINCE_REF"
     return
   fi
-  if tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$HEAD_REF" 2>/dev/null); then
+  if tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --match '[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]*' "$HEAD_REF" 2>/dev/null); then
     ANCHOR=$(git rev-parse "$tag^{commit}")
     ANCHOR_HOW="tag $tag"
     return
   fi
-  subject_commit=$(git log -1 --format=%H --extended-regexp \
-    --grep='release v?[0-9]+\.[0-9]+\.[0-9]+' "$HEAD_REF" 2>/dev/null || true)
+  # `git log --grep` searches the whole message, so a body that quotes a
+  # release line would match; filter on the subject line itself.
+  subject_commit=$(git log --format='%H %s' "$HEAD_REF" 2>/dev/null \
+    | grep -E -m1 '^[0-9a-f]+ release(: | v?[0-9])' | cut -d' ' -f1 || true)
   if [[ -n "$subject_commit" ]]; then
     ANCHOR="$subject_commit"
     ANCHOR_HOW="release commit $(git log -1 --format='%h %s' "$subject_commit")"
@@ -144,6 +154,47 @@ resolve_anchor() {
   fi
   ANCHOR=$(git merge-base "$BASE_REF" "$HEAD_REF")
   ANCHOR_HOW="merge base $(git rev-parse --short "$ANCHOR")"
+}
+
+# Gate 0: the anchor release reached base ------------------------------------
+#
+# Gate 1 only looks past the anchor, so a release whose backport never ran
+# is invisible to it. Compare the version carriers and CHANGELOG.md at the
+# anchor against base: base must already hold every change the release made
+# to them (three-way containment, same as gate 1), or the next overlay cut
+# reverts the release's own bookkeeping.
+
+gate_anchor_backported() {
+  header "Anchor release backported to $BASE_REF"
+  local path verdict head_blob prev
+  local -a flagged=()
+  if [[ "$ANCHOR" == "$(git merge-base "$BASE_REF" "$HEAD_REF")" ]]; then
+    gate_skip "anchor bookkeeping" "anchor is the merge base; nothing to compare"
+    return
+  fi
+  prev=$(git rev-parse --verify --quiet "$ANCHOR^" || true)
+  for path in $VERSION_CARRIERS; do
+    head_blob=$(blob_at "$ANCHOR" "$path")
+    [[ -n "$head_blob" ]] || continue
+    [[ -n "$prev" && "$(blob_at "$prev" "$path")" == "$head_blob" ]] && continue
+    if [[ -z "$prev" || -z "$(blob_at "$prev" "$path")" ]]; then
+      # The anchor release created this file, so there is no change to
+      # contain; base only has to carry the file. Base may since have moved
+      # it on (a routine bump), which is not drift.
+      [[ -n "$(blob_at "$BASE_REF" "$path")" ]] || flagged+=("missing $path")
+      continue
+    fi
+    verdict=$(classify_file_at "$ANCHOR" "$prev" "$path")
+    [[ "$verdict" == contained ]] || flagged+=("$verdict $path")
+  done
+  if [[ ${#flagged[@]} -eq 0 ]]; then
+    gate_pass "$BASE_REF carries the $ANCHOR_HOW bookkeeping"
+    return
+  fi
+  gate_fail "$BASE_REF lacks the $ANCHOR_HOW bookkeeping" "${#flagged[@]} files; run scripts/sync-dev-after-release.sh"
+  for path in "${flagged[@]}"; do
+    printf '    %-9s %s\n' "${path%% *}" "${path#* }"
+  done
 }
 
 # Gate 1: commits on head since the anchor and the files they touched -------
@@ -162,10 +213,17 @@ blob_at() {
 # must be gone from it. Lines that are only punctuation are ignored, since
 # they repeat throughout a file.
 classify_file() {
-  local path="$1" anchor_blob head_blob base_blob tmp merged status
-  head_blob=$(blob_at "$HEAD_REF" "$path")
+  classify_file_at "$HEAD_REF" "$ANCHOR" "$1"
+}
+
+# Same as classify_file, for an explicit head ref and anchor ref (an empty
+# anchor means "no prior state", so any difference from base is drift).
+classify_file_at() {
+  local head_ref="$1" anchor_ref="$2" path="$3" anchor_blob head_blob base_blob tmp merged status
+  head_blob=$(blob_at "$head_ref" "$path")
   base_blob=$(blob_at "$BASE_REF" "$path")
-  anchor_blob=$(blob_at "$ANCHOR" "$path")
+  anchor_blob=""
+  [[ -n "$anchor_ref" ]] && anchor_blob=$(blob_at "$anchor_ref" "$path")
   if [[ -z "$base_blob" ]]; then
     echo missing
     return
@@ -249,7 +307,7 @@ gate_github_dir() {
     gate_pass ".github/ identical on $BASE_REF and $HEAD_REF"
     return
   fi
-  gate_fail ".github/ differs between $BASE_REF and $HEAD_REF" "$(printf '%s' "$diff" | wc -l | tr -d ' ') paths"
+  gate_fail ".github/ differs between $BASE_REF and $HEAD_REF" "$(printf '%s\n' "$diff" | wc -l | tr -d ' ') paths"
   printf '%s\n' "$diff" | sed 's/^/    /'
 }
 
@@ -267,6 +325,18 @@ lockfile_versions() {
         | select(.value.version != null)
         | "\(.key | sub(".*node_modules/"; "")) \(.value.version) \(if .value.dev then "dev" else "runtime" end)"'
       ;;
+    *bun.lock)
+      # Each entry is `name: ["name@version", ...]`; the first element carries
+      # the resolved version. Everything is "dev" or "runtime" by workspace
+      # section, which the entry does not record, so scope is unknown.
+      # Bun writes trailing commas, which jq and jaq reject; strip them
+      # before parsing.
+      # shellcheck disable=SC2016
+      git show "$ref:$path" | perl -0pe 's/,(\s*[}\]])/$1/g' | "$JQ_BIN" -r '.packages | to_entries[]
+        | select(.value[0] | type == "string")
+        | (.value[0] | capture("^(?<name>@?[^@]+)@(?<ver>[^@]+)$")) as $m
+        | "\($m.name) \($m.ver) pkg"'
+      ;;
     *Cargo.lock)
       git show "$ref:$path" | awk -F'"' '
         /^name = /    { name = $2 }
@@ -283,7 +353,7 @@ compare_lockfile() {
     gate_skip "$path" "not present on $BASE_REF"
     return
   fi
-  if [[ "$path" == *package-lock.json && -z "$JQ_BIN" ]]; then
+  if [[ "$path" != *Cargo.lock && -z "$JQ_BIN" ]]; then
     gate_skip "$path" "needs jq or jaq"
     return
   fi
@@ -298,6 +368,11 @@ compare_lockfile() {
       base_newer=$((base_newer + 1))
     fi
   done < <(join <(lockfile_versions "$BASE_REF" "$path") <(lockfile_versions "$HEAD_REF" "$path"))
+  if [[ $head_newer -eq 0 && $base_newer -eq 0 ]] \
+    && [[ -z "$(lockfile_versions "$HEAD_REF" "$path" 2>/dev/null | head -1)" ]]; then
+    gate_fail "$path" "parsed zero packages on $HEAD_REF; the lockfile format is not understood"
+    return
+  fi
   if [[ $head_newer -eq 0 ]]; then
     gate_pass "$path: nothing newer on $HEAD_REF ($base_newer packages newer on $BASE_REF, awaiting release)"
     return
@@ -311,7 +386,7 @@ gate_lockfiles() {
   local paths path
   paths=$(git ls-tree -r --name-only "$HEAD_REF" | grep -E "$LOCKFILE_PATTERN" || true)
   if [[ -z "$paths" ]]; then
-    gate_skip "lockfiles" "no package-lock.json or Cargo.lock on $HEAD_REF"
+    gate_skip "lockfiles" "no package-lock.json, bun.lock, or Cargo.lock on $HEAD_REF"
     return
   fi
   while IFS= read -r path; do
@@ -326,6 +401,7 @@ main() {
   require_ref "$BASE_REF"
   require_ref "$HEAD_REF"
   resolve_anchor
+  gate_anchor_backported
   gate_head_commits
   gate_github_dir
   gate_lockfiles

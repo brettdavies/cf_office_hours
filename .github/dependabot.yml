@@ -51,6 +51,7 @@ updates:
       - brettdavies
     labels:
       - dependencies
+      - javascript
     groups:
       npm-minor-patch:
         update-types:
