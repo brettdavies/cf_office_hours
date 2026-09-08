@@ -14,6 +14,7 @@ truth — each topic has one authoritative home, and other docs link to it rathe
 | Architecture (sharded)           | [`docs/architecture/index.md`](architecture/index.md)                                             |
 | Matching system deep-dive        | [`docs/architecture/matching-cache-architecture.md`](architecture/matching-cache-architecture.md) |
 | Matching engine authoring        | [`apps/api/src/providers/matching/README.md`](../apps/api/src/providers/matching/README.md)       |
+| Release runbook                  | [`docs/deployment/RELEASE_INSTRUCTIONS.md`](deployment/RELEASE_INSTRUCTIONS.md)                   |
 | Deploy runbook                   | [`docs/deployment/DEPLOYMENT_INSTRUCTIONS.md`](deployment/DEPLOYMENT_INSTRUCTIONS.md)             |
 | Production launch checklist      | [`docs/deployment/production-launch-checklist.md`](deployment/production-launch-checklist.md)     |
 | Troubleshooting                  | [`docs/TROUBLESHOOTING.md`](TROUBLESHOOTING.md)                                                   |
