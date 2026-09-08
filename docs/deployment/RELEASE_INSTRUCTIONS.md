@@ -20,25 +20,28 @@ this before cutting the branch, every time.
 ```bash
 git fetch origin
 
-# 1. Every file that differs outside docs/. Expect only routine dev-ahead changes.
+# 1. Every file that differs outside docs/. Expect manifests and the lockfile (routine dev-ahead
+#    updates) and nothing under .github/.
 git diff --name-status origin/dev origin/main -- . ':!docs/'
 
-# 2. Every package whose resolved version differs between the two lockfiles.
-#    Lines starting with > are main's side. runtime = ships in the Workers; dev = build and deploy tooling.
-diff \
-  <(git show origin/dev:package-lock.json  | jq -r '.packages | to_entries[] | "\(.key) \(.value.version) \(if .value.dev then "dev" else "runtime" end)"' | sort) \
-  <(git show origin/main:package-lock.json | jq -r '.packages | to_entries[] | "\(.key) \(.value.version) \(if .value.dev then "dev" else "runtime" end)"' | sort)
+# 2. Every package that main resolves newer than dev, one line per package name.
+#    Exits 1 while any exist, so it doubles as a gate.
+scripts/release-drift.sh
 ```
 
-Read the output this way:
+The script collapses the lockfile to one entry per package name, so nested copies and hoisting moves do not appear.
+Each line is tagged `runtime` (ships in the Workers) or `dev` (build and deploy tooling). Read the output this way:
 
-- A package where `main` resolves a newer version than `dev` is a security fix that has not been backported. Carry it
-  into `dev` first: open a backport PR with the manifest and lockfile changes, merge it, and rerun the diff.
-- A package where `dev` is newer is a routine weekly update that has not been released yet. That is expected.
-- `.github/dependabot.yml` and anything under `.github/workflows/` should match exactly. A difference there means a
-  config change merged to `main` and was not backported.
+- A package where `main` is newer is a fix that arrived through a security PR and has not been backported. Carry it
+  into `dev` first: open a backport PR with the manifest and lockfile changes, merge it, and rerun the script.
+- The count of packages where `dev` is newer is the routine weekly updates waiting for this release. That is expected
+  and the script does not list them.
+- A `main`-newer line whose version is younger than seven days is the local npm `min-release-age` holding `dev` one
+  step behind a security PR, which has no cooldown. Check the advisory's patched version; if `dev` already meets it,
+  the line can be waited out.
+- Any file under `.github/` in step 1 means a config change merged to `main` and was not backported.
 
-Do not cut the release branch while step 2 shows a `main`-only newer version.
+Do not cut the release branch while the script exits 1 for a reason other than the release-age window.
 
 ## Cutting the release branch
 
@@ -73,6 +76,6 @@ Commit as one commit on top of `main`, push, and open the PR into `main` with a 
 ## After the merge
 
 1. Backport to `dev`: a `chore: sync version to X.Y.Z (backport from main)` PR carrying the version bump and any edit
-   that was made on `main` only. Rerun the preflight diff; it should show nothing `main`-only.
+   that was made on `main` only. Rerun `scripts/release-drift.sh`; it should exit 0.
 2. Deploy from `main` per [`DEPLOYMENT_INSTRUCTIONS.md`](DEPLOYMENT_INSTRUCTIONS.md): install with `npm ci` so the
    bundle matches the lockfile, staging first, then production.
