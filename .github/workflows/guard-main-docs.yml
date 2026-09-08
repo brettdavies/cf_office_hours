@@ -18,5 +18,4 @@ jobs:
   guard-docs:
     uses: brettdavies/.github/.github/workflows/guard-main-docs.yml@main
     with:
-      extra_paths: >-
-        docs/archive/,docs/prd/,docs/qa/,docs/stories/,docs/auth-fix-summary.md,docs/sprint-change-proposal-2025-10-06.md,docs/etl-workflow-readme.md,docs/DOCUMENTATION-GUIDE.md
+      extra_paths: 'docs/archive/,docs/prd/,docs/qa/,docs/stories/,docs/auth-fix-summary.md,docs/sprint-change-proposal-2025-10-06.md,docs/etl-workflow-readme.md,docs/DOCUMENTATION-GUIDE.md'
