@@ -24,13 +24,16 @@ git fetch origin
 #    updates) and nothing under .github/.
 git diff --name-status origin/dev origin/main -- . ':!docs/'
 
-# 2. Every package that main resolves newer than dev, one line per package name.
-#    Exits 1 while any exist, so it doubles as a gate.
-scripts/release-drift.sh
+# 2. What main carries that dev never received, in three gates. Exits 1 while any exist,
+#    so it doubles as a gate.
+scripts/release/drift.sh
 ```
 
-The script collapses the lockfile to one entry per package name, so nested copies and hoisting moves do not appear.
-Each line is tagged `runtime` (ships in the Workers) or `dev` (build and deploy tooling). Read the output this way:
+The script is vendored verbatim from the github-repo-setup skill. Gate 1 lists every commit on `main` since the last
+release and flags files whose change `dev` does not contain. Gate 2 requires `.github/` to match on both branches.
+Gate 3 collapses each lockfile to one entry per package name, so nested copies and hoisting moves do not appear, and
+lists only what `main` resolves newer; each line is tagged `runtime` (ships in the Workers) or `dev` (build and deploy
+tooling). Read the output this way:
 
 - A package where `main` is newer is a fix that arrived through a security PR and has not been backported. Carry it
   into `dev` first: open a backport PR with the manifest and lockfile changes, merge it, and rerun the script.
@@ -50,11 +53,12 @@ git switch -c release/vX.Y.Z origin/main
 git checkout origin/dev -- .
 ```
 
-Then drop the `dev`-only documentation that the `guard-main-docs` check blocks on `main`: every path listed in
-`extra_paths` in `.github/workflows/guard-main-docs.yml` plus the reusable workflow's base list. Use `trash`, then stage
-everything:
+Then drop the `dev`-only documentation that the `guard-main-docs` check blocks on `main`. The set resolves from
+`.github/workflows/guard-main-docs.yml` through the vendored script, so a path registered there is never missed here:
 
 ```bash
+GUARDED="$(scripts/release/guarded-paths.sh)"
+git ls-files | grep -E "$GUARDED" | xargs -r trash
 git add -A
 npm version X.Y.Z --no-git-tag-version --workspaces --include-workspace-root
 npm install --package-lock-only
@@ -76,6 +80,6 @@ Commit as one commit on top of `main`, push, and open the PR into `main` with a 
 ## After the merge
 
 1. Backport to `dev`: a `chore: sync version to X.Y.Z (backport from main)` PR carrying the version bump and any edit
-   that was made on `main` only. Rerun `scripts/release-drift.sh`; it should exit 0.
+   that was made on `main` only. Rerun `scripts/release/drift.sh`; it should exit 0.
 2. Deploy from `main` per [`DEPLOYMENT_INSTRUCTIONS.md`](DEPLOYMENT_INSTRUCTIONS.md): install with `npm ci` so the
    bundle matches the lockfile, staging first, then production.
