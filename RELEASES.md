@@ -326,7 +326,9 @@ The repo carries no tags: earlier releases were PRs to `main` titled `<type>: re
 `generate-changelog.py --from-dev-prs` and `scripts/release/drift.sh` anchor their window on the newest `v*` tag, and
 without one the changelog window opens at the first PR ever merged into `dev`. Before cutting the first overlay release,
 tag the most recent release commit on `main` (`git log --oneline origin/main | grep 'release v'`) with an annotated tag
-and push it, so the window starts there.
+and push it, so the window starts there. Until that tag exists, pass the release commit to the drift gate explicitly
+(`scripts/release/drift.sh --since <sha>`): its tag-less fallback searches every line of each `main` commit message for
+`release:`, which Dependabot bodies quoting upstream release notes also contain, so it anchors on a dependency bump.
 
 ## Related docs
 
