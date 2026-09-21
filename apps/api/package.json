@@ -24,7 +24,7 @@
     "date-fns": "^4.4.0",
     "hono": "^4.13.7",
     "jose": "^6.2.12",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
