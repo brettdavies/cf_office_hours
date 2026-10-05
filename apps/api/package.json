@@ -22,7 +22,7 @@
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^1.6.3",
     "date-fns": "^4.4.0",
-    "hono": "^4.13.8",
+    "hono": "^4.13.10",
     "jose": "^6.2.12",
     "zod": "^4.6.5"
   },
