@@ -17,7 +17,7 @@
     "./utils/*": "./src/utils/*.ts"
   },
   "dependencies": {
-    "zod": "^4.6.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cf-office-hours/config": "*",
